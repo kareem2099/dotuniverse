@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FreeRave — Dev Tools Ecosystem</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="badge">FreeRave · dev tools ecosystem</div>
+    <h1 data-text="dotUniverse">
+      <span class="dot">dot</span><span class="name">universe</span>
+    </h1>
+    <p class="subtitle">
+      Every tool I've built — CLI utilities, VS Code extensions, web apps.<br>
+      All open-source. All with a purpose.
+    </p>
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-num">20+</div>
+        <div class="stat-label">Tools Built</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2,036</div>
+        <div class="stat-label">dev.to Followers</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">4,510</div>
+        <div class="stat-label">Extension Downloads</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">51</div>
+        <div class="stat-label">Posts</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- LAST UPDATED STRIP -->
+  <div class="updated-strip">
+    <span class="dot-pulse"></span>
+    Last updated:&nbsp;<span class="ts" id="lastUpdated">—</span>
+  </div>
+
+  <!-- MARCH BANNER -->
+  <div class="march-banner">
+    <div class="march-stats">
+      <div>
+        <span class="march-stat-num">42</span>
+        <span class="march-stat-label">Reactions</span>
+        <span class="march-diff">+42 this month</span>
+      </div>
+      <div>
+        <span class="march-stat-num">16</span>
+        <span class="march-stat-label">Comments</span>
+        <span class="march-diff">+16 this month</span>
+      </div>
+      <div>
+        <span class="march-stat-num">3,083</span>
+        <span class="march-stat-label">Post Views</span>
+        <span class="march-diff">dev.to cumulative</span>
+      </div>
+      <div>
+        <span class="march-stat-num">51</span>
+        <span class="march-stat-label">Posts Published</span>
+        <span class="march-diff">all time</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOOLS -->
+  <div class="section-title">// all tools</div>
+  <div class="tools-grid">
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Downloader</span></div>
+        <span class="tool-tag tag-bot">Telegram Bot</span>
+      </div>
+      <p class="tool-desc">Comprehensive media downloader bot for Instagram, Facebook, TikTok, YouTube, Reddit, Pinterest, X & Spotify. Features referral system, payment gateway, premium tiers, admin panel & REST API. Built with Python.</p>
+      <a href="https://github.com/kareem2099/DotDownloader" class="tool-link" target="_blank">github.com/kareem2099/DotDownloader</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">envy</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">VS Code environment manager with Git branch auto-switching, AI-powered secret detection (35-feature ML model), Doppler cloud sync, encrypted backups & pre-commit hooks. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/dotenvy" class="tool-link" target="_blank">github.com/kareem2099/dotenvy</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Formate</span></div>
+        <span class="tool-tag tag-bot">Telegram Bot</span>
+      </div>
+      <p class="tool-desc">Powerful file format conversion Telegram bot. PDF, DOCX, PPTX, images & OCR. Features premium subscriptions, referral system, PayPal integration & R2 cloud storage. Built with Python.</p>
+      <a href="https://github.com/kareem2099/DotFormate" class="tool-link" target="_blank">github.com/kareem2099/DotFormate</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Scramble</span></div>
+        <span class="tool-tag tag-cli">CLI</span>
+      </div>
+      <p class="tool-desc">Advanced image privacy studio. Face/license plate/text detection, 8 blur effects, batch processing, RTL Arabic support, presets & real-time preview. Standalone executables for Win/Linux/Mac.</p>
+      <a href="https://github.com/kareem2099/DotScramble" class="tool-link" target="_blank">github.com/kareem2099/DotScramble</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">sense</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">AI-powered developer wellness extension. ML mood detection (6 emotional states), burnout prevention, peak performance analytics, smart break reminders & exercise library. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/dotsense" class="tool-link" target="_blank">github.com/kareem2099/dotsense</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">GhostBoard</span></div>
+        <span class="tool-tag tag-cli">CLI</span>
+      </div>
+      <p class="tool-desc">Advanced Linux clipboard manager. Text/image/video capture, AES-256 encryption, tag system, collections, drag & drop, thumbnail previews & master password lock. PyQt6 + SQLite.</p>
+      <a href="https://github.com/kareem2099/DotGhostBoard" class="tool-link" target="_blank">github.com/kareem2099/DotGhostBoard</a>
+      <a href="https://www.opendesktop.org/p/2353623/" class="tool-link" target="_blank">openDesktop</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">command</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">Intelligent command manager with ML-based suggestions, analytics dashboard (Chart.js), visual rule builder, 180+ prepared commands across 20 categories & package intelligence. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/dotcommand" class="tool-link" target="_blank">github.com/kareem2099/dotcommand</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Share</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">Share your code journey from VS Code to 8 social platforms (LinkedIn, Telegram, X, Facebook, Discord, Reddit, BlueSky). AI-powered content creation with Gemini, GPT-4 & Claude. Smart hashtag engine & scheduling.</p>
+      <a href="https://github.com/kareem2099/DotShare" class="tool-link" target="_blank">github.com/kareem2099/DotShare</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Fetch</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">Professional HTTP client for VS Code. Full HTTP methods, .env variable support with live substitution, collections, cURL import/export & environment tree view. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/DotFetch" class="tool-link" target="_blank">github.com/kareem2099/DotFetch</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Share_Key</span></div>
+        <span class="tool-tag tag-bot">Telegram Bot</span>
+      </div>
+      <p class="tool-desc">Secure OAuth toolkit with Telegram bot interface. Magic link authentication, data masking, session management, user analytics & admin tools. Supports LinkedIn & Reddit OAuth. Python + MongoDB. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/DotShare_Key" class="tool-link" target="_blank">github.com/kareem2099/DotShare_Key</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">suite</span></div>
+        <span class="tool-tag tag-lib">Suite</span>
+      </div>
+      <p class="tool-desc">Portfolio & distribution platform for developer tools. Next.js 16 + TypeScript + MongoDB. Auth, multi-language (EN/AR/FR/DE/RU), GitHub webhooks, product reviews & ratings, toast notifications & live README rendering.</p>
+      <a href="https://github.com/kareem2099/dotsuite" class="tool-link" target="_blank">github.com/kareem2099/dotsuite</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Readme</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">README optimizer for VS Code. Real-time simulator (GitHub/Marketplace/Open VSX), quality audit (A+-F score), one-click path fixer, badge inserter, TOC generator & AI-powered enhancement (Claude/GPT/Gemini BYOK).</p>
+      <a href="https://github.com/kareem2099/DotReadme" class="tool-link" target="_blank">github.com/kareem2099/DotReadme</a>
+    </div>
+
+    <div class="tool-card" style="border-left:3px solid var(--coming);">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">ctl</span></div>
+        <span class="tool-tag tag-soon">Premium</span>
+      </div>
+      <p class="tool-desc">For network security experts. Advanced traffic control: ARP spoofing, bandwidth limiting, DNS spoofing, content injection, stealth & evasion, DPI & ML traffic analysis. Python + Scapy. Private — invite only.</p>
+      <span class="coming-label">// private · invite only</span>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Reminder</span></div>
+        <span class="tool-tag tag-mobile">Mobile App</span>
+      </div>
+      <p class="tool-desc">Feature-rich Android reminder app. Time/location-based reminders, AI assistant (Gemini 2.5 Flash), custom categories, biometric auth, 2FA, session management & home screen widgets. Kotlin + Jetpack Compose + Firebase.</p>
+      <a href="https://play.google.com/store/apps/details?id=com.FreeRave.remindme&hl=en" class="tool-link" target="_blank">Google Play Store</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">dot</span><span class="suffix">convert</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">Data converter for VS Code. Base64 encode/decode, XML↔JSON, CSV↔JSON conversions — right-click or Command Palette. Source code available, VS Marketplace & Open VSX coming soon.</p>
+      <a href="https://github.com/kareem2099/dotconvert" class="tool-link" target="_blank">github.com/kareem2099/dotconvert</a>
+      <span class="coming-label">// marketplace soon</span>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Burn</span></div>
+        <span class="tool-tag tag-mobile">Mobile App</span>
+      </div>
+      <p class="tool-desc">Write & burn ISOs to USB drives from your phone. Simple. Fast. Reliable.</p>
+      <a href="https://github.com/kareem2099/DotBurn" class="tool-link" target="_blank">github.com/kareem2099/DotBurn</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Code</span><span class="suffix">Tune</span></div>
+        <span class="tool-tag tag-vscode">VS Code</span>
+      </div>
+      <p class="tool-desc">Islamic spiritual environment for VS Code. Quran player (15+ reciters), prayer times with Fajr-based day tracking, smart focus mode, spiritual progress dashboard, Dhikr counters & 500+ authentic Adhkar. MIT licensed.</p>
+      <a href="https://github.com/kareem2099/codetune" class="tool-link" target="_blank">github.com/kareem2099/codetune</a>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">DOT</span><span class="suffix">Shredzilla</span></div>
+        <span class="tool-tag tag-mobile">Mobile App</span>
+      </div>
+      <p class="tool-desc">High-performance Android workout tracking app. Offline-first, crash-resistant, Firebase-synced. Built with Kotlin & Jetpack Compose.</p>
+      <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla&hl=en" class="tool-link" target="_blank">Google Play Store</a>
+    </div>
+
+    <div class="tool-card coming-soon">
+      <div class="tool-header">
+        <div class="tool-name"><span class="prefix">Dot</span><span class="suffix">Transfer</span></div>
+        <span class="tool-tag tag-soon">Coming Soon</span>
+      </div>
+      <p class="tool-desc">Transfer files between workspaces directly inside VS Code. Still in early dev — big things coming.</p>
+      <span class="coming-label">// in development</span>
+    </div>
+
+  </div>
+
+  <!-- VS CODE EXTENSIONS -->
+  <div class="section-title">// vs code extensions</div>
+  <div class="ext-grid">
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Code</span><span class="suffix">Tune</span></div>
+        <span class="ext-version">v1.2.1</span>
+      </div>
+      <p class="ext-desc">Islamic date tracking &amp; audio sync. Pray on time, code in flow.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">328 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/codetune" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">500 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">dot</span><span class="suffix">command</span></div>
+        <span class="ext-version">v2.0.1</span>
+      </div>
+      <p class="ext-desc">Visual UI for JSON configs inside VS Code. No more raw JSON editing.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotcommand" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">408 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/dotcommand" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">418 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Dot</span><span class="suffix">Envy</span></div>
+        <span class="ext-version">v1.6.0</span>
+      </div>
+      <p class="ext-desc">Manage and switch .env files instantly. No more manual copying.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">319 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">429 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Dot</span><span class="suffix">Share</span></div>
+        <span class="ext-version">v2.4.1</span>
+      </div>
+      <p class="ext-desc">Peer-to-peer file sharing directly inside VS Code.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">289 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">629 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Dot</span><span class="suffix">Fetch</span></div>
+        <span class="ext-version">v1.2.0</span>
+      </div>
+      <p class="ext-desc">Fetch & download remote resources from the terminal with extended options.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotfetch" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">120 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/dotfetch" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">526 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Dot</span><span class="suffix">Readme</span></div>
+        <span class="ext-version">v1.1.0</span>
+      </div>
+      <p class="ext-desc">Auto-generate beautiful README files from inside VS Code.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotreadme" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">80 installs</span></span>
+        </a>
+        <a href="https://open-vsx.org/extension/freerave/dotreadme" target="_blank" class="store-badge ovsx">
+          <span class="store-icon">🟣</span>
+          <span class="store-info"><span class="store-name">Open VSX</span><span class="store-dl">367 downloads</span></span>
+        </a>
+      </div>
+    </div>
+
+    <div class="ext-card">
+      <div class="ext-header">
+        <div class="ext-name"><span class="prefix">Dot</span><span class="suffix">Sense</span></div>
+        <span class="ext-version">v1.3.0</span>
+      </div>
+      <p class="ext-desc">System monitoring from inside VS Code. Know what's running on your machine.</p>
+      <div class="ext-stores">
+        <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotsense" target="_blank" class="store-badge vs">
+          <span class="store-icon">⬛</span>
+          <span class="store-info"><span class="store-name">VS Marketplace</span><span class="store-dl">97 installs</span></span>
+        </a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TOTAL DOWNLOADS BANNER -->
+  <div class="dl-banner">
+    <div class="dl-total-wrap">
+      <span class="dl-label">Total VS Code Extension Downloads</span>
+      <span class="dl-total stat-num">4,510</span>
+      <span class="dl-sublabel">across VS Marketplace + Open VSX</span>
+    </div>
+  </div>
+
+  <!-- APRIL CHALLENGE -->
+  <div class="section-title">// april challenge 🎯</div>
+  <div class="challenge-banner">
+    <div class="challenge-header">
+      <span class="challenge-badge">APRIL 2026</span>
+      <h2 class="challenge-title">Growth Challenge</h2>
+      <p class="challenge-sub">Can we hit these numbers by April 30th?</p>
+    </div>
+
+    <!-- data-now & data-goal drive JS bar calculation -->
+    <div class="challenge-grid" id="challengeGrid">
+
+      <div class="challenge-row" data-now="2036" data-goal="2500" data-color="#00e5ff">
+        <div class="challenge-platform"><span class="ch-icon">📝</span><span class="ch-name">dev.to</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">2,036</span><span class="arrow">→</span><span class="goal">2,500</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+464</div>
+      </div>
+
+      <div class="challenge-row" data-now="363" data-goal="500" data-color="#39ff14">
+        <div class="challenge-platform"><span class="ch-icon">💼</span><span class="ch-name">LinkedIn</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">363</span><span class="arrow">→</span><span class="goal">500</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+137</div>
+      </div>
+
+      <div class="challenge-row" data-now="33" data-goal="100" data-color="#ff6b35">
+        <div class="challenge-platform"><span class="ch-icon">🎵</span><span class="ch-name">TikTok</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">33</span><span class="arrow">→</span><span class="goal">100</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+67</div>
+      </div>
+
+      <div class="challenge-row" data-now="29" data-goal="100" data-color="#ff4444">
+        <div class="challenge-platform"><span class="ch-icon">▶️</span><span class="ch-name">YouTube</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">29</span><span class="arrow">→</span><span class="goal">100</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+71</div>
+      </div>
+
+      <div class="challenge-row" data-now="2" data-goal="50" data-color="#aaaaaa">
+        <div class="challenge-platform"><span class="ch-icon">✍️</span><span class="ch-name">Medium</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">2</span><span class="arrow">→</span><span class="goal">50</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+48</div>
+      </div>
+
+      <div class="challenge-row" data-now="13" data-goal="50" data-color="#4f9eff">
+        <div class="challenge-platform"><span class="ch-icon">📘</span><span class="ch-name">Facebook</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">13</span><span class="arrow">→</span><span class="goal">50</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+37</div>
+      </div>
+
+      <div class="challenge-row" data-now="5" data-goal="50" data-color="#ff69b4">
+        <div class="challenge-platform"><span class="ch-icon">📸</span><span class="ch-name">Instagram</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">5</span><span class="arrow">→</span><span class="goal">50</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+45</div>
+      </div>
+
+      <div class="challenge-row" data-now="14" data-goal="50" data-color="#ffffff">
+        <div class="challenge-platform"><span class="ch-icon">𝕏</span><span class="ch-name">X</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">14</span><span class="arrow">→</span><span class="goal">50</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+36</div>
+      </div>
+
+      <div class="challenge-row" data-now="10" data-goal="50" data-color="#00aaff">
+        <div class="challenge-platform"><span class="ch-icon">🦋</span><span class="ch-name">Bluesky</span></div>
+        <div class="challenge-bar-wrap">
+          <div class="challenge-bar"><span class="bar-fill"></span></div>
+          <div class="challenge-nums">
+            <span class="now">10</span><span class="arrow">→</span><span class="goal">50</span>
+            <span class="pct-badge"></span>
+          </div>
+        </div>
+        <div class="challenge-delta">+40</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- PLATFORMS -->
+  <div class="section-title">// find me on</div>
+  <div class="platforms-grid">
+    <a class="platform-card" href="https://dev.to/freerave" target="_blank">
+      <div class="platform-icon">📝</div>
+      <div class="platform-name">dev.to</div>
+      <div class="platform-count">2,036</div>
+    </a>
+    <a class="platform-card" href="https://www.linkedin.com/in/freerave/" target="_blank">
+      <div class="platform-icon">💼</div>
+      <div class="platform-name">LinkedIn</div>
+      <div class="platform-count">363</div>
+    </a>
+    <a class="platform-card" href="https://www.tiktok.com/@dotfreerave" target="_blank">
+      <div class="platform-icon">🎵</div>
+      <div class="platform-name">TikTok</div>
+      <div class="platform-count">33</div>
+    </a>
+    <a class="platform-card" href="https://www.youtube.com/@DotFreeRave" target="_blank">
+      <div class="platform-icon">▶️</div>
+      <div class="platform-name">YouTube</div>
+      <div class="platform-count">29</div>
+    </a>
+    <a class="platform-card" href="https://medium.com/@freerave" target="_blank">
+      <div class="platform-icon">✍️</div>
+      <div class="platform-name">Medium</div>
+      <div class="platform-count">2</div>
+    </a>
+    <a class="platform-card" href="https://www.facebook.com/profile.php?id=61582297589938" target="_blank">
+      <div class="platform-icon">📘</div>
+      <div class="platform-name">Facebook</div>
+      <div class="platform-count">13</div>
+    </a>
+    <a class="platform-card" href="https://www.instagram.com/dotfreerave/" target="_blank">
+      <div class="platform-icon">📸</div>
+      <div class="platform-name">Instagram</div>
+      <div class="platform-count">5</div>
+    </a>
+    <a class="platform-card" href="https://x.com/FreeRave2" target="_blank">
+      <div class="platform-icon">𝕏</div>
+      <div class="platform-name">X / Twitter</div>
+      <div class="platform-count">14</div>
+    </a>
+    <a class="platform-card" href="https://bsky.app/profile/freerave.bsky.social" target="_blank">
+      <div class="platform-icon">🦋</div>
+      <div class="platform-name">Bluesky</div>
+      <div class="platform-count">10</div>
+    </a>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 1: COLLABORATE CTA
+  ═══════════════════════════════════════ -->
+  <div class="collab-section reveal">
+    <div class="section-title">// let's build together</div>
+    <div class="collab-banner">
+      <div class="collab-left">
+        <div class="collab-eyebrow">
+          <span class="live-dot"></span>
+          Open for Collaboration
+        </div>
+        <h2 class="collab-title">
+          Got a cool<br>
+          <span class="hl">idea?</span> Let's ship it.
+        </h2>
+        <p class="collab-desc">
+          I build open-source tools that solve real problems — CLI utilities, VS Code extensions, bots, and mobile apps. If you have a project that fits the vibe, let's talk. No pitches, no fluff. Just good dev work.
+        </p>
+        <div class="collab-tags">
+          <span class="collab-tag">Open Source</span>
+          <span class="collab-tag">VS Code Extensions</span>
+          <span class="collab-tag">Python / Kotlin</span>
+          <span class="collab-tag">Telegram Bots</span>
+          <span class="collab-tag">CLI Tools</span>
+          <span class="collab-tag">Mobile Apps</span>
+        </div>
+        <div class="collab-btns">
+          <a href="#contact" class="btn-primary">⟶ Open Terminal</a>
+          <a href="https://github.com/kareem2099" target="_blank" class="btn-secondary">⟶ GitHub Profile</a>
+        </div>
+      </div>
+      <div class="collab-right">
+        <div class="collab-stat-card">
+          <span class="collab-stat-num">20+</span>
+          <span class="collab-stat-lbl">Tools Built</span>
+        </div>
+        <div class="collab-stat-card">
+          <span class="collab-stat-num">4,510</span>
+          <span class="collab-stat-lbl">Downloads</span>
+        </div>
+        <div class="collab-stat-card">
+          <span class="collab-stat-num">MIT</span>
+          <span class="collab-stat-lbl">Licensed</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 2: TERMINAL CONTACT
+  ═══════════════════════════════════════ -->
+  <div class="terminal-section reveal" id="contact">
+    <div class="section-title">// terminal_contact.sh</div>
+    <div class="terminal-wrap">
+      <div class="terminal-topbar">
+        <div class="term-dots">
+          <span class="term-dot red"></span>
+          <span class="term-dot yel"></span>
+          <span class="term-dot grn"></span>
+        </div>
+        <span class="term-title-center">kareem@freerave ~ contact</span>
+        <div class="term-status">
+          <span class="term-status-dot"></span>
+          ONLINE
+        </div>
+      </div>
+      <div class="terminal-output" id="termOutput">
+        <span class="t-line t-info">// FreeRave Contact Terminal v1.0.0</span>
+        <span class="t-line t-dim">// Type <span class="t-cmd">help</span> to see available commands</span>
+        <span class="t-line"> </span>
+        <span class="t-line"><span class="t-prompt">FreeRave@kali:~$</span> <span class="t-cmd">help</span></span>
+        <span class="t-line t-info">  Available commands:</span>
+        <span class="t-line"> </span>
+        <span class="t-line">  <span class="t-label">contact</span>  <span class="t-val">--name <name> --email <email> --msg <message></span></span>
+        <span class="t-line">  <span class="t-label">ask</span>      <span class="t-val"><your question></span></span>
+        <span class="t-line">  <span class="t-label">collab</span>   <span class="t-val">--idea <project idea></span></span>
+        <span class="t-line">  <span class="t-label">whoami</span>   <span class="t-val">// about FreeRave</span></span>
+        <span class="t-line">  <span class="t-label">clear</span>    <span class="t-val">// clear terminal</span></span>
+        <span class="t-line"> </span>
+      </div>
+      <div class="quick-cmds">
+        <button class="qcmd" onclick="fillCmd('whoami')">whoami</button>
+        <button class="qcmd" onclick="fillCmd('contact --name  --email  --msg ')">contact</button>
+        <button class="qcmd" onclick="fillCmd('collab --idea ')">collab</button>
+        <button class="qcmd" onclick="fillCmd('ask ')">ask</button>
+        <button class="qcmd" onclick="fillCmd('clear')">clear</button>
+      </div>
+      <div class="terminal-input-row">
+        <span class="term-input-prompt">FreeRave@kali:~$&nbsp;</span>
+        <input type="text" class="term-input" id="termInput" placeholder="type a command..." autocomplete="off" spellcheck="false" />
+        <button class="term-run-btn" onclick="runCommand()">Run ⏎</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 3: ASK ME ANYTHING
+  ═══════════════════════════════════════ -->
+  <div class="ama-section reveal">
+    <div class="section-title">// ask_me_anything</div>
+    <div class="ama-wrap">
+      <div class="ama-header">
+        <h2 class="ama-title">Ask Me <span>Anything</span></h2>
+        <p class="ama-sub">// open questions · tech · tools · career · whatever</p>
+      </div>
+      <div class="ama-topics">
+        <button class="ama-topic active" onclick="setTopic(this,'open source')">Open Source</button>
+        <button class="ama-topic" onclick="setTopic(this,'vs code')">VS Code Dev</button>
+        <button class="ama-topic" onclick="setTopic(this,'career')">Career</button>
+        <button class="ama-topic" onclick="setTopic(this,'python')">Python</button>
+        <button class="ama-topic" onclick="setTopic(this,'mobile')">Mobile</button>
+        <button class="ama-topic" onclick="setTopic(this,'linux')">Linux</button>
+        <button class="ama-topic" onclick="setTopic(this,'other')">Other</button>
+      </div>
+      <div class="ama-form">
+        <div class="ama-field">
+          <label>Your name (optional)</label>
+          <input type="text" class="ama-input" id="amaName" placeholder="Anonymous" />
+        </div>
+        <div class="ama-field">
+          <label>Your question *</label>
+          <textarea class="ama-textarea" id="amaQuestion" placeholder="What do you want to know?"></textarea>
+        </div>
+        <input type="hidden" id="amaTopic" value="open source" />
+        <div class="ama-send-row">
+          <label class="ama-anon">
+            <input type="checkbox" id="amaAnon" onchange="toggleAnon(this)" />
+            Send anonymously
+          </label>
+          <button class="btn-ama" onclick="sendAMA()"><span>⟶ Submit Question</span></button>
+        </div>
+      </div>
+      <div class="recent-q">
+        <div class="recent-q-title">// example questions you can ask</div>
+        <div class="q-list">
+          <div class="q-item" onclick="populateQ(this)">How do you manage so many open-source tools alone?</div>
+          <div class="q-item" onclick="populateQ(this)">What's your workflow for building VS Code extensions?</div>
+          <div class="q-item" onclick="populateQ(this)">Which tool are you most proud of and why?</div>
+          <div class="q-item" onclick="populateQ(this)">How did you grow your dev.to following?</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast">
+    <span class="toast-icon">✓</span>
+    <span id="toastMsg">Message sent!</span>
+  </div>
+
+  <footer>
+    <div class="footer-row">
+      <div><span class="glow-text">FreeRave</span> · built in public · march 2026</div>
+      <div class="footer-ts" id="footerTs">—</div>
+    </div>
+  </footer>
+
+</div>
+
+<canvas id="particles"></canvas>
+
+<!-- Nano Editor -->
+<div id="nanoEditor" class="nano-hidden">
+  <div class="nano-header">
+    <div class="nano-menu">File: <span id="nanoFileName"></span></div>
+    <div class="nano-info">GNU nano 7.2 | FreeRave Edition</div>
+  </div>
+  <textarea id="nanoTextArea" spellcheck="false"></textarea>
+  <div class="nano-footer">
+    <div class="nano-shortcut"><span>^X</span> Exit</div>
+    <div class="nano-shortcut"><span>^O</span> Write Out</div>
+    <div class="nano-shortcut"><span>^K</span> Cut Text</div>
+    <div class="nano-shortcut"><span>^U</span> Uncut Text</div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
