@@ -6,7 +6,7 @@
 ![GitHub Stars](https://img.shields.io/badge/Tools-20%2B-00e5ff?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iOCIgZmlsbD0iIzAwZTVmZiIvPjwvc3ZnPg==)
 ![VS Code Downloads](https://img.shields.io/badge/Downloads-4%2C510-39ff14?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
-![dev.to Followers](https://img.shields.io/badge/dev.to-2%2C036%20Followers-00e5ff?style=flat-square&logo=dev.to)
+![dev.to Followers](https://img.shields.io/badge/dev.to-2%2C1500%20Followers-00e5ff?style=flat-square&logo=dev.to)
 
 ---
 
@@ -192,8 +192,8 @@ No build step, no dependencies, no frameworks. Just open and go.
 |--------|-------|
 | Tools Built | 20+ |
 | VS Code Downloads | 4,510+ |
-| dev.to Followers | 2,036 |
-| Posts Published | 51 |
+| dev.to Followers | 2,500 |
+| Posts Published | 62 |
 | License | MIT |
 
 ---
@@ -202,16 +202,16 @@ No build step, no dependencies, no frameworks. Just open and go.
 
 | Platform | Link | Followers |
 |----------|------|-----------|
-| dev.to | [@freerave](https://dev.to/freerave) | 2,036 |
-| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 363 |
+| dev.to | [@freerave](https://dev.to/freerave) | 2,500 |
+| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 396 |
 | GitHub | [kareem2099](https://github.com/kareem2099) | — |
 | TikTok | [@dotfreerave](https://www.tiktok.com/@dotfreerave) | 33 |
 | YouTube | [@DotFreeRave](https://www.youtube.com/@DotFreeRave) | 29 |
-| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 14 |
-| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 10 |
+| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 16 |
+| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 11 |
 | Medium | [@freerave](https://medium.com/@freerave) | 2 |
 | Facebook | [FreeRave](https://www.facebook.com/profile.php?id=61582297589938) | 13 |
-| Instagram | [@dotfreerave](https://www.instagram.com/dotfreerave/) | 5 |
+| Instagram | [@dotfreerave](https://www.instagram.com/dotfreerave/) | 7 |
 
 ---
 

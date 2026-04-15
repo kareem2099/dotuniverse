@@ -456,7 +456,7 @@
   .challenge-sub { font-size:12px; color:var(--muted); letter-spacing:1px; }
 
   .challenge-grid { display:flex; flex-direction:column; gap:20px; }
-  .challenge-row { display:grid; grid-template-columns:130px 1fr 60px; align-items:center; gap:16px; }
+  .challenge-row { display:grid; grid-template-columns:130px 1fr minmax(60px, max-content); align-items:center; gap:16px; }
 
   .challenge-platform { display:flex; align-items:center; gap:8px; }
   .ch-icon { font-size:16px; }
@@ -491,7 +491,101 @@
     margin-left: 4px;
   }
 
+  /* 🏆 RECORD BADGE */
+  .record-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.1), rgba(255, 107, 53, 0.15));
+    border: 1px solid rgba(255, 215, 0, 0.5);
+    color: #ffd700;
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+    font-weight: 800;
+    margin-left: 14px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.15);
+    animation: goldPulse 2s ease-in-out infinite alternate;
+  }
+
   .challenge-delta { font-family:'Syne',sans-serif; font-size:13px; font-weight:700; text-align:right; }
+
+  /* 🚀 GOAL ACHIEVED CELEBRATION */
+  .goal-achieved {
+    position: relative;
+    padding: 16px;
+    margin: -16px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(57, 255, 20, 0.08), rgba(0, 229, 255, 0.04)) !important;
+    border: 1px solid rgba(57, 255, 20, 0.3) !important;
+    box-shadow: 0 0 30px rgba(57, 255, 20, 0.1) inset, 0 0 15px rgba(57, 255, 20, 0.15);
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 2;
+  }
+
+  .goal-achieved:hover {
+    transform: scale(1.02);
+    box-shadow: 0 0 40px rgba(57, 255, 20, 0.2) inset, 0 0 30px rgba(57, 255, 20, 0.3);
+    border-color: rgba(57, 255, 20, 0.6) !important;
+    background: linear-gradient(135deg, rgba(57, 255, 20, 0.12), rgba(0, 229, 255, 0.08)) !important;
+  }
+
+  /* Shimmer effect */
+  .goal-achieved::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    transform: skewX(-20deg);
+    animation: cyberShimmer 3.5s infinite;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .goal-achieved .ch-icon {
+    font-size: 22px;
+    display: inline-block;
+    animation: launchRocket 3s ease-in-out infinite;
+    filter: drop-shadow(0 0 8px rgba(0, 229, 255, 0.8));
+  }
+
+  .goal-achieved .challenge-delta {
+    color: var(--accent2) !important;
+    text-shadow: 0 0 15px var(--accent2);
+    font-size: 14px;
+    letter-spacing: 2px;
+    animation: pulseText 2s ease-in-out infinite alternate;
+  }
+  
+  .goal-achieved .bar-fill {
+    box-shadow: 0 0 15px var(--accent), 0 0 25px var(--accent);
+  }
+
+  @keyframes cyberShimmer {
+    0% { left: -100%; }
+    15% { left: 200%; }
+    100% { left: 200%; }
+  }
+
+  @keyframes launchRocket {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-4px) rotate(12deg); }
+  }
+
+  @keyframes pulseText {
+    0% { opacity: 0.8; text-shadow: 0 0 10px var(--accent2); }
+    100% { opacity: 1; text-shadow: 0 0 20px var(--accent2), 0 0 30px var(--accent2); transform: scale(1.05); }
+  }
+
+  @keyframes goldPulse {
+    0% { box-shadow: 0 0 5px rgba(255, 215, 0, 0.2), inset 0 0 5px rgba(255, 215, 0, 0.1); }
+    100% { box-shadow: 0 0 15px rgba(255, 215, 0, 0.6), inset 0 0 10px rgba(255, 215, 0, 0.3); border-color: #ffd700; color: #fff; }
+  }
 
   /* PLATFORMS */
   .platforms-grid {
