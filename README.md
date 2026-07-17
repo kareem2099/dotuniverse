@@ -4,9 +4,9 @@
 > All open-source. All with a purpose.
 
 ![GitHub Stars](https://img.shields.io/badge/Tools-20%2B-00e5ff?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iOCIgZmlsbD0iIzAwZTVmZiIvPjwvc3ZnPg==)
-![VS Code Downloads](https://img.shields.io/badge/Downloads-6%2C253-39ff14?style=flat-square)
+![VS Code Downloads](https://img.shields.io/badge/Downloads-13%2C663-39ff14?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
-![dev.to Followers](https://img.shields.io/badge/dev.to-2%2C1500%20Followers-00e5ff?style=flat-square&logo=dev.to)
+![dev.to Followers](https://img.shields.io/badge/dev.to-3%2C937%20Followers-00e5ff?style=flat-square&logo=dev.to)
 
 ---
 
@@ -24,13 +24,13 @@ Every tool is built to solve a real problem, licensed under MIT, and designed wi
 
 | Tool | Description | Version | Downloads |
 |------|-------------|---------|-----------|
-| [**CodeTune**](https://github.com/kareem2099/codetune) | Islamic spiritual environment — Quran player, prayer times, focus mode, Dhikr counters | v1.2.1 | 899+ |
-| [**dotcommand**](https://github.com/kareem2099/dotcommand) | Intelligent command manager with ML-based suggestions & analytics dashboard | v2.0.1 | 909+ |
-| [**DotEnvy**](https://github.com/kareem2099/dotenvy) | Environment manager with Git branch auto-switching & AI-powered secret detection | v2.0.1 | 1,130+ |
-| [**DotShare**](https://github.com/kareem2099/DotShare) | Share code journeys to 8 social platforms with AI-powered content creation | v3.2.2 | 1,979+ |
-| [**DotFetch**](https://github.com/kareem2099/DotFetch) | Professional HTTP client with .env support & cURL import/export | v1.2.0 | 692+ |
-| [**DotReadme**](https://github.com/kareem2099/DotReadme) | README optimizer with real-time simulator & quality audit (A+-F score) | v1.1.0 | 515+ |
-| [**DotSense**](https://github.com/kareem2099/dotsense) | AI-powered developer wellness — mood detection, burnout prevention & break reminders | v1.3.0 | 129+ |
+| [**CodeTune**](https://github.com/kareem2099/codetune) | Islamic spiritual environment — Quran player, prayer times, focus mode, Dhikr counters | v1.2.1 | 1,334+ |
+| [**dotcommand**](https://github.com/kareem2099/dotcommand) | Intelligent command manager with ML-based suggestions & analytics dashboard | v1.2.0 | 1,342+ |
+| [**DotEnvy**](https://github.com/kareem2099/dotenvy) | Environment manager with Git branch auto-switching & AI-powered secret detection | v2.0.1 | 1,754+ |
+| [**DotShare**](https://github.com/kareem2099/DotShare) | Share code journeys to 8 social platforms with AI-powered content creation | v3.4.1 | 5,938+ |
+| [**DotFetch**](https://github.com/kareem2099/DotFetch) | Professional HTTP client with .env support & cURL import/export | v2.0.0 | 1,808+ |
+| [**DotReadme**](https://github.com/kareem2099/DotReadme) | README optimizer with real-time simulator & quality audit (A+-F score) | v1.2.0 | 1,235+ |
+| [**DotSense**](https://github.com/kareem2099/dotsense) | AI-powered developer wellness — mood detection, burnout prevention & break reminders | v1.3.0 | 252+ |
 | [**DotConvert**](https://github.com/kareem2099/dotconvert) | Data converter — Base64, XML↔JSON, CSV↔JSON conversions | — | Coming to Marketplace |
 
 ### Telegram Bots
@@ -93,7 +93,7 @@ The interactive terminal supports:
 ```
 Contact:  contact, ask, collab
 System:   whoami, neofetch, ls, cd, cat, nano, date, history, clear
-Fun:      fortune, cowsay, coffee, weather, matrix, hack, ping, calc
+Fun:      fortune, cowsay, coffee, weather, game, matrix, hack, ping, calc
 Easter:   sudo, apt install, nmap, curl, rm -rf /, exit
 ```
 
@@ -139,10 +139,19 @@ Easter:   sudo, apt install, nmap, curl, rm -rf /, exit
 ## Project Structure
 
 ```
-celebrate_march/
+dotuniverse/
 ├── index.html          # Main HTML structure
-├── styles.css          # All styles & animations
-├── script.js           # Terminal, particles, interactions
+├── styles.css          # Main stylesheet
+├── script.js           # Fallback script (cursor trail, toast)
+├── js/
+│   ├── app.js          # ES6 Module entry point
+│   └── modules/
+│       ├── particle-system.js     # Optimized particles with spatial grid
+│       ├── math-eval.js           # Safe math evaluation parser
+│       ├── terminal-emulator.js   # Terminal emulator core and state
+│       ├── challenges.js          # Challenge progress logic
+│       ├── scroll-effects.js      # Intersection observer scroll animations
+│       └── theme-manager.js       # Color theme manager
 └── assets/
     └── videos/
         └── The_Final_Boss_(Port_666).mp4 # Easter egg video
@@ -154,7 +163,8 @@ celebrate_march/
 
 The terminal contains several hidden features:
 
-- **`rm -rf / --no-preserve-root`** — Triggers a simulated BSOD with card destruction animation, followed by a full recovery
+- **`rm -rf / --no-preserve-root`** — Triggers a simulated BSOD with card destruction animation, followed by a raw HTML failsafe screen requiring `git reverse` to restore
+- **`game`** — A guess the secret number (1-100) game with 3 attempts and high/low hints that ends in system destruction no matter what
 - **`nmap <target>`** — Runs a fake port scan ending with The Final Boss video on port 666
 - **`nano <file>`** — Opens a full-screen nano editor simulation
 - **`hack`** — Matrix-style random character flood
@@ -191,8 +201,8 @@ No build step, no dependencies, no frameworks. Just open and go.
 | Metric | Value |
 |--------|-------|
 | Tools Built | 20+ |
-| VS Code Downloads | 6,253+ |
-| dev.to Followers | 2,500 |
+| VS Code Downloads | 13,663+ |
+| dev.to Followers | 3,937 |
 | Posts Published | 62 |
 | License | MIT |
 
@@ -202,15 +212,15 @@ No build step, no dependencies, no frameworks. Just open and go.
 
 | Platform | Link | Followers |
 |----------|------|-----------|
-| dev.to | [@freerave](https://dev.to/freerave) | 2,500 |
-| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 396 |
+| dev.to | [@freerave](https://dev.to/freerave) | 3,937 |
+| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 574 |
 | GitHub | [kareem2099](https://github.com/kareem2099) | — |
-| TikTok | [@dotfreerave](https://www.tiktok.com/@dotfreerave) | 33 |
-| YouTube | [@DotFreeRave](https://www.youtube.com/@DotFreeRave) | 29 |
-| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 16 |
-| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 11 |
-| Medium | [@freerave](https://medium.com/@freerave) | 2 |
-| Facebook | [FreeRave](https://www.facebook.com/profile.php?id=61582297589938) | 13 |
+| TikTok | [@dotfreerave](https://www.tiktok.com/@dotfreerave) | 37 |
+| YouTube | [@DotFreeRave](https://www.youtube.com/@DotFreeRave) | 30 |
+| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 17 |
+| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 19 |
+| Medium | [@freerave](https://medium.com/@freerave) | 4 |
+| Facebook | [FreeRave](https://www.facebook.com/profile.php?id=61582297589938) | 16 |
 | Instagram | [@dotfreerave](https://www.instagram.com/dotfreerave/) | 7 |
 
 ---

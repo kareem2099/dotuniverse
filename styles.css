@@ -231,7 +231,7 @@
     position: relative;
   }
   .march-banner::after {
-    content: 'MARCH 2026';
+    content: 'JULY 2026';
     position: absolute;
     top: -1px; right: 20px;
     font-size: 9px;
@@ -922,6 +922,38 @@
     transition: border-color .2s, color .2s;
   }
   .qcmd:hover { border-color: var(--accent); color: var(--accent); }
+
+  .mobile-keyboard-helper {
+    display: none;
+  }
+
+  @media(max-width: 680px) {
+    .mobile-keyboard-helper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 12px 24px 0;
+      margin-bottom: -4px;
+    }
+    .mkh-btn {
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      background: rgba(0, 229, 255, 0.05);
+      color: var(--accent2);
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      transition: background 0.2s, color 0.2s;
+      border-radius: 2px;
+    }
+    .mkh-btn:active {
+      background: rgba(0, 229, 255, 0.2);
+    }
+    .term-input {
+      font-size: 16px !important;
+    }
+  }
 
   /* ═══════════════════════════════════════
      AMA SECTION

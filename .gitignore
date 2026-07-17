@@ -1,0 +1,14 @@
+# Tests
+tests/
+
+# Refactoring plans and architectural logs
+refactor-plan.md
+STATUS.md
+IMPROVEMENTS.md
+MODULAR_ARCHITECTURE.md
+FILES_SUMMARY.txt
+QUICK_START.md
+
+# Articles & Assets
+articles/
+devto_cover_image.png
