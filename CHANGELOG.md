@@ -5,6 +5,22 @@ All notable changes to the dotUniverse portfolio will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-09-28
+
+### Added
+- **Real-Time Extension Synchronizer (`js/modules/extension-stats.js`)**: Fetches live download counts and latest versions directly from VS Code Marketplace and Eclipse Open VSX public APIs using client-side CORS requests.
+- **Smart 24-Hour Client-Side Cache**: Implemented `localStorage` caching with a 24-hour TTL (`24 * 60 * 60 * 1000`) for instantaneous page loads with zero layout shift and minimized API consumption.
+- **CLI Sync Automation Script (`scripts/sync-extension-stats.mjs`)**: Node.js script to query official extension stores and automatically update static fallback HTML and `README.md` tables and badges.
+- **Daily Automated GitHub Action (`.github/workflows/update-extension-stats.yml`)**: Scheduled workflow running daily at midnight UTC (`0 0 * * *`) to fetch store stats and commit changes automatically.
+- **Semantic Data Attributes**: Added `data-ext-name` attributes and unique DOM IDs (`#headerExtDownloads`, `#bannerExtDownloads`) for clean DOM access.
+
+### Changed
+- **October 2026 Growth Challenge**: Refreshed targets and follower baselines across 9 platforms (dev.to: 3,986 / 4,200, LinkedIn: 709 / 800, TikTok: 37 / 60, YouTube: 30 / 60, Medium: 6 / 10, Facebook: 15 / 20, Instagram: 7 / 10, X: 18 / 20, Bluesky: 21 / 30).
+- **dev.to Dashboard Metrics**: Updated live metrics from dev.to dashboard: post views increased to 15,400, published posts to 93, reactions to 97, and comments to 67.
+- **Extension Downloads Total**: Calculated and updated total cross-platform extension downloads to 19,500+ (VS Marketplace + Open VSX).
+- **Goal Record Badge State**: Commented out the `15-DAY RECORD` badge on dev.to until the 4,200 October goal is reached.
+- **Seasonal Theme & Labels**: Updated banner indicators and footer timestamps from July 2026 to October 2026.
+
 ## [1.1.0] - 2026-07-17
 
 ### Added
@@ -112,5 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Date | Description |
 |---------|------|-------------|
+| 1.2.0 | 2026-09-28 | October 2026 Growth Challenge update, live dev.to metrics sync, automated VS Code extension stats & version synchronizer with 24-hour cache and GitHub Actions. |
 | 1.1.0 | 2026-07-17 | Modular architecture refactor, Spatial Grid particle optimization, calc XSS fix, interactive 'game' command, and 'git reverse' raw HTML recovery failsafe. |
 | 1.0.0 | 2026-03-30 | Initial release with full tool ecosystem, interactive terminal, and all features |

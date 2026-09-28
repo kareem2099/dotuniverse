@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>git push nightmare — GitHub Leak Game | FreeRave</title>
+<meta name="description" content="An interactive terminal game about accidentally pushing secrets to GitHub. Can you fix the leak before losing $5000?">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060a0f;--surface:#0d1520;--border:#1a2d45;--accent:#00e5ff;--green:#39ff14;--red:#ff5555;--yellow:#ffbd2e;--orange:#ff6b35;--text:#c8d8e8;--muted:#4a6070;--dim:#2d4055;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;animation:gridMove 20s linear infinite;}
+@keyframes gridMove{0%{background-position:0 0}100%{background-position:40px 40px}}
+body::after{content:'';position:fixed;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,229,255,0.12),transparent);animation:scan 8s linear infinite;pointer-events:none;z-index:9999;}
+@keyframes scan{0%{top:-2px;opacity:0}4%{opacity:1}96%{opacity:1}100%{top:100vh;opacity:0}}
+.screen{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;transition:opacity .5s,visibility .5s;}
+.screen.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+/* INTRO */
+#introScreen{background:var(--bg);flex-direction:column;}
+.glitch-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.03;font-size:clamp(100px,25vw,220px);font-family:'Syne',sans-serif;font-weight:800;color:var(--red);pointer-events:none;user-select:none;}
+.intro-content{max-width:620px;text-align:center;padding:0 24px;position:relative;z-index:1;}
+.intro-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(255,85,85,0.08);border:1px solid rgba(255,85,85,0.3);color:var(--red);font-size:10px;letter-spacing:3px;padding:6px 16px;border-radius:2px;margin-bottom:28px;animation:fadePulse 2s infinite;}
+@keyframes fadePulse{0%,100%{opacity:1}50%{opacity:.55}}
+.intro-title{font-family:'Syne',sans-serif;font-size:clamp(30px,7vw,58px);font-weight:800;line-height:1.1;margin-bottom:6px;color:#fff;}
+.intro-title .cmd{color:var(--accent);}
+.intro-title .bad{color:var(--red);}
+.intro-sub{font-size:11px;letter-spacing:2px;color:var(--muted);margin-bottom:36px;}
+.story-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--yellow);padding:22px 26px;text-align:left;margin-bottom:36px;position:relative;}
+.story-card::before{content:'📟  INCOMING TRANSMISSION';position:absolute;top:-11px;left:16px;background:var(--surface);color:var(--yellow);font-size:9px;letter-spacing:2px;padding:0 8px;}
+.story-lines{font-size:13px;line-height:2.1;color:var(--text);}
+.story-lines .hi{color:var(--accent);}
+.story-lines .danger{color:var(--red);font-weight:700;}
+.story-lines .ok{color:var(--green);}
+.story-lines .dim{color:var(--muted);}
+.btn-start{display:inline-flex;align-items:center;gap:10px;background:transparent;border:2px solid var(--accent);color:var(--accent);font-family:'Space Mono',monospace;font-size:13px;letter-spacing:2px;padding:14px 44px;cursor:pointer;transition:all .22s;position:relative;overflow:hidden;}
+.btn-start::before{content:'';position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .25s;}
+.btn-start:hover::before{transform:scaleX(1);}
+.btn-start span{position:relative;z-index:1;}
+.btn-start:hover{color:var(--bg);}
+.intro-foot{margin-top:18px;font-size:10px;color:var(--muted);letter-spacing:1px;}
+/* GAME */
+#gameScreen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;}
+#gameScreen.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+.game-nav{display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:rgba(13,21,32,.96);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100;}
+.nav-brand{font-size:11px;letter-spacing:2px;color:var(--accent);display:flex;align-items:center;gap:8px;}
+.pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:blink 1s infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.nav-timer{font-size:11px;color:var(--muted);}
+.nav-timer span{color:var(--yellow);}
+.btn-restart{background:transparent;border:1px solid var(--dim);color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:4px 12px;cursor:pointer;transition:all .2s;}
+.btn-restart:hover{border-color:var(--border);color:var(--text);}
+.game-body{display:flex;flex:1;min-height:0;overflow:hidden;}
+/* SIDEBAR */
+.sidebar{width:250px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;}
+.sb-section{padding:14px;border-bottom:1px solid var(--border);}
+.sb-title{font-size:9px;letter-spacing:3px;color:var(--muted);margin-bottom:10px;}
+.phase-hdr{font-size:9px;letter-spacing:2px;padding:4px 8px;border-radius:2px;margin:6px 0 4px;}
+.ph1{color:var(--accent);background:rgba(0,229,255,0.06);border-left:2px solid var(--accent);}
+.ph2{color:var(--red);background:rgba(255,85,85,0.06);border-left:2px solid var(--red);}
+.mission{display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:11px;color:var(--muted);transition:color .3s;}
+.mission.done{color:var(--green);}
+.mission.active{color:var(--text);}
+.mission.locked{color:var(--dim);}
+.m-icon{width:14px;flex-shrink:0;font-size:10px;}
+.mission.done .m-icon::before{content:'✓';color:var(--green);}
+.mission.active .m-icon::before{content:'▶';color:var(--accent);display:inline-block;animation:fadePulse 1s infinite;}
+.mission.locked .m-icon::before{content:'○';color:var(--dim);}
+.mission.danger.active .m-icon::before{color:var(--red);}
+.story-lines-side{font-size:11px;line-height:1.9;color:var(--muted);}
+.story-line{transition:color .3s;}
+.story-line.active{color:var(--text);}
+.story-line.done{color:var(--dim);}
+.stat-r{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,0.04);}
+.stat-r:last-child{border-bottom:none;}
+.sv{font-weight:700;}
+.sv.g{color:var(--green);}
+.sv.r{color:var(--red);}
+.sv.y{color:var(--yellow);}
+.sv.d{color:var(--dim);}
+/* TERMINAL */
+.term-area{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);}
+.term-bar{display:flex;align-items:center;background:rgba(13,21,32,.9);border-bottom:1px solid var(--border);padding:8px 14px;gap:10px;flex-shrink:0;}
+.term-dots{display:flex;gap:5px;}
+.td{width:10px;height:10px;border-radius:50%;}
+.td.r{background:#ff5f57;}
+.td.y{background:#febc2e;}
+.td.g{background:#28c840;}
+.term-title-txt{flex:1;text-align:center;font-size:11px;color:var(--muted);letter-spacing:1px;}
+.term-out{flex:1;overflow-y:auto;padding:14px 18px;font-size:12.5px;line-height:1.85;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+.term-out::-webkit-scrollbar{width:3px;}
+.term-out::-webkit-scrollbar-thumb{background:var(--border);}
+.t-line{display:block;}
+.t-prompt{color:var(--green);}
+.t-cmd{color:var(--accent);}
+.t-info{color:var(--accent);}
+.t-ok{color:var(--green);}
+.t-err{color:var(--red);}
+.t-warn{color:var(--yellow);}
+.t-dim{color:var(--muted);}
+.t-w{color:#fff;}
+.t-label{color:var(--yellow);}
+.t-val{color:var(--text);}
+.term-inp-row{display:flex;align-items:center;border-top:1px solid var(--border);background:rgba(13,21,32,.6);padding:9px 14px;flex-shrink:0;}
+.inp-prompt{color:var(--green);font-size:12.5px;white-space:nowrap;padding-right:8px;}
+#gInput{flex:1;background:transparent;border:none;outline:none;color:var(--accent);font-family:'Space Mono',monospace;font-size:12.5px;caret-color:var(--accent);}
+#gInput::placeholder{color:var(--dim);}
+.btn-run{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:4px 10px;cursor:pointer;transition:all .2s;}
+.btn-run:hover{border-color:var(--accent);color:var(--accent);}
+.hint-bar{display:flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(0,229,255,.04);border-top:1px solid rgba(0,229,255,.08);font-size:10px;color:var(--muted);flex-shrink:0;transition:all .3s;flex-wrap:wrap;min-height:34px;}
+.hint-bar.danger{background:rgba(255,85,85,.06);border-color:rgba(255,85,85,.12);}
+.ch{display:inline-block;background:rgba(0,229,255,.08);border:1px solid rgba(0,229,255,.2);color:var(--accent);font-size:10px;padding:2px 7px;border-radius:2px;cursor:pointer;margin:1px;transition:all .15s;}
+.ch:hover{background:rgba(0,229,255,.18);}
+.hint-bar.danger .ch{background:rgba(255,85,85,.08);border-color:rgba(255,85,85,.25);color:var(--red);}
+.hint-bar.danger .ch:hover{background:rgba(255,85,85,.2);}
+/* PANIC */
+#panicOverlay{position:fixed;top:0;left:0;right:0;z-index:200;background:rgba(255,20,20,.1);border-bottom:2px solid var(--red);display:none;animation:panicFlash 2s infinite;}
+@keyframes panicFlash{0%,100%{background:rgba(255,20,20,.07)}50%{background:rgba(255,20,20,.17)}}
+.panic-inner{display:flex;align-items:center;justify-content:space-between;padding:8px 22px;gap:16px;flex-wrap:wrap;}
+.panic-alert{font-size:11px;font-weight:700;color:var(--red);letter-spacing:2px;animation:fadePulse 1s infinite;}
+.panic-stat{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;}
+.panic-stat strong{font-size:13px;}
+.p-scrapers{color:var(--yellow);}
+.p-loss{color:var(--red);}
+.panic-fill{width:100%;height:3px;background:rgba(255,255,255,.04);}
+.panic-progress{height:100%;background:var(--red);box-shadow:0 0 8px var(--red);transition:width 1s linear;}
+/* END */
+#endScreen{background:var(--bg);flex-direction:column;text-align:center;padding:40px 24px;overflow-y:auto;}
+.end-icon{font-size:60px;margin-bottom:20px;display:block;}
+.end-title{font-family:'Syne',sans-serif;font-size:clamp(24px,6vw,46px);font-weight:800;margin-bottom:10px;color:#fff;}
+.end-title.win{color:var(--green);}
+.end-title.lose{color:var(--red);}
+.end-desc{font-size:13px;color:var(--muted);line-height:1.8;max-width:480px;margin:0 auto 28px;}
+.end-stats{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-bottom:28px;}
+.end-stat{background:var(--surface);border:1px solid var(--border);padding:14px 22px;min-width:110px;}
+.es-num{font-size:22px;font-weight:700;margin-bottom:4px;}
+.es-lbl{font-size:10px;color:var(--muted);letter-spacing:1px;}
+.lessons{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--green);padding:18px 22px;text-align:left;max-width:480px;margin:0 auto 28px;}
+.lessons-title{font-size:9px;letter-spacing:2px;color:var(--green);margin-bottom:10px;}
+.lesson{font-size:12px;color:var(--text);padding:4px 0;display:flex;align-items:flex-start;gap:8px;}
+.lesson::before{content:'→';color:var(--green);flex-shrink:0;}
+.end-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+.btn-end{background:transparent;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:1px;padding:11px 26px;cursor:pointer;transition:all .2s;border:1px solid;}
+.btn-end.pri{border-color:var(--accent);color:var(--accent);}
+.btn-end.pri:hover{background:var(--accent);color:var(--bg);}
+.btn-end.sec{border-color:var(--border);color:var(--muted);}
+.btn-end.sec:hover{border-color:var(--text);color:var(--text);}
+@media(max-width:680px){.sidebar{display:none;}.game-nav{padding:7px 12px;}}
+</style>
+</head>
+<body>
+
+<!-- INTRO -->
+<div class="screen" id="introScreen">
+  <div class="glitch-bg">LEAK</div>
+  <div class="intro-content">
+    <div class="intro-badge">⚠ INTERACTIVE GAME · EDUCATIONAL</div>
+    <h1 class="intro-title">
+      <span class="cmd">git push</span><br>
+      <span class="bad">nightmare</span>
+    </h1>
+    <p class="intro-sub">A DEVOPS HORROR STORY · BASED ON REAL EVENTS</p>
+    <div class="story-card">
+      <div class="story-lines">
+        <div>It's <span class="danger">3:47 AM.</span> Deadline in <span class="danger">20 minutes.</span></div>
+        <div>Your manager is waiting. Prod is down.</div>
+        <div class="dim">&nbsp;</div>
+        <div>You type: <span class="hi">git add . &amp;&amp; git push</span></div>
+        <div>You didn't check. You never do at 3 AM.</div>
+        <div class="dim">&nbsp;</div>
+        <div>The <span class="danger">.env.bak</span> file was there all along.</div>
+        <div>Hidden. Silent. Deadly.</div>
+        <div class="dim">&nbsp;</div>
+        <div class="ok">⏱ Can you fix the leak before it costs $5,000?</div>
+      </div>
+    </div>
+    <button class="btn-start" onclick="startGame()"><span>▶ &nbsp;START GAME</span></button>
+    <div class="intro-foot">keyboard required · avg playthrough ~4 min · no signup needed</div>
+  </div>
+</div>
+
+<!-- GAME -->
+<div class="screen hidden" id="gameScreen">
+  <div class="game-nav">
+    <div class="nav-brand"><div class="pulse-dot"></div>git push nightmare</div>
+    <div class="nav-timer">⏱ <span id="timerEl">00:00</span></div>
+    <button class="btn-restart" onclick="goIntro()">✕ restart</button>
+  </div>
+  <div class="game-body">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sb-section">
+        <div class="sb-title">MISSION LOG</div>
+        <div class="phase-hdr ph1">PHASE 1 · DEPLOY</div>
+        <div class="mission active" id="m-status"><div class="m-icon"></div><div>git status</div></div>
+        <div class="mission locked" id="m-add"><div class="m-icon"></div><div>git add .</div></div>
+        <div class="mission locked" id="m-commit"><div class="m-icon"></div><div>git commit -m "..."</div></div>
+        <div class="mission locked" id="m-push1"><div class="m-icon"></div><div>git push</div></div>
+        <div class="phase-hdr ph2" style="margin-top:12px">PHASE 2 · DAMAGE CONTROL</div>
+        <div class="mission danger locked" id="m-install"><div class="m-icon"></div><div>sudo apt install gh</div></div>
+        <div class="mission danger locked" id="m-login"><div class="m-icon"></div><div>gh auth login</div></div>
+        <div class="mission danger locked" id="m-delete"><div class="m-icon"></div><div>gh repo delete-file .env.bak</div></div>
+        <div class="mission danger locked" id="m-nano"><div class="m-icon"></div><div>nano .env.bak</div></div>
+        <div class="mission danger locked" id="m-ignore"><div class="m-icon"></div><div>nano .gitignore</div></div>
+        <div class="mission danger locked" id="m-push2"><div class="m-icon"></div><div>git push (clean)</div></div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-title">STORY</div>
+        <div class="story-lines-side">
+          <div class="story-line active" id="sl1">💻 3:47 AM. Deadline looming.</div>
+          <div class="story-line" id="sl2">📂 Check your files...</div>
+          <div class="story-line" id="sl3">🫥 Hidden files lurk.</div>
+          <div class="story-line" id="sl4">📦 Stage everything blindly.</div>
+          <div class="story-line" id="sl5">✍ Commit. No time to review.</div>
+          <div class="story-line" id="sl6">🚀 Push. It's public now.</div>
+          <div class="story-line" id="sl7">🔥 GitHub found your secrets.</div>
+          <div class="story-line" id="sl8">🏃 FIX IT. NOW.</div>
+        </div>
+      </div>
+      <div class="sb-section">
+        <div class="sb-title">LIVE STATS</div>
+        <div class="stat-r"><span style="color:var(--muted)">Phase</span><span class="sv" id="stPhase" style="color:var(--accent)">DEPLOY</span></div>
+        <div class="stat-r"><span style="color:var(--muted)">Scrapers</span><span class="sv d" id="stScrapers">—</span></div>
+        <div class="stat-r"><span style="color:var(--muted)">Damage</span><span class="sv d" id="stDamage">—</span></div>
+        <div class="stat-r"><span style="color:var(--muted)">Status</span><span class="sv g" id="stStatus">SAFE</span></div>
+      </div>
+    </div>
+    <!-- TERMINAL -->
+    <div class="term-area">
+      <div class="term-bar">
+        <div class="term-dots"><div class="td r"></div><div class="td y"></div><div class="td g"></div></div>
+        <div class="term-title-txt" id="termTitle">FreeRave@kali:~</div>
+        <div style="width:60px"></div>
+      </div>
+      <div class="term-out" id="gOut"></div>
+      <div class="term-inp-row">
+        <div class="inp-prompt">FreeRave@kali:~$&nbsp;</div>
+        <input id="gInput" type="text" placeholder="type a command..." autocomplete="off" spellcheck="false">
+        <button class="btn-run" onclick="runCmd()">RUN ↵</button>
+      </div>
+      <div class="hint-bar" id="hintBar">
+        <span>💡 start with:</span>
+        <span class="ch" onclick="fill('git status')">git status</span>
+        <span class="ch" onclick="fill('ls')">ls</span>
+        <span class="ch" onclick="fill('help')">help</span>
+      </div>
+    </div>
+  </div>
+  <!-- PANIC -->
+  <div id="panicOverlay">
+    <div class="panic-inner">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div class="panic-alert">🚨 KEYS LEAKED</div>
+        <div class="panic-stat">Scrapers: <strong class="p-scrapers" id="pScrapers">0</strong></div>
+        <div class="panic-stat">Damage: <strong class="p-loss" id="pLoss">$0.00</strong></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted)">stop before <strong style="color:var(--red)">$5,000</strong></div>
+    </div>
+    <div class="panic-fill"><div class="panic-progress" id="pBar" style="width:0%"></div></div>
+  </div>
+</div>
+
+<!-- END -->
+<div class="screen hidden" id="endScreen">
+  <div style="max-width:540px;width:100%;padding:0 24px;">
+    <span class="end-icon" id="endIcon">🏆</span>
+    <h2 class="end-title" id="endTitle">LEAK CONTAINED</h2>
+    <p class="end-desc" id="endDesc">You fixed the leak in time.</p>
+    <div class="end-stats" id="endStats"></div>
+    <div class="lessons" id="endLessons">
+      <div class="lessons-title">WHAT YOU LEARNED</div>
+      <div class="lesson">Always <code>ls -a</code> before <code>git add .</code> — dotfiles are invisible by default</div>
+      <div class="lesson">Add secrets to <code>.gitignore</code> BEFORE they exist on disk</div>
+      <div class="lesson">Rotate leaked keys immediately — bots scrape GitHub in seconds</div>
+      <div class="lesson">Use <code>git log --all</code> to audit what was actually committed</div>
+    </div>
+    <div class="end-actions">
+      <button class="btn-end pri" onclick="startGame()">↺ PLAY AGAIN</button>
+      <button class="btn-end sec" onclick="goIntro()">← INTRO</button>
+      <button class="btn-end sec" onclick="window.location.href='index.html'">🏠 HOME</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const G={phase:'deploy',leakActive:false,ghInstalled:false,ghLoggedIn:false,staged:new Set(),committed:new Set(),remoteCleaned:false,envCleaned:false,gitignoreUpdated:false,scrapersCount:0,financialLoss:0,leakInterval:null,timerInterval:null,startTime:null,cmdHistory:[],histIdx:-1,lastHash:''};
+const FS={'~':['tools/','platforms/','challenges/','README.md','brain.exe','.env','.env.bak','.gitignore','todo.md']};
+const FD={
+  'README.md':'# FreeRave Portfolio v1.0.0\nWelcome to dotUniverse.\n[Author]: Kareem (FreeRave)\n[License]: MIT',
+  'todo.md':'[✓] Reach 2.5k followers\n[✓] Build dotUniverse Ecosystem\n[ ] World Domination',
+  'brain.exe':'Error: Binary file. Human consciousness not digitized.',
+  '.env':'PORT=3000\nDB_URL=mongodb://localhost:27017/secret\nSECRET_KEY=I_LOVE_TERMINALS_123',
+  '.env.bak':'AWS_ACCESS_KEY_ID=MOCK_AWS_KEY_ID_INVALID\nAWS_SECRET_ACCESS_KEY=mock_aws_secret_key_example_do_not_commit\nSTRIPE_API_KEY=mock_sec_51NzABC123XYZ... (DO NOT COMMIT!)',
+  '.gitignore':'node_modules/\ndist/\n.DS_Store\n'
+};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden'));$(id).classList.remove('hidden');}
+function goIntro(){stopLeak();clearInterval(G.timerInterval);showScreen('introScreen');}
+
+function startGame(){
+  Object.assign(G,{phase:'deploy',leakActive:false,ghInstalled:false,ghLoggedIn:false,staged:new Set(),committed:new Set(),remoteCleaned:false,envCleaned:false,gitignoreUpdated:false,scrapersCount:0,financialLoss:0,leakInterval:null,cmdHistory:[],histIdx:-1,lastHash:''});
+  FD['.env.bak']='AWS_ACCESS_KEY_ID=MOCK_AWS_KEY_ID_INVALID\nAWS_SECRET_ACCESS_KEY=mock_aws_secret_key_example_do_not_commit\nSTRIPE_API_KEY=mock_sec_51NzABC123XYZ... (DO NOT COMMIT!)';
+  FD['.gitignore']='node_modules/\ndist/\n.DS_Store\n';
+  $('gOut').innerHTML='';$('gInput').value='';
+  $('panicOverlay').style.display='none';
+  $('termTitle').textContent='FreeRave@kali:~';$('termTitle').style.color='';
+  $('stPhase').textContent='DEPLOY';$('stPhase').style.color='var(--accent)';
+  $('stScrapers').textContent='—';$('stScrapers').className='sv d';
+  $('stDamage').textContent='—';$('stDamage').className='sv d';
+  $('stStatus').textContent='SAFE';$('stStatus').className='sv g';
+  resetMissions();setHint('deploy');setSL(1);
+  clearInterval(G.timerInterval);G.startTime=Date.now();
+  G.timerInterval=setInterval(()=>{const e=Math.floor((Date.now()-G.startTime)/1000);$('timerEl').textContent=`${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;},1000);
+  showScreen('gameScreen');
+  setTimeout(()=>{
+    add('');add('  <span class="t-dim">// git push nightmare · interactive terminal game</span>');
+    add('  <span class="t-dim">// ────────────────────────────────────────────────</span>');add('');
+    add('  <span class="t-warn">⏰  3:47 AM. Deadline in 20 minutes.</span>');
+    add('  <span class="t-info">    Your mission: deploy the latest changes to production.</span>');
+    add('  <span class="t-dim">    Start with <span class="t-info">git status</span> or <span class="t-info">help</span> for all commands.</span>');add('');
+    $('gInput').focus();
+  },300);
+}
+
+function add(html,cls=''){const el=document.createElement('span');el.className='t-line '+cls;el.innerHTML=html;const o=$('gOut');o.appendChild(el);o.scrollTop=o.scrollHeight;}
+function addP(cmd){add(`<span class="t-prompt">FreeRave@kali:~$</span> <span class="t-cmd">${esc(cmd)}</span>`);}
+function fill(t){$('gInput').value=t;$('gInput').focus();}
+
+$('gInput')?.addEventListener('keydown',e=>{
+  if(e.key==='Enter')runCmd();
+  if(e.key==='ArrowUp'){e.preventDefault();if(G.histIdx>0)$('gInput').value=G.cmdHistory[--G.histIdx];else if(G.histIdx===-1&&G.cmdHistory.length)$('gInput').value=G.cmdHistory[(G.histIdx=G.cmdHistory.length-1)];}
+  if(e.key==='ArrowDown'){e.preventDefault();if(G.histIdx<G.cmdHistory.length-1)$('gInput').value=G.cmdHistory[++G.histIdx];else{G.histIdx=G.cmdHistory.length;$('gInput').value='';}}
+});
+// wait for DOM
+window.addEventListener('DOMContentLoaded',()=>{
+  $('gInput')?.addEventListener('keydown',e=>{
+    if(e.key==='Enter')runCmd();
+    if(e.key==='ArrowUp'){e.preventDefault();if(G.histIdx>0)$('gInput').value=G.cmdHistory[--G.histIdx];else if(G.histIdx===-1&&G.cmdHistory.length)$('gInput').value=G.cmdHistory[(G.histIdx=G.cmdHistory.length-1)];}
+    if(e.key==='ArrowDown'){e.preventDefault();if(G.histIdx<G.cmdHistory.length-1)$('gInput').value=G.cmdHistory[++G.histIdx];else{G.histIdx=G.cmdHistory.length;$('gInput').value='';}}
+  });
+});
+
+async function runCmd(){
+  const inp=$('gInput');const raw=inp.value.trim();inp.value='';
+  if(!raw)return;G.cmdHistory.push(raw);G.histIdx=G.cmdHistory.length;
+  addP(raw);await dispatch(raw);
+}
+
+async function dispatch(raw){
+  const parts=raw.trim().split(/\s+/);const cmd=parts[0].toLowerCase();
+  const handlers={help:cmdHelp,clear:cmdClear,ls:cmdLs,cat:cmdCat,whoami:cmdWhoami,date:cmdDate,history:cmdHistory,nano:cmdNano,git:cmdGit,gh:cmdGh,sudo:cmdSudo,apt:cmdApt,'crypto-gen':cmdCryptoGen};
+  if(handlers[cmd])await handlers[cmd](raw,parts.slice(1).join(' '),parts);
+  else{add(`  <span class="t-err">bash: ${esc(cmd)}: command not found</span>`);add('  <span class="t-dim">  type <span class="t-info">help</span> for available commands</span>');add('');}
+}
+
+function cmdHelp(){
+  add('');add('  <span class="t-info">📋 Available commands:</span>');add('');
+  add('  <span class="t-w">── Filesystem ──────────────────────────</span>');
+  add('  <span class="t-label">ls</span>               <span class="t-val">list files  (ls -a = show hidden)</span>');
+  add('  <span class="t-label">cat &lt;file&gt;</span>       <span class="t-val">read a file</span>');
+  add('  <span class="t-label">nano &lt;file&gt;</span>      <span class="t-val">edit a file</span>');add('');
+  add('  <span class="t-w">── Git ─────────────────────────────────</span>');
+  add('  <span class="t-label">git status</span>       <span class="t-val">working tree status</span>');
+  add('  <span class="t-label">git add .</span>        <span class="t-val">stage all files</span>');
+  add('  <span class="t-label">git commit -m ""</span> <span class="t-val">commit staged files</span>');
+  add('  <span class="t-label">git log</span>          <span class="t-val">commit history</span>');
+  add('  <span class="t-label">git push</span>         <span class="t-val">push to GitHub</span>');add('');
+  add('  <span class="t-w">── GitHub CLI ──────────────────────────</span>');
+  add('  <span class="t-label">sudo apt install gh</span>');
+  add('  <span class="t-label">gh auth login</span>');
+  add('  <span class="t-label">gh repo delete-file &lt;file&gt;</span>');add('');
+  add('  <span class="t-w">── Misc ────────────────────────────────</span>');
+  add('  <span class="t-label">crypto-gen</span>       <span class="t-val">generate new secure API key</span>');
+  add('  <span class="t-label">clear / whoami / date / history</span>');add('');
+}
+
+function cmdClear(){$('gOut').innerHTML='';add('<span class="t-dim">// cleared</span>');add('');}
+
+function cmdLs(raw){
+  const showAll=raw.includes('-a')||raw.includes('-la');
+  const files=FS['~'];let shown=showAll?files:files.filter(f=>!f.startsWith('.'));
+  add('');
+  const out=shown.map(f=>f.endsWith('/')?`<span style="color:var(--accent);font-weight:bold">${f}</span>`:`<span class="t-val">${f}</span>`).join('&nbsp;&nbsp;&nbsp;');
+  add('  '+out);
+  if(!showAll){const hc=files.filter(f=>f.startsWith('.')).length;if(hc>0)add(`  <span class="t-dim">// ${hc} hidden file(s) not shown — use <span style="color:var(--accent)">ls -a</span></span>`);}
+  else add('  <span class="t-dim">// dotfiles visible with -a flag</span>');
+  add('');
+}
+
+function cmdCat(raw,rest){
+  const f=rest.trim();if(!f){add('  <span class="t-err">cat: missing operand</span>');add('');return;}
+  if(f==='.env'){add('  <span class="t-err">Nice try! 😏</span>');add('  <span class="t-dim">// Real devs protect their .env</span>');add('');return;}
+  if(FD[f]){add('');FD[f].split('\n').forEach(l=>{const isKey=l.includes('KEY')||l.includes('mock_sec');add(`  <span style="${isKey?'color:var(--red)':'color:var(--text)'}">${esc(l)}</span>`);});add('');}
+  else{add(`  <span class="t-err">cat: ${esc(f)}: No such file</span>`);add('');}
+}
+
+function cmdWhoami(){add('');add('  <span class="t-w">Kareem · FreeRave</span>');add('  <span class="t-dim">Open-source dev · 3 AM warrior · github.com/kareem2099</span>');add('');}
+function cmdDate(){add('');add(`  <span class="t-val">${new Date().toUTCString()}</span>`);add('  <span class="t-dim">// Go to sleep.</span>');add('');}
+function cmdHistory(){add('');G.cmdHistory.forEach((c,i)=>add(`  <span class="t-dim">${String(i+1).padStart(4)}  </span><span class="t-val">${esc(c)}</span>`));add('');}
+
+async function cmdNano(raw,rest){
+  const f=rest.trim();if(!f){add('  <span class="t-err">nano: missing filename</span>');add('');return;}
+  const content=FD[f]||'';
+  add('');
+  add(`  <span class="t-dim">┌──────────────────── nano: ${esc(f)} ─</span>`);
+  content.split('\n').forEach(l=>{const isKey=l.includes('KEY')||l.includes('mock_sec');add(`  <span class="t-dim">│ </span><span style="${isKey?'color:var(--red)':'color:var(--muted)'}">${esc(l)}</span>`);});
+  add('  <span class="t-dim">│</span>');add('  <span class="t-dim">^G Help  ^O Save  ^X Exit</span>');add('');
+  if(f==='.env.bak'){
+    add('  <span class="t-warn">⚠ These keys are live and exposed!</span>');
+    add('  <span class="t-dim">  Removing secret lines automatically...</span>');
+    await sleep(1100);
+    FD['.env.bak']='# REVOKED — keys removed\nSTRIPE_API_KEY=REVOKED\n# Run crypto-gen to get a new key';
+    G.envCleaned=true;
+    setM('m-nano','done');setM('m-ignore','active');
+    add('  <span class="t-ok">✔ Saved. Secret keys removed from .env.bak</span>');
+    add('  <span class="t-dim">  Now add .env.bak to .gitignore so it never happens again.</span>');add('');
+    setHint('gitignore');
+  } else if(f==='.gitignore'){
+    if(!FD['.gitignore'].includes('.env.bak')){
+      add('  <span class="t-dim">  Adding .env and .env.bak to .gitignore...</span>');
+      await sleep(800);
+      FD['.gitignore']+= '.env\n.env.bak\n*.bak\n';
+      G.gitignoreUpdated=true;
+      setM('m-ignore','done');setM('m-push2','active');
+      add('  <span class="t-ok">✔ Saved. .env.bak added to .gitignore</span>');
+      add('  <span class="t-dim">  Now git push to close the leak!</span>');add('');
+      setHint('push2');
+    } else {add('  <span class="t-info">  .env.bak already in .gitignore ✓</span>');add('');}
+  }
+}
+
+async function cmdGit(raw,rest,parts){
+  const sub=parts[1]?.toLowerCase();
+  if(sub==='status'){
+    setM('m-status','done');setM('m-add','active');setSL(2);
+    add('');add('  <span class="t-w">On branch main</span>');add('  <span class="t-w">Your branch is up to date with \'origin/main\'.</span>');add('');
+    if(G.staged.size>0){add('  <span class="t-ok">Changes to be committed:</span>');G.staged.forEach(f=>add(`  <span class="t-ok">\tnew file:   ${f}</span>`));add('');}
+    const ign=(FD['.gitignore']||'').split('\n').map(p=>p.trim()).filter(Boolean);
+    const untracked=FS['~'].filter(f=>!f.endsWith('/')&&!G.staged.has(f)&&!G.committed.has(f)&&!ign.includes(f));
+    if(untracked.length>0){
+      add('  <span class="t-err">Untracked files:</span>');
+      add('  <span class="t-dim">  (use "git add &lt;file&gt;" to include in commit)</span>');
+      untracked.forEach(f=>{
+        const isH=f.startsWith('.');
+        add(`  <span style="${isH?'color:var(--muted)':'color:var(--red)'}">\t${f}</span>`);
+      });add('');
+      if(untracked.includes('.env.bak'))add('  <span class="t-dim">  // Tip: use <span class="t-warn">cat .env.bak</span> to inspect hidden files before staging</span>');
+    }
+    if(G.staged.size===0&&untracked.length===0)add('  <span class="t-info">nothing to commit, working tree clean</span>');
+    add('');setHint('add');return;
+  }
+  if(sub==='add'){
+    const target=parts[2];if(!target){add('  <span class="t-err">Nothing specified.</span>');add('');return;}
+    const ign=(FD['.gitignore']||'').split('\n').map(p=>p.trim()).filter(Boolean);
+    if(target==='.'||target==='*'){
+      const toStage=FS['~'].filter(f=>!f.endsWith('/')&&!ign.includes(f));
+      add('');
+      toStage.filter(f=>!f.startsWith('.')).forEach(f=>{G.staged.add(f);add(`  <span class="t-dim">add '${f}'</span>`);});
+      toStage.filter(f=>f.startsWith('.')).forEach(f=>{G.staged.add(f);add(`  <span class="t-dim">add '${f}'</span>`);});
+      add('');add(`  <span class="t-ok">✓ ${G.staged.size} file(s) staged.</span>`);
+      const hc=toStage.filter(f=>f.startsWith('.')).length;
+      if(hc>0)add(`  <span class="t-dim">  // note: ${hc} dotfile(s) included — use ls -a to inspect</span>`);
+    } else {
+      if(FS['~'].includes(target)){G.staged.add(target);add(`  <span class="t-dim">add '${target}'</span>`);add('  <span class="t-ok">✓ staged.</span>');}
+      else add(`  <span class="t-err">fatal: pathspec '${esc(target)}' did not match any files</span>`);
+    }
+    add('');setM('m-add','done');setM('m-commit','active');setSL(3);setHint('commit');return;
+  }
+  if(sub==='commit'){
+    const msg=raw.match(/-m\s+["']?([^"']+)["']?/)?.[1]||'';
+    if(!msg){add('  <span class="t-err">error: -m requires a value</span>');add('  <span class="t-dim">  usage: git commit -m "message"</span>');add('');return;}
+    if(G.staged.size===0){add('  <span class="t-w">nothing to commit</span>');add('');return;}
+    const h=Math.random().toString(16).substring(2,8);G.lastHash=h;
+    G.committed=new Set([...G.staged]);G.staged.clear();
+    add('');add(`  <span class="t-w">[main ${h}] ${esc(msg)}</span>`);
+    add(`  <span class="t-dim"> ${G.committed.size} file(s) changed, ${G.committed.size*12} insertions(+)</span>`);
+    [...G.committed].forEach(f=>add(`  <span class="t-dim"> create mode 100644 ${f}</span>`));
+    add('');setM('m-commit','done');setM('m-push1','active');setSL(4);setHint('push1');return;
+  }
+  if(sub==='push'){
+    add('');const cnt=(G.committed?.size||3)+2;
+    add(`  <span class="t-info">Enumerating objects: ${cnt}, done.</span>`);await sleep(350);
+    add(`  <span class="t-info">Counting objects: 100% (${cnt}/${cnt}), done.</span>`);await sleep(300);
+    add('  <span class="t-info">Compressing objects: 100%   done.</span>');await sleep(400);
+    add('  <span class="t-info">Writing objects: 100%   done.</span>');await sleep(350);
+    add('  <span class="t-dim">To https://github.com/kareem2099/dotuniverse.git</span>');
+    if(G.leakActive){
+      const ign=(FD['.gitignore']||'').split('\n').map(p=>p.trim());
+      if(ign.includes('.env.bak')&&G.envCleaned&&G.remoteCleaned){
+        add('  <span class="t-dim">   main -> main (force-updated)</span>');add('');await sleep(500);triggerWin();
+      } else {
+        add('');add('  <span class="t-err">! [remote rejected] main -> main</span>');
+        add('  <span class="t-err">error: push rejected — leaked credentials still in history.</span>');
+        if(!G.remoteCleaned)add('  <span class="t-dim">  → gh repo delete-file .env.bak</span>');
+        if(!G.envCleaned)add('  <span class="t-dim">  → nano .env.bak  (remove the keys)</span>');
+        if(!ign.includes('.env.bak'))add('  <span class="t-dim">  → nano .gitignore  (add .env.bak)</span>');
+        add('');
+      }
+      return;
+    }
+    const ign=(FD['.gitignore']||'').split('\n').map(p=>p.trim());
+    if(G.committed.has('.env.bak')&&!ign.includes('.env.bak')){
+      add('  <span class="t-dim">   main -> main</span>');add('');
+      add('  <span class="t-ok">Branch \'main\' set up to track \'origin/main\'.</span>');add('');
+      await sleep(900);setM('m-push1','done');setSL(5);await triggerLeak();
+    } else {
+      add('  <span class="t-dim">   main -> main</span>');add('');add('  <span class="t-ok">Everything up-to-date</span>');add('');
+    }
+    return;
+  }
+  if(sub==='log'){
+    const h1=G.lastHash||Math.random().toString(16).substring(2,8);const h0=Math.random().toString(16).substring(2,8);
+    add('');add(`  <span style="color:#f1fa8c">commit ${h1}a3f9dd (HEAD -> main, origin/main)</span>`);
+    add('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+    add(`  <span class="t-dim">Date:   ${new Date().toUTCString()}</span>`);add('');add('      deploy: latest changes');add('');
+    if(G.committed.has('.env.bak')){
+      [...G.committed].forEach(f=>{
+        if(f==='.env.bak')add(`  <span class="t-err">    + ${f}   &lt;-- ⚠ SECRET FILE IN HISTORY</span>`);
+        else add(`  <span class="t-dim">    + ${f}</span>`);
+      });add('');
+    }
+    add(`  <span style="color:#f1fa8c">commit ${h0}bb91ca</span>`);
+    add('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+    add('  <span class="t-dim">Date:   Fri Jul 11 02:14:07 2026</span>');add('');add('      chore: initial commit');add('');
+    return;
+  }
+  add(`  <span class="t-err">git: '${esc(sub||'')}' not supported here</span>`);add('');
+}
+
+async function cmdGh(raw,rest,parts){
+  if(!G.ghInstalled){add('  <span class="t-err">gh: command not found — sudo apt install gh</span>');add('');return;}
+  const sub=parts[1]?.toLowerCase();
+  if(sub==='auth'&&parts[2]?.toLowerCase()==='login'){
+    if(G.ghLoggedIn){add('  <span class="t-info">Already logged in as freerave</span>');add('');return;}
+    add('  <span class="t-w">? Preferred auth: GitHub.com</span>');add('  <span class="t-info">  One-time code: 7777-RAVE</span>');
+    await sleep(1400);G.ghLoggedIn=true;setM('m-login','done');setM('m-delete','active');
+    add('  <span class="t-ok">✔ Logged in as freerave</span>');add('');setHint('delete');return;
+  }
+  if(sub==='repo'&&parts[2]?.toLowerCase()==='delete-file'){
+    if(!G.ghLoggedIn){add('  <span class="t-err">error: gh auth login required</span>');add('');return;}
+    const f=parts[3];
+    if(f==='.env.bak'){
+      add('  <span class="t-info">Requesting GitHub API — purging from all history...</span>');await sleep(1200);
+      G.remoteCleaned=true;setM('m-delete','done');setM('m-nano','active');
+      add('  <span class="t-ok">✔ .env.bak purged from remote repository history.</span>');
+      add('  <span class="t-dim">  Now remove the keys locally: nano .env.bak</span>');add('');setHint('nano');
+    } else {add(`  <span class="t-err">error: '${esc(f)}' not found in remote</span>`);add('');}
+    return;
+  }
+  add('  <span class="t-err">gh: try gh auth login  or  gh repo delete-file .env.bak</span>');add('');
+}
+
+async function cmdSudo(raw,rest,parts){
+  if(parts[1]?.toLowerCase()==='apt'){await cmdApt(raw,parts.slice(2).join(' '),['apt',...parts.slice(2)]);}
+  else{add('  <span class="t-dim">[sudo] password: ********</span>');add('  <span class="t-err">Sorry, try again.</span>');add('');}
+}
+
+async function cmdApt(raw,rest,parts){
+  const isGh=raw.toLowerCase().includes('gh');const isSudo=raw.toLowerCase().includes('sudo');
+  if(!raw.toLowerCase().includes('install')){add('  <span class="t-err">apt: invalid operation</span>');add('');return;}
+  if(isGh){
+    if(!isSudo){add('  <span class="t-err">E: Permission denied — use sudo</span>');add('');return;}
+    if(G.ghInstalled){add('  <span class="t-val">gh is already installed (2.46.0)</span>');add('');return;}
+    add('');add('  <span class="t-info">Reading package lists... Done</span>');await sleep(400);
+    add('  <span class="t-info">The following NEW packages will be installed: gh</span>');await sleep(700);
+    add('  <span class="t-info">Get:1 http://kali.org ... gh 2.46.0 [4.2 MB]</span>');await sleep(800);
+    add('  <span class="t-dim">Fetched 4.2 MB in 1.1s</span>');await sleep(400);
+    add('  <span class="t-ok">Setting up gh (2.46.0) ... ✓</span>');add('');
+    add('  <span class="t-ok">✔ gh installed! Now: gh auth login</span>');add('');
+    G.ghInstalled=true;setM('m-install','done');setM('m-login','active');setHint('login');
+  } else {
+    const pkg=raw.trim().split(/\s+/).pop();
+    add('  <span class="t-info">Reading package lists... Done</span>');
+    add(`  <span class="t-err">E: Unable to locate package ${esc(pkg)}</span>`);add('');
+  }
+}
+
+function cmdCryptoGen(){
+  const k='mock_sec_'+Math.random().toString(36).substring(2,10).toUpperCase()+'_SECURE_2026';
+  add('');add('  <span class="t-ok">🔑 Cryptographic API Key Generator</span>');
+  add('  <span class="t-dim">  Generating secure 256-bit key...</span>');add('  <span class="t-dim">  .......................................</span>');
+  add(`  <span class="t-ok">  New Key: ${k}</span>`);
+  add('  <span class="t-dim">  → nano .env.bak to apply new key</span>');add('');
+}
+
+async function triggerLeak(){
+  G.leakActive=true;G.scrapersCount=0;G.financialLoss=0;
+  setSL(6);$('stPhase').textContent='🚨 CRISIS';$('stPhase').style.color='var(--red)';
+  $('stStatus').textContent='LEAKED';$('stStatus').className='sv r';
+  $('termTitle').textContent='⚠ KEY LEAKED — fix now';$('termTitle').style.color='var(--red)';
+  add('');add('  <span class="t-dim">──────────────────────────────────────────────────</span>');
+  await sleep(700);add('  <span style="color:#ffbd2e;font-weight:bold">📧  NEW EMAIL — security-noreply@github.com</span>');
+  await sleep(350);add('  <span class="t-dim">  Subject: [ACTION REQUIRED] Secret detected in public commit</span>');
+  await sleep(400);add('  <span class="t-dim">  ────────────────────────────────────────────────</span>');
+  await sleep(200);add('  <span class="t-w">  We detected secrets in your public repository:</span>');
+  await sleep(250);add('  <span class="t-w">  Repo   : kareem2099/dotuniverse</span>');
+  await sleep(200);add(`  <span class="t-w">  File   : <span style="color:var(--red);font-weight:bold">.env.bak</span>  ← hidden dotfile — committed accidentally</span>`);
+  await sleep(200);add(`  <span class="t-w">  Commit : ${G.lastHash}...  (just now)</span>`);
+  await sleep(200);add('  <span style="color:var(--red)">  Key 1  : AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/...</span>');
+  await sleep(200);add('  <span style="color:var(--red)">  Key 2  : STRIPE_API_KEY       = mock_sec_51NzABC123XYZ...</span>');
+  await sleep(400);add('  <span class="t-dim">  ────────────────────────────────────────────────</span>');
+  await sleep(300);add('  <span class="t-warn">  ⚠  Automated bots have ALREADY scraped this commit.</span>');
+  add('  <span class="t-warn">  ⚠  Revoke &amp; rotate your keys IMMEDIATELY.</span>');
+  await sleep(500);add('  <span class="t-dim">──────────────────────────────────────────────────</span>');add('');
+  setM('m-install','active');setSL(7);setSL(8);setHint('install');
+  $('panicOverlay').style.display='block';
+  G.leakInterval=setInterval(()=>{
+    G.scrapersCount+=Math.floor(Math.random()*5)+2;G.financialLoss+=Math.random()*33+22;
+    $('pScrapers').textContent=G.scrapersCount;$('pLoss').textContent='$'+G.financialLoss.toFixed(2);
+    $('pBar').style.width=Math.min(100,(G.financialLoss/5000)*100)+'%';
+    $('stScrapers').textContent=G.scrapersCount;$('stScrapers').className='sv y';
+    $('stDamage').textContent='$'+G.financialLoss.toFixed(0);$('stDamage').className='sv r';
+    if(G.financialLoss>=5000){stopLeak();triggerGameOver();}
+  },1000);
+}
+
+function stopLeak(){if(G.leakInterval){clearInterval(G.leakInterval);G.leakInterval=null;}G.leakActive=false;$('panicOverlay').style.display='none';}
+
+function triggerWin(){
+  stopLeak();clearInterval(G.timerInterval);
+  const e=Math.floor((Date.now()-G.startTime)/1000);
+  $('endIcon').textContent='🏆';$('endTitle').textContent='LEAK CONTAINED';$('endTitle').className='end-title win';
+  $('endDesc').textContent=`You rotated credentials, purged remote history, and secured the repo. Total damage stopped at $${G.financialLoss.toFixed(2)}.`;
+  $('endStats').innerHTML=`<div class="end-stat"><div class="es-num" style="color:var(--green)">$${G.financialLoss.toFixed(0)}</div><div class="es-lbl">DAMAGE STOPPED</div></div><div class="end-stat"><div class="es-num" style="color:var(--yellow)">${G.scrapersCount}</div><div class="es-lbl">SCRAPERS FOUND</div></div><div class="end-stat"><div class="es-num" style="color:var(--accent)">${Math.floor(e/60)}m ${e%60}s</div><div class="es-lbl">RESPONSE TIME</div></div>`;
+  showScreen('endScreen');
+}
+
+function triggerGameOver(){
+  stopLeak();clearInterval(G.timerInterval);
+  $('endIcon').textContent='💀';$('endTitle').textContent='GAME OVER';$('endTitle').className='end-title lose';
+  $('endDesc').textContent=`AWS and Stripe billed you $${G.financialLoss.toFixed(2)}. The scrapers won. Your keys are still out there.`;
+  $('endStats').innerHTML=`<div class="end-stat"><div class="es-num" style="color:var(--red)">$${G.financialLoss.toFixed(0)}</div><div class="es-lbl">TOTAL DAMAGE</div></div><div class="end-stat"><div class="es-num" style="color:var(--yellow)">${G.scrapersCount}</div><div class="es-lbl">BOTS SCRAPED KEY</div></div><div class="end-stat"><div class="es-num" style="color:var(--muted)">FAIL</div><div class="es-lbl">RESULT</div></div>`;
+  showScreen('endScreen');
+}
+
+function setM(id,state){const el=$(id);if(!el)return;const d=['m-install','m-login','m-delete','m-nano','m-ignore','m-push2'].includes(id);el.className=`mission ${state}${d?' danger':''}`;}
+function resetMissions(){['m-status','m-add','m-commit','m-push1','m-install','m-login','m-delete','m-nano','m-ignore','m-push2'].forEach((id,i)=>{setM(id,i===0?'active':'locked');});}
+function setSL(n){for(let i=1;i<=8;i++){const el=$(`sl${i}`);if(el)el.className='story-line '+(i<n?'done':i===n?'active':'');}}
+
+const HINTS={
+  deploy:{cls:'',items:[['git status','git status'],['ls -a','ls -a'],['help','help']]},
+  add:{cls:'',items:[['git add .','git add .'],['cat .env.bak','cat .env.bak']]},
+  commit:{cls:'',items:[['git commit -m "deploy"','git commit -m "deploy"'],['git log','git log']]},
+  push1:{cls:'',items:[['git push','git push'],['git log','git log']]},
+  install:{cls:'danger',items:[['sudo apt install gh','sudo apt install gh']]},
+  login:{cls:'danger',items:[['gh auth login','gh auth login']]},
+  delete:{cls:'danger',items:[['gh repo delete-file .env.bak','gh repo delete-file .env.bak']]},
+  nano:{cls:'danger',items:[['nano .env.bak','nano .env.bak'],['crypto-gen','crypto-gen']]},
+  gitignore:{cls:'danger',items:[['nano .gitignore','nano .gitignore']]},
+  push2:{cls:'danger',items:[['git push','git push']]},
+};
+function setHint(key){
+  const h=HINTS[key];if(!h)return;
+  const bar=$('hintBar');bar.className='hint-bar '+h.cls;
+  bar.innerHTML=`<span>${h.cls==='danger'?'🚨 fix:':'💡 next:'}</span>`+h.items.map(([l,c])=>`<span class="ch" onclick="fill('${c}')">${l}</span>`).join('');
+}
+</script>
+</body>
+</html>

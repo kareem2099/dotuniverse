@@ -11,6 +11,8 @@ import { ThemeManager }     from './modules/theme-manager.js';
 import { Challenges }       from './modules/challenges.js';
 import { ScrollEffects }    from './modules/scroll-effects.js';
 import { TerminalEmulator } from './modules/terminal-emulator.js';
+import { NanoEditor }       from './modules/nano-editor.js';
+import { ExtensionStats }   from './modules/extension-stats.js';
 
 // ── Helpers ──────────────────────────────────────────────
 function parseArgs(str) {
@@ -34,8 +36,26 @@ class App {
 
       ThemeManager.init();
       Challenges.init();
+      ExtensionStats.init();
       ScrollEffects.init();
       ParticleSystem.init('particles', { count: 55, gridSize: 150, connectDist: 120 });
+
+      window.__leakGameState = {
+        leakActive: false,
+        scrapersCount: 0,
+        financialLoss: 0.00,
+        ghInstalled: false,
+        ghLoggedIn: false,
+        cryptoGenKey: 'mock_sec_51Nzp99FreeRaveSecureAPIKey',
+        staged: new Set(),
+        committed: new Set(),
+        envCleaned: false,
+        gitignoreUpdated: false,
+        remoteCleaned: false,
+        keyRotated: false,
+        forcePushed: false,
+        leakInterval: null
+      };
 
       this.setupTerminal();
       this.registerServiceWorker();
@@ -61,6 +81,7 @@ class App {
   // ── Terminal Setup ──────────────────────────────────────
   setupTerminal() {
     TerminalEmulator.init('termOutput', 'termInput');
+    TerminalEmulator.nanoEditor   = new NanoEditor(TerminalEmulator);
     TerminalEmulator.COMMANDS     = this.buildCommands();
     TerminalEmulator.COMMAND_ARGS = {
       nmap: ['localhost', 'kali', 'ip6-localhost', '127.0.0.1', '192.168.1.1'],
@@ -103,7 +124,7 @@ class App {
     return {
 
       // ── HELP ────────────────────────────────────────────
-      help: () => {
+        help: () => {
         T.addLine('  <span class="t-info">📋 Available commands:</span>');
         T.addLine('');
         T.addLine('  <span class="t-white">── Contact ──────────────────────────</span>');
@@ -114,7 +135,7 @@ class App {
         T.addLine('  <span class="t-white">── System ───────────────────────────</span>');
         T.addLine('  <span class="t-label">whoami</span>   <span class="t-val">// about FreeRave</span>');
         T.addLine('  <span class="t-label">neofetch</span> <span class="t-val">// system info</span>');
-        T.addLine('  <span class="t-label">ls</span>       <span class="t-val">// list files</span>');
+        T.addLine('  <span class="t-label">ls</span>       <span class="t-val">// list files  (use -a for hidden)</span>');
         T.addLine('  <span class="t-label">cd</span>       <span class="t-val">&lt;dir&gt; // change directory</span>');
         T.addLine('  <span class="t-label">cat</span>      <span class="t-val">&lt;file&gt; // read file</span>');
         T.addLine('  <span class="t-label">nano</span>     <span class="t-val">&lt;file&gt; // text editor</span>');
@@ -122,6 +143,13 @@ class App {
         T.addLine('  <span class="t-label">history</span>  <span class="t-val">// command history</span>');
         T.addLine('  <span class="t-label">calc</span>     <span class="t-val">&lt;expr&gt; // calculator</span>');
         T.addLine('  <span class="t-label">clear</span>    <span class="t-val">// clear terminal</span>');
+        T.addLine('');
+        T.addLine('  <span class="t-white">── Git ──────────────────────────────</span>');
+        T.addLine('  <span class="t-label">git status</span>   <span class="t-val">// working tree status</span>');
+        T.addLine('  <span class="t-label">git add .</span>    <span class="t-val">// stage all files</span>');
+        T.addLine('  <span class="t-label">git commit</span>   <span class="t-val">-m &lt;msg&gt;</span>');
+        T.addLine('  <span class="t-label">git log</span>      <span class="t-val">// commit history</span>');
+        T.addLine('  <span class="t-label">git push</span>     <span class="t-val">// push to remote</span>');
         T.addLine('');
         T.addLine('  <span class="t-white">── Fun ──────────────────────────────</span>');
         T.addLine('  <span class="t-label">hack</span>     <span class="t-val">// hack the mainframe</span>');
@@ -182,30 +210,51 @@ class App {
       // ── LS ──────────────────────────────────────────────
       ls: (raw) => {
         const args = raw.replace(/^ls\s*/i, '').trim();
-        if (args.includes('.env')) {
-          T.addLine('');
-          T.addLine('  <span class="t-success">-rw-------  1 root root  42 </span><span class="t-val">.env</span>');
-          T.addLine('  <span class="t-error">// Real devs never expose their .env 😏</span>');
-          T.addLine(''); return;
-        }
+        const showHidden = args.includes('-a') || args.includes('-la');
+        const showLongFormat = args.includes('-l') || args.includes('-la');
+        
         let targetPath = T.state.currentPath;
-        if (args) {
-          const c = args.replace(/\/$/, '');
+        let pathArg = args.replace(/-[la]+/g, '').trim();
+        if (pathArg) {
+          const c = pathArg.replace(/\/$/, '');
           if (c === '..')            targetPath = T.state.currentPath !== '~' ? T.state.currentPath.split('/').slice(0,-1).join('/') || '~' : '~';
           else if (c === '~')        targetPath = '~';
           else if (c.startsWith('~/')) targetPath = c;
           else targetPath = T.state.currentPath === '~' ? `~/${c}` : `${T.state.currentPath}/${c}`;
         }
-        const contents = T.fileSystem[targetPath] || [];
+
+        let contents = T.fileSystem[targetPath] || [];
+        if (!showHidden) {
+          contents = contents.filter(item => !item.startsWith('.'));
+        }
+
         T.addLine('');
         if (contents.length > 0) {
-          const out = contents.map(item => {
-            const isDir = item.endsWith('/') || T.fileSystem[`${targetPath}/${item.replace('/','')}`];
-            return isDir ? `<span style="color:var(--accent);font-weight:bold">${item}</span>` : `<span class="t-val">${item}</span>`;
-          }).join('&nbsp;&nbsp;&nbsp;&nbsp;');
-          T.addLine(`  ${out}`);
+          if (showLongFormat) {
+            contents.forEach(item => {
+              const cleanName = item.replace(/\/$/, '');
+              const isDir = item.endsWith('/') || T.fileSystem[`${targetPath}/${cleanName}`];
+              const perm = isDir ? 'drwxr-xr-x' : (item.startsWith('.') ? '-rw-------' : '-rw-r--r--');
+              const size = isDir ? ' 4096' : '  256';
+              const nameColor = isDir ? `<span style="color:var(--accent);font-weight:bold">${item}</span>` : `<span class="t-val">${item}</span>`;
+              T.addLine(`  <span class="t-dim">${perm}  1 freerave freerave ${size} Jul 18 00:00</span> ${nameColor}`);
+            });
+          } else {
+            const out = contents.map(item => {
+              const isDir = item.endsWith('/') || T.fileSystem[`${targetPath}/${item.replace('/','')}`];
+              return isDir ? `<span style="color:var(--accent);font-weight:bold">${item}</span>` : `<span class="t-val">${item}</span>`;
+            }).join('&nbsp;&nbsp;&nbsp;&nbsp;');
+            T.addLine(`  ${out}`);
+          }
         } else {
           T.addLine('  <span class="t-dim">total 0</span>');
+        }
+        // Subtle hint that hidden files are not shown when not using -a
+        if (!showHidden) {
+          const hiddenCount = (T.fileSystem[targetPath] || []).filter(f => f.startsWith('.')).length;
+          if (hiddenCount > 0) {
+            T.addLine(`  <span class="t-dim">// ${hiddenCount} hidden item(s) not shown — use ls -a</span>`);
+          }
         }
         T.addLine('');
       },
@@ -256,7 +305,7 @@ class App {
           'DotFetch':       ['╔══════════════════════════════════════╗','║  DotFetch — HTTP Client (VS Code)    ║','╠══════════════════════════════════════╣','║  Features: Full HTTP, .env Support   ║','╚══════════════════════════════════════╝'],
           'DotReadme':      ['╔══════════════════════════════════════╗','║  DotReadme — README Optimizer        ║','╠══════════════════════════════════════╣','║  Features: Live Preview, AI Enhance  ║','╚══════════════════════════════════════╝'],
         };
-        const data = virtualFiles[file] || (T.fileData && T.fileData[file] ? T.fileData[file].split('\n') : null);
+        const data = (T.fileData && T.fileData[file] ? T.fileData[file].split('\n') : null) || virtualFiles[file];
         if (data) {
           T.addLine('');
           data.forEach(line => T.addLine('  <span class="t-val">' + T.escHtml(line) + '</span>'));
@@ -272,35 +321,14 @@ class App {
       nano: (raw) => {
         const file = raw.replace(/^nano\s*/i, '').trim();
         if (!file) { T.addLine('  <span class="t-error">nano: missing file name</span>'); T.addLine(''); return; }
-        const editor = document.getElementById('nanoEditor');
-        const textArea = document.getElementById('nanoTextArea');
-        const nameEl  = document.getElementById('nanoFileName');
-        if (!editor || !textArea) { T.addLine('  <span class="t-error">nano: editor not available</span>'); return; }
-        textArea.value = (T.fileData && T.fileData[file]) || '';
-        nameEl.textContent = file;
-        editor.classList.remove('nano-hidden');
-        textArea.focus();
-        const handler = (e) => {
-          if (e.ctrlKey && e.key === 'x') {
-            e.preventDefault();
-            if (!T.fileData) T.fileData = {};
-            T.fileData[file] = textArea.value;
-            editor.classList.add('nano-hidden');
-            window.removeEventListener('keydown', handler);
-            T.state.inputEl.focus();
-            T.addLine(`  <span class="t-success">✓ [${T.escHtml(file)}] saved and closed.</span>`);
-            T.addLine('');
+        const initialContent = T.fileData[file] || '';
+        T.nanoEditor.open(file, initialContent, (newContent) => {
+          T.fileData[file] = newContent;
+          const currentDir = T.state.currentPath;
+          if (T.fileSystem[currentDir] && !T.fileSystem[currentDir].includes(file)) {
+            T.fileSystem[currentDir].push(file);
           }
-          if (e.ctrlKey && e.key === 'c') {
-            e.preventDefault();
-            editor.classList.add('nano-hidden');
-            window.removeEventListener('keydown', handler);
-            T.state.inputEl.focus();
-            T.addLine('  <span class="t-dim">! Changes discarded.</span>');
-            T.addLine('');
-          }
-        };
-        window.addEventListener('keydown', handler);
+        });
       },
 
       // ── DATE ────────────────────────────────────────────
@@ -608,6 +636,29 @@ class App {
             T.addLine('  <span class="t-success">✓ nmap installed! Type "nmap &lt;target&gt;" to scan.</span>');
             T.addLine('');
             T.state.installedPackages.add('nmap');
+          } else if (pkg.toLowerCase() === 'gh') {
+            if (window.__leakGameState.ghInstalled) {
+              T.addLine('  <span class="t-val">gh is already the newest version (2.46.0).</span>');
+              T.addLine(''); return;
+            }
+            T.addLine('');
+            T.addLine('  <span class="t-info">Reading package lists... Done</span>');
+            await sleep(400);
+            T.addLine('  <span class="t-info">Building dependency tree... Done</span>');
+            await sleep(300);
+            T.addLine('  <span class="t-info">The following NEW packages will be installed: gh</span>');
+            await sleep(800);
+            T.addLine('  <span class="t-info">Get:1 http://kali.org ... gh 2.46.0 [4.2 MB]</span>');
+            await sleep(1000);
+            T.addLine('  <span class="t-dim">Fetched 4.2 MB in 1.5s</span>');
+            await sleep(500);
+            T.addLine('  <span class="t-dim">Unpacking gh ...</span>');
+            await sleep(600);
+            T.addLine('  <span class="t-success">Setting up gh (2.46.0) ... ✓</span>');
+            T.addLine('');
+            T.addLine('  <span class="t-success">✓ gh installed! Type "gh auth login" to authenticate.</span>');
+            T.addLine('');
+            window.__leakGameState.ghInstalled = true;
           } else {
             T.addLine('');
             T.addLine('  <span class="t-info">Reading package lists... Done</span>');
@@ -795,7 +846,498 @@ class App {
           }, 80);
         }
       },
+
+      // ── GIT ─────────────────────────────────────────────
+      git: async (raw) => {
+        const args = raw.replace(/^git\s*/i, '').trim();
+        const parts = args.split(/\s+/);
+        const sub = parts[0]?.toLowerCase();
+        const subArgs = args.slice(sub.length).trim();
+        
+        const g = window.__leakGameState;
+        
+        if (sub === 'status') {
+          T.addLine('');
+          T.addLine('  <span class="t-white">On branch main</span>');
+          T.addLine('  <span class="t-white">Your branch is up to date with \'origin/main\'.</span>');
+          T.addLine('');
+          
+          if (g.staged.size > 0) {
+            T.addLine('  <span class="t-success">Changes to be committed:</span>');
+            T.addLine('  <span class="t-dim">  (use "git restore --staged <file>..." to unstage)</span>');
+            g.staged.forEach(f => {
+              T.addLine(`  <span class="t-success">\tnew file:   ${f}</span>`);
+            });
+            T.addLine('');
+          }
+          
+          const allFiles = T.fileSystem['~'] || [];
+          const gitignoreContent = T.fileData['.gitignore'] || '';
+          const ignoredPatterns = gitignoreContent.split('\n').map(p => p.trim()).filter(Boolean);
+          
+          const untracked = allFiles.filter(f => {
+            if (f.endsWith('/')) return false;
+            if (g.staged.has(f) || g.committed.has(f)) return false;
+            if (ignoredPatterns.includes(f)) return false;
+            return true;
+          });
+          
+          if (untracked.length > 0) {
+            T.addLine('  <span class="t-error">Untracked files:</span>');
+            T.addLine('  <span class="t-dim">  (use "git add <file>..." to include in what will be committed)</span>');
+            untracked.forEach(f => {
+              T.addLine(`  <span class="t-error">\t${f}</span>`);
+            });
+            T.addLine('');
+          }
+          
+          if (g.staged.size === 0 && untracked.length === 0) {
+            T.addLine('  <span class="t-info">nothing to commit, working tree clean</span>');
+            T.addLine('');
+          }
+          return;
+        }
+        
+        if (sub === 'add') {
+          const fileArg = subArgs.trim();
+          if (!fileArg) {
+            T.addLine('  <span class="t-error">Nothing specified, nothing added.</span>');
+            T.addLine('');
+            return;
+          }
+          
+          const allFiles = T.fileSystem['~'] || [];
+          const gitignoreContent = T.fileData['.gitignore'] || '';
+          const ignoredPatterns = gitignoreContent.split('\n').map(p => p.trim()).filter(Boolean);
+          
+          if (fileArg === '.' || fileArg === '*') {
+            const toStage = [];
+            allFiles.forEach(f => {
+              if (f.endsWith('/')) return;
+              if (!ignoredPatterns.includes(f)) {
+                g.staged.add(f);
+                toStage.push(f);
+              }
+            });
+            // Show verbose output — hidden dotfiles slip through silently
+            const visibleFiles = toStage.filter(f => !f.startsWith('.'));
+            const hiddenFiles  = toStage.filter(f => f.startsWith('.'));
+            T.addLine('');
+            visibleFiles.forEach(f => {
+              T.addLine(`  <span class="t-dim">add '${f}'</span>`);
+            });
+            if (hiddenFiles.length > 0) {
+              // Hidden dotfiles show up quietly — easy to miss!
+              hiddenFiles.forEach(f => {
+                T.addLine(`  <span class="t-dim">add '${f}'</span>`);
+              });
+            }
+            T.addLine('');
+            T.addLine(`  <span class="t-success">✓ ${toStage.length} file(s) staged.</span>`);
+            if (hiddenFiles.length > 0) {
+              T.addLine(`  <span class="t-dim">// note: dotfiles included (use ls -a to inspect)</span>`);
+            }
+          } else {
+            if (allFiles.includes(fileArg)) {
+              g.staged.add(fileArg);
+              T.addLine(`  <span class="t-dim">add '${fileArg}'</span>`);
+              T.addLine(`  <span class="t-success">✓ staged.</span>`);
+            } else {
+              T.addLine(`  <span class="t-error">fatal: pathspec '${fileArg}' did not match any files</span>`);
+            }
+          }
+          T.addLine('');
+          return;
+        }
+        
+        if (sub === 'commit') {
+          const commitMsg = subArgs.match(/-m\s+["']?([^"']+)["']?/)?.[1] || '';
+          if (!commitMsg) {
+            T.addLine('  <span class="t-error">error: switch `m\' requires a value</span>');
+            T.addLine('');
+            return;
+          }
+          if (g.staged.size === 0) {
+            T.addLine('  <span class="t-white">On branch main</span>');
+            T.addLine('  <span class="t-info">nothing to commit, working tree clean</span>');
+            T.addLine('');
+            return;
+          }
+          
+          const commitHash = Math.random().toString(16).substring(2,8);
+          g.lastCommitHash = commitHash;
+          g.committed = new Set([...g.staged]);
+          g.staged.clear();
+          
+          T.addLine('');
+          T.addLine(`  <span class="t-white">[main ${commitHash}] ${commitMsg}</span>`);
+          T.addLine(`  <span class="t-dim"> ${g.committed.size} file(s) changed, ${g.committed.size * 14} insertions(+)</span>`);
+          // List every file — .env.bak quietly slips in the middle
+          const committedArr = [...g.committed];
+          committedArr.forEach(f => {
+            const isDotFile = f.startsWith('.');
+            const color = isDotFile ? 't-dim' : 't-dim';
+            T.addLine(`  <span class="${color}"> create mode 100644 ${f}</span>`);
+          });
+          T.addLine('');
+          return;
+        }
+        
+        if (sub === 'push') {
+          T.addLine('');
+          T.addLine('  <span class="t-info">Enumerating objects: ' + ((g.committed?.size || 3) + 2) + ', done.</span>');
+          await sleep(400);
+          T.addLine('  <span class="t-info">Counting objects: 100% (' + ((g.committed?.size || 3) + 2) + '/' + ((g.committed?.size || 3) + 2) + '), done.</span>');
+          await sleep(300);
+          T.addLine('  <span class="t-info">Delta compression using up to 8 threads</span>');
+          await sleep(500);
+          T.addLine('  <span class="t-info">Compressing objects: 100%   done.</span>');
+          await sleep(300);
+          T.addLine('  <span class="t-info">Writing objects: 100%   done.</span>');
+          await sleep(600);
+          T.addLine('  <span class="t-dim">To https://github.com/kareem2099/dotuniverse.git</span>');
+          
+          if (g.leakActive) {
+            const gitignoreContent = T.fileData['.gitignore'] || '';
+            const isEnvIgnored = gitignoreContent.split('\n').map(p => p.trim()).includes('.env.bak');
+            
+            if (isEnvIgnored && g.envCleaned && g.remoteCleaned) {
+              T.addLine('  <span class="t-dim">   main -> main (forced)</span>');
+              T.addLine('');
+              g.forcePushed = true;
+              stopLeakGame(true);
+              return;
+            } else {
+              T.addLine('');
+              T.addLine('  <span class="t-error">! [remote rejected] main -> main</span>');
+              T.addLine('  <span class="t-error">error: failed to push — leaked credentials still in history.</span>');
+              T.addLine('  <span class="t-dim">  hint: remove .env.bak from remote history first (gh repo delete-file .env.bak)</span>');
+              T.addLine('  <span class="t-dim">  hint: rotate the leaked key (crypto-gen → nano .env.bak)</span>');
+              T.addLine('  <span class="t-dim">  hint: add .env.bak to .gitignore (nano .gitignore)</span>');
+              T.addLine('');
+              return;
+            }
+          }
+          
+          const gitignoreContent = T.fileData['.gitignore'] || '';
+          const isEnvIgnored = gitignoreContent.split('\n').map(p => p.trim()).includes('.env.bak');
+          
+          if (g.committed.has('.env.bak') && !isEnvIgnored) {
+            await sleep(400);
+            T.addLine('  <span class="t-dim">   main -> main</span>');
+            T.addLine('');
+            T.addLine('  <span class="t-success">Branch \'main\' set up to track remote branch \'main\' from \'origin\'.</span>');
+            T.addLine('');
+            await sleep(1200);
+            triggerLeakGame();
+          } else {
+            T.addLine('  <span class="t-dim">   main -> main</span>');
+            T.addLine('');
+            T.addLine('  <span class="t-success">Everything up-to-date</span>');
+            T.addLine('');
+          }
+          return;
+        }
+        
+        if (sub === 'log') {
+          T.addLine('');
+          const hash1 = g.lastCommitHash || Math.random().toString(16).substring(2,8);
+          const hash0 = Math.random().toString(16).substring(2,8);
+          T.addLine(`  <span style="color:#f1fa8c">commit ${hash1}a3f9dd2e17b4c8f0 (HEAD -> main, origin/main)</span>`);
+          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+          T.addLine('  <span class="t-dim">Date:   ' + new Date().toUTCString() + '</span>');
+          T.addLine('');
+          const lastMsg = subArgs || 'feat: deploy latest changes';
+          T.addLine('      ' + T.escHtml(lastMsg));
+          T.addLine('');
+          if (g.committed.has('.env.bak')) {
+            T.addLine('  <span class="t-dim">  Files changed in this commit:</span>');
+            [...g.committed].forEach(f => {
+              if (f === '.env.bak') {
+                T.addLine(`  <span class="t-error">    + ${f}   &lt;-- ⚠️ SECRET FILE</span>`);
+              } else if (f.startsWith('.')) {
+                T.addLine(`  <span class="t-dim">    + ${f}</span>`);
+              } else {
+                T.addLine(`  <span class="t-dim">    + ${f}</span>`);
+              }
+            });
+            T.addLine('');
+          }
+          T.addLine(`  <span style="color:#f1fa8c">commit ${hash0}bb91ca4d0f28e376</span>`);
+          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+          T.addLine('  <span class="t-dim">Date:   Fri Jul 11 02:14:07 2026 +0300</span>');
+          T.addLine('');
+          T.addLine('      chore: initial commit');
+          T.addLine('');
+          return;
+        }
+        
+        if (sub === 'reset') {
+          if (subArgs.includes('--hard HEAD~1')) {
+            if (g.committed.size > 0) {
+              g.staged.clear();
+              g.committed.clear();
+              T.addLine('  <span class="t-success">HEAD is now at local commit (reverted bad commit history)</span>');
+            } else {
+              T.addLine('  <span class="t-info">fatal: HEAD~1: no commits to revert</span>');
+            }
+            T.addLine('');
+            return;
+          }
+        }
+        
+        if (sub === 'rm') {
+          if (subArgs.includes('--cached')) {
+            const file = subArgs.replace('--cached', '').trim();
+            if (g.staged.has(file)) {
+              g.staged.delete(file);
+              T.addLine(`  <span class="t-success">rm '${file}' untracked</span>`);
+            } else if (g.committed.has(file)) {
+              g.committed.delete(file);
+              T.addLine(`  <span class="t-success">rm '${file}' untracked</span>`);
+            } else {
+              T.addLine(`  <span class="t-error">fatal: pathspec '${file}' did not match any files</span>`);
+            }
+            T.addLine('');
+            return;
+          }
+        }
+        
+        T.addLine('  <span class="t-error">git: command not supported in this simulation</span>');
+        T.addLine('');
+      },
+
+      // ── GH ──────────────────────────────────────────────
+      gh: async (raw) => {
+        const args = raw.replace(/^gh\s*/i, '').trim();
+        const parts = args.split(/\s+/);
+        const sub = parts[0]?.toLowerCase();
+        const g = window.__leakGameState;
+        
+        if (!g.ghInstalled) {
+          T.addLine('  <span class="t-error">gh: command not found. Did you install GitHub CLI? (sudo apt install gh)</span>');
+          T.addLine('');
+          return;
+        }
+        
+        if (sub === 'auth') {
+          if (parts[1]?.toLowerCase() === 'login') {
+            T.addLine('  <span class="t-white">? What is your preferred web flow?</span>');
+            T.addLine('  <span class="t-accent2">> GitHub.com</span>');
+            T.addLine('  <span class="t-info">  Paste the following one-time code: 7777-RAVE</span>');
+            T.addLine('  <span class="t-white">Logging in dynamically...</span>');
+            await sleep(1500);
+            g.ghLoggedIn = true;
+            T.addLine('  <span class="t-success">✔ Logged in as freerave</span>');
+            T.addLine('');
+            return;
+          }
+        }
+        
+        if (sub === 'repo') {
+          if (parts[1]?.toLowerCase() === 'delete-file') {
+            if (!g.ghLoggedIn) {
+              T.addLine('  <span class="t-error">error: gh auth login required to perform repo actions.</span>');
+              T.addLine('');
+              return;
+            }
+            const file = parts[2];
+            if (file === '.env.bak') {
+              T.info = 'purging .env.bak';
+              T.addLine('  <span class="t-info">Requesting GitHub API deletion...</span>');
+              await sleep(1000);
+              g.remoteCleaned = true;
+              T.addLine('  <span class="t-success">✔ Successfully purged .env.bak from remote repository history!</span>');
+              T.addLine('');
+              return;
+            } else {
+              T.addLine(`  <span class="t-error">error: file '${file}' not found in remote repository.</span>`);
+              T.addLine('');
+              return;
+            }
+          }
+        }
+        
+        if (sub === 'secret') {
+          if (parts[1]?.toLowerCase() === 'set') {
+            const secretName = parts[2];
+            if (!secretName) {
+              T.addLine('  <span class="t-error">error: secret name required</span>');
+              T.addLine('');
+              return;
+            }
+            T.addLine('  <span class="t-white">Enter secret value: ********</span>');
+            await sleep(500);
+            g.keyRotated = true;
+            T.addLine(`  <span class="t-success">✔ Secret ${secretName} set on remote repository.</span>`);
+            T.addLine('');
+            return;
+          }
+        }
+        
+        T.addLine('  <span class="t-error">gh: command usage error. Try "gh auth login" or "gh secret set"</span>');
+        T.addLine('');
+      },
+
+      // ── CRYPTO-GEN ──────────────────────────────────────
+      'crypto-gen': (raw) => {
+        T.addLine('');
+        T.addLine('  <span class="t-accent2">🔑 Cryptographic API Key Generator</span>');
+        T.addLine('  <span class="t-info">Generating secure high-entropy Stripe API Key...</span>');
+        T.addLine('  .........................................');
+        T.addLine(`  <span class="t-success">New Safe Key: mock_sec_51Nzp99FreeRaveSecureAPIKey</span>`);
+        T.addLine('  <span class="t-dim">// Use nano to place this key inside your config or .env</span>');
+        T.addLine('');
+      },
     };
+  }
+}
+
+// ── Leak Game Helper Functions ───────────────────────────
+async function triggerLeakGame() {
+  const g = window.__leakGameState;
+  if (g.leakActive) return;
+  g.leakActive = true;
+  g.scrapersCount = 0;
+  g.financialLoss = 0.00;
+
+  // Step 1: Fake GitHub security alert appears in terminal
+  TerminalEmulator.addLine('');
+  TerminalEmulator.addLine('  <span class="t-dim">────────────────────────────────────────────────</span>');
+  await sleep(600);
+  TerminalEmulator.addLine('  <span style="color:#ffbd2e;font-weight:bold">📧  NEW EMAIL — security-noreply@github.com</span>');
+  await sleep(300);
+  TerminalEmulator.addLine('  <span class="t-dim">  Subject: [ACTION REQUIRED] Secret exposed in public commit</span>');
+  await sleep(400);
+  TerminalEmulator.addLine('  <span class="t-dim">  ─────────────────────────────────────────────</span>');
+  await sleep(200);
+  TerminalEmulator.addLine('  <span class="t-white">  We found the following secret in your public repository:</span>');
+  await sleep(300);
+  TerminalEmulator.addLine('  <span class="t-white">  Repository : kareem2099/dotuniverse</span>');
+  await sleep(200);
+  TerminalEmulator.addLine('  <span class="t-white">  File       : <span style="color:#ff5555;font-weight:bold">.env.bak</span>  &lt;-- hidden dotfile</span>');
+  await sleep(200);
+  TerminalEmulator.addLine('  <span class="t-white">  Commit     : ' + (g.lastCommitHash || 'a3f2b9') + '...  (pushed just now)</span>');
+  await sleep(200);
+  TerminalEmulator.addLine('  <span style="color:#ff5555">  Secret     : AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/...</span>');
+  await sleep(200);
+  TerminalEmulator.addLine('  <span style="color:#ff5555">             + STRIPE_API_KEY       = mock_sec_51NzABC123XYZ...</span>');
+  await sleep(400);
+  TerminalEmulator.addLine('  <span class="t-dim">  ─────────────────────────────────────────────</span>');
+  await sleep(300);
+  TerminalEmulator.addLine('  <span style="color:#ffbd2e">  ⚠  Scrapers have already detected this commit.</span>');
+  TerminalEmulator.addLine('  <span style="color:#ffbd2e">  ⚠  Revoke & rotate your keys IMMEDIATELY.</span>');
+  await sleep(500);
+  TerminalEmulator.addLine('  <span class="t-dim">────────────────────────────────────────────────</span>');
+  TerminalEmulator.addLine('');
+
+  // Step 2: Panic the terminal title
+  const termTitle = document.querySelector('.term-title-center');
+  if (termTitle) {
+    termTitle.innerHTML = '<span style="color:#ff5555; animation:panicBlink 1s infinite;">[🚨 EMERGENCY: KEY LEAKED]</span>';
+  }
+
+  // Step 3: Panic bar with live counters
+  let panicBar = document.getElementById('panicBar');
+  if (!panicBar) {
+    panicBar = document.createElement('div');
+    panicBar.id = 'panicBar';
+    panicBar.className = 'panic-bar';
+    document.body.appendChild(panicBar);
+  }
+  panicBar.style.display = 'flex';
+  updatePanicBarHTML();
+
+  g.leakInterval = setInterval(() => {
+    g.scrapersCount += Math.floor(Math.random() * 6) + 2;
+    g.financialLoss += (Math.random() * 40) + 30;
+
+    // Check if key is cleaned in fileData
+    const envContent = TerminalEmulator.fileData['.env.bak'] || '';
+    if (!envContent.includes('mock_sec_51NzABC123XYZ') && !envContent.includes('AWS_SECRET')) {
+      g.envCleaned = true;
+    }
+
+    updatePanicBarHTML();
+
+    if (g.financialLoss >= 5000) {
+      stopLeakGame(false);
+    }
+  }, 1000);
+}
+
+function updatePanicBarHTML() {
+  const g = window.__leakGameState;
+  const panicBar = document.getElementById('panicBar');
+  if (!panicBar) return;
+  
+  panicBar.innerHTML = `
+    <div class="panic-title">
+      <span>⚠️ CRITICAL SECURITY LEAK</span>
+    </div>
+    <div class="panic-stat">
+      <span>Hacker Scrapers:</span>
+      <span id="scrapersVal" style="color: #ffbd2e;">${g.scrapersCount} bots</span>
+    </div>
+    <div class="panic-stat">
+      <span>AWS/Stripe Bill:</span>
+      <span id="lossVal" style="color: #ff5555;">$${g.financialLoss.toFixed(2)}</span>
+    </div>
+    <div style="font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center;">
+      Fix the leak before damage reaches $5000.00!
+    </div>
+  `;
+}
+
+function stopLeakGame(success) {
+  const g = window.__leakGameState;
+  if (!g.leakActive) return;
+  
+  clearInterval(g.leakInterval);
+  g.leakActive = false;
+  
+  const panicBar = document.getElementById('panicBar');
+  const termTitle = document.querySelector('.term-title-center');
+  
+  if (success) {
+    if (panicBar) {
+      panicBar.style.background = 'rgba(0, 40, 0, 0.95)';
+      panicBar.style.borderColor = '#28c840';
+      panicBar.style.borderLeftColor = '#28c840';
+      panicBar.innerHTML = `
+        <div class="panic-title" style="color: #28c840; animation: none;">
+          <span>✔ RECOVERY SUCCESSFUL</span>
+        </div>
+        <div style="font-size: 11px; text-align: center; margin-top: 5px;">
+          All credentials rotated & remote purged. Leak secured!
+        </div>
+      `;
+      setTimeout(() => {
+        panicBar.style.display = 'none';
+      }, 5000);
+    }
+    
+    if (termTitle) {
+      termTitle.innerHTML = 'FREE RAVE TERMINAL';
+    }
+    
+    TerminalEmulator.addLine('');
+    TerminalEmulator.addLine('  <span class="t-success">🎉🎉🎉 CONGRATULATIONS! 🎉🎉🎉</span>');
+    TerminalEmulator.addLine('  <span class="t-success">You successfully mitigated the leak, updated your git history,</span>');
+    TerminalEmulator.addLine('  <span class="t-success">and rotated the credentials before the billing went out of control!</span>');
+    TerminalEmulator.addLine('  <span class="t-info">Total Damage Stopped at: $' + g.financialLoss.toFixed(2) + '</span>');
+    TerminalEmulator.addLine('');
+  } else {
+    if (panicBar) panicBar.style.display = 'none';
+    if (termTitle) termTitle.innerHTML = 'FREE RAVE TERMINAL';
+    
+    TerminalEmulator.addLine('');
+    TerminalEmulator.addLine('  <span class="t-error">💀 GAME OVER: Financial damage limit reached! 💀</span>');
+    TerminalEmulator.addLine('  <span class="t-error">Stripe / AWS billed you $' + g.financialLoss.toFixed(2) + '. You are bankrupt!</span>');
+    TerminalEmulator.addLine('');
+    setTimeout(() => {
+      if (window.triggerDestruction) window.triggerDestruction();
+    }, 1500);
   }
 }
 

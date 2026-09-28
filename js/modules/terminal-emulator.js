@@ -21,7 +21,7 @@ export const TerminalEmulator = {
   },
 
   fileSystem: {
-    '~': ['tools/', 'platforms/', 'challenges/', 'README.md', 'brain.exe', '.env', 'todo.md'],
+    '~': ['tools/', 'platforms/', 'challenges/', 'README.md', 'brain.exe', '.env', '.env.bak', '.gitignore', 'todo.md'],
     '~/tools': ['DotGhostBoard', 'dotcommand', 'CodeTune', 'DotShare', 'DotFetch', 'DotReadme'],
     '~/platforms': ['dev.to', 'linkedin', 'github', 'tiktok'],
     '~/challenges': ['april-2026.log']
@@ -31,7 +31,9 @@ export const TerminalEmulator = {
     'README.md': "# FreeRave Portfolio v1.0.0\n\nWelcome to the dotUniverse.\nType 'help' to see what you can do here.\n\n[Author]: Kareem (FreeRave)\n[Tools]: 20+ open source projects\n[License]: MIT",
     'todo.md': "[✓] Reach 2.5k followers (Record: 15 days!)\n[✓] Build dotUniverse Ecosystem\n[✓] Finish military service (Done!)\n[ ] World Domination\n[ ] Drink more coffee ☕",
     'brain.exe': "Error: Binary file cannot be edited.\nReason: Human consciousness not yet fully digitized.\nTry: 'neofetch' for system specs.",
-    '.env': "PORT=3000\nDB_URL=mongodb://localhost:27017/top_secret\nSECRET_KEY=I_LOVE_TERMINALS_123\nAPI_KEY=FreeRave_is_the_best"
+    '.env': "PORT=3000\nDB_URL=mongodb://localhost:27017/top_secret\nSECRET_KEY=I_LOVE_TERMINALS_123\nAPI_KEY=FreeRave_is_the_best",
+    '.env.bak': "AWS_ACCESS_KEY_ID=MOCK_AWS_KEY_ID_INVALID\nAWS_SECRET_ACCESS_KEY=mock_aws_secret_key_example_do_not_commit\nSTRIPE_API_KEY=mock_sec_51NzABC123XYZ... (DO NOT COMMIT!)",
+    '.gitignore': "node_modules/\ndist/\n.DS_Store\n"
   },
 
   init(outputId, inputId) {

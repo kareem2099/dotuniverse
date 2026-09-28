@@ -231,7 +231,7 @@
     position: relative;
   }
   .march-banner::after {
-    content: 'JULY 2026';
+    content: 'OCTOBER 2026';
     position: absolute;
     top: -1px; right: 20px;
     font-size: 9px;
@@ -1378,3 +1378,56 @@
 .nano-shortcut:hover {
   background: #ccc;
 }
+
+/* ═══════════════════════════════════════
+   EMERGENCY PANIC HUD & NANO EDITOR OVERRIDES
+   ═══════════════════════════════════════ */
+.panic-bar {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: rgba(13, 0, 0, 0.95);
+  color: #fff;
+  padding: 16px;
+  font-family: 'Space Mono', monospace;
+  border: 1px solid #ff5555;
+  box-shadow: 0 0 25px rgba(255, 85, 85, 0.25);
+  z-index: 100000;
+  width: 290px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-left: 4px solid #ff5555;
+}
+
+.panic-title {
+  font-weight: bold;
+  color: #ff5555;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: panicBlink 1.2s infinite;
+}
+
+@keyframes panicBlink {
+  0%, 100% { opacity: 1; text-shadow: 0 0 5px #ff5555; }
+  50% { opacity: 0.3; text-shadow: none; }
+}
+
+.panic-stat {
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(255, 85, 85, 0.2);
+  padding-bottom: 4px;
+}
+
+.panic-stat:last-child {
+  border-bottom: none;
+}
+
+.panic-stat span {
+  font-weight: bold;
+}
+

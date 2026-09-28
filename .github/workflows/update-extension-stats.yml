@@ -1,0 +1,38 @@
+name: Auto Update Extension Stats
+
+on:
+  schedule:
+    # Runs everyday at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  sync-stats:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync extension downloads and versions
+        run: node scripts/sync-extension-stats.mjs
+
+      - name: Commit and push changes if updated
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html README.md
+          if git diff --staged --quiet; then
+            echo "No changes in extension stats detected."
+          else
+            git commit -m "chore: auto-update extension downloads and versions [skip ci]"
+            git push
+          fi
