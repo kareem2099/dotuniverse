@@ -4,7 +4,7 @@
 > All open-source. All with a purpose.
 
 ![GitHub Stars](https://img.shields.io/badge/Tools-20%2B-00e5ff?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iOCIgZmlsbD0iIzAwZTVmZiIvPjwvc3ZnPg==)
-![VS Code Downloads](https://img.shields.io/badge/Downloads-19%2C526-39ff14?style=flat-square)
+![VS Code Downloads](https://img.shields.io/badge/Downloads-19%2C637-39ff14?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 ![dev.to Followers](https://img.shields.io/badge/dev.to-3%2C986%20Followers-00e5ff?style=flat-square&logo=dev.to)
 
@@ -24,12 +24,12 @@ Every tool is built to solve a real problem, licensed under MIT, and designed wi
 
 | Tool | Description | Version | Downloads |
 |------|-------------|---------|-----------|
-| [**CodeTune**](https://github.com/kareem2099/codetune) | Islamic spiritual environment — Quran player, prayer times, focus mode, Dhikr counters | v1.3.0 | 2,223+ |
-| [**dotcommand**](https://github.com/kareem2099/dotcommand) | Intelligent command manager with ML-based suggestions & analytics dashboard | v2.0.1 | 1,750+ |
-| [**DotEnvy**](https://github.com/kareem2099/dotenvy) | Environment manager with Git branch auto-switching & AI-powered secret detection | v2.2.1 | 2,935+ |
-| [**DotShare**](https://github.com/kareem2099/DotShare) | Share code journeys to 8 social platforms with AI-powered content creation | v3.5.1 | 7,034+ |
-| [**DotFetch**](https://github.com/kareem2099/DotFetch) | Professional HTTP client with .env support & cURL import/export | v2.1.1 | 3,239+ |
-| [**DotReadme**](https://github.com/kareem2099/DotReadme) | README optimizer with real-time simulator & quality audit (A+-F score) | v1.2.0 | 2,088+ |
+| [**CodeTune**](https://github.com/kareem2099/codetune) | Islamic spiritual environment — Quran player, prayer times, focus mode, Dhikr counters | v1.3.0 | 2,249+ |
+| [**dotcommand**](https://github.com/kareem2099/dotcommand) | Intelligent command manager with ML-based suggestions & analytics dashboard | v2.0.1 | 1,758+ |
+| [**DotEnvy**](https://github.com/kareem2099/dotenvy) | Environment manager with Git branch auto-switching & AI-powered secret detection | v2.2.1 | 2,951+ |
+| [**DotShare**](https://github.com/kareem2099/DotShare) | Share code journeys to 8 social platforms with AI-powered content creation | v3.5.1 | 7,081+ |
+| [**DotFetch**](https://github.com/kareem2099/DotFetch) | Professional HTTP client with .env support & cURL import/export | v2.1.1 | 3,246+ |
+| [**DotReadme**](https://github.com/kareem2099/DotReadme) | README optimizer with real-time simulator & quality audit (A+-F score) | v1.2.0 | 2,095+ |
 | [**DotSense**](https://github.com/kareem2099/dotsense) | AI-powered developer wellness — mood detection, burnout prevention & break reminders | v1.3.0 | 257+ |
 | [**DotConvert**](https://github.com/kareem2099/dotconvert) | Data converter — Base64, XML↔JSON, CSV↔JSON conversions | — | Coming to Marketplace |
 
@@ -201,7 +201,7 @@ No build step, no dependencies, no frameworks. Just open and go.
 | Metric | Value |
 |--------|-------|
 | Tools Built | 20+ |
-| VS Code Downloads | 19,526+ |
+| VS Code Downloads | 19,637+ |
 | dev.to Followers | 3,986 |
 | Posts Published | 93 |
 | License | MIT |
