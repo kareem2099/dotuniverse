@@ -47,6 +47,7 @@ Every tool is built to solve a real problem, licensed under MIT, and designed wi
 |------|-------------|
 | [**DotScramble**](https://github.com/kareem2099/DotScramble) | Advanced image privacy studio — face/license plate detection, 8 blur effects, batch processing. Standalone executables for Win/Linux/Mac. |
 | [**DotGhostBoard**](https://github.com/kareem2099/DotGhostBoard) | Linux clipboard manager — AES-256 encryption, tag system, collections, thumbnail previews. PyQt6 + SQLite. |
+| [**DotMorph**](https://github.com/kareem2099/DotMorph) | Radial-menu file converter for Linux — 440+ conversions (images, PDF, SVG, video, audio, Office, Markdown), screen-edge dock, global hotkey, file-manager menus, watch folders. [Product page](https://dotsuite.dev/en/product/dotmorph). PySide6 + QML. |
 
 ### Mobile Apps
 

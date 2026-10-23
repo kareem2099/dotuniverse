@@ -22,7 +22,7 @@ export const TerminalEmulator = {
 
   fileSystem: {
     '~': ['tools/', 'platforms/', 'challenges/', 'README.md', 'brain.exe', '.env', '.env.bak', '.gitignore', 'todo.md'],
-    '~/tools': ['DotGhostBoard', 'dotcommand', 'CodeTune', 'DotShare', 'DotFetch', 'DotReadme'],
+    '~/tools': ['DotGhostBoard', 'DotMorph', 'dotcommand', 'CodeTune', 'DotShare', 'DotFetch', 'DotReadme'],
     '~/platforms': ['dev.to', 'linkedin', 'github', 'tiktok'],
     '~/challenges': ['april-2026.log']
   },
