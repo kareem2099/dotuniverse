@@ -14,6 +14,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Service worker cache bumped to `dotuniverse-v2` so returning visitors get the updated tool list (the worker is cache-first).
+- **Social Stats Refresh**: Updated followers across platforms (dev.to: 4,069, LinkedIn: 772, TikTok: 37, YouTube: 30, Medium: 8, Facebook: 15, Instagram: 7, X: 20, Bluesky: 27), which also moves the Growth Challenge bars. X reached its goal of 20.
+- **November 2026 Growth Challenge**: New targets across 9 platforms, ending November 30th (dev.to: 4,069 / 4,250, LinkedIn: 772 / 850, TikTok: 37 / 40, YouTube: 30 / 35, Medium: 8 / 10, Facebook: 15 / 20, Instagram: 7 / 10, X: 20 / 25, Bluesky: 27 / 30). Banner, README and footer labels moved from October to November.
+- **dev.to Dashboard Metrics**: Post views to 18,097, published posts to 100, reactions to 99, and comments to 71.
+- Service worker cache bumped to `dotuniverse-v3` so returning visitors get the new numbers.
+- Service worker now serves pages network-first, with the cache as the offline copy, so the daily stat commits reach returning visitors without a cache bump. CSS and JS stay cache-first.
+
+### Fixed
+- Live extension stats were blocked by the Content Security Policy: `connect-src` now allows VS Marketplace and Open VSX.
+- Live extension totals are only applied and cached when every store responded, so a failed request can't shrink the displayed total.
+- Count-up animation no longer drops the `+` from stats like `20+`, and no longer overwrites a live total that arrives while it runs.
+- Particle grid crashed app startup on a 0x0 viewport, which left the terminal and service worker uninitialized.
+- `nano-editor.js` and `extension-stats.js` added to the service worker's pre-cache list so the app can start offline.
+- **Terminal security**: HTML in terminal input is now escaped everywhere it's echoed (unknown commands, `cowsay`, `nano`, `ls`, `git`, `gh`, Tab hints). Names like `constructor` and `__proto__` no longer resolve to JavaScript built-ins in commands, files or `calc`, in both the main and game terminals.
+- `sudo apt install` always failed with "are you root?", which blocked `nmap` and made the leak game unwinnable.
+- `sudo rm -rf / --no-preserve-root` now runs the destruction scene, and `sudo` no longer blocks every command containing the letters `rm`.
+- `calc` showed wrong results for very large or very small values, and rejected numbers like `.5`.
+- Tab completion stayed stuck on its first result after the input changed.
+- History skipped the newest command after pressing Up, Down, then Up.
+- `cd ~/tools` and combined flags like `ls -al` now work.
+- `git status` and the static help text no longer swallow `<file>`-style placeholders, and `git log` shows the last commit message.
+- `ask` and `collab` no longer claim a message was sent when they only open the mail client.
+- Nano now hides the whole input row while open, and the unused nano markup with its duplicate `nanoTextArea` id is gone from `index.html`.
 
 ## [1.2.0] - 2026-09-28
 

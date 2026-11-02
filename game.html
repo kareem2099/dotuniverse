@@ -352,7 +352,7 @@ async function runCmd(){
 async function dispatch(raw){
   const parts=raw.trim().split(/\s+/);const cmd=parts[0].toLowerCase();
   const handlers={help:cmdHelp,clear:cmdClear,ls:cmdLs,cat:cmdCat,whoami:cmdWhoami,date:cmdDate,history:cmdHistory,nano:cmdNano,git:cmdGit,gh:cmdGh,sudo:cmdSudo,apt:cmdApt,'crypto-gen':cmdCryptoGen};
-  if(handlers[cmd])await handlers[cmd](raw,parts.slice(1).join(' '),parts);
+  if(Object.hasOwn(handlers,cmd))await handlers[cmd](raw,parts.slice(1).join(' '),parts);
   else{add(`  <span class="t-err">bash: ${esc(cmd)}: command not found</span>`);add('  <span class="t-dim">  type <span class="t-info">help</span> for available commands</span>');add('');}
 }
 
@@ -393,7 +393,7 @@ function cmdLs(raw){
 function cmdCat(raw,rest){
   const f=rest.trim();if(!f){add('  <span class="t-err">cat: missing operand</span>');add('');return;}
   if(f==='.env'){add('  <span class="t-err">Nice try! 😏</span>');add('  <span class="t-dim">// Real devs protect their .env</span>');add('');return;}
-  if(FD[f]){add('');FD[f].split('\n').forEach(l=>{const isKey=l.includes('KEY')||l.includes('mock_sec');add(`  <span style="${isKey?'color:var(--red)':'color:var(--text)'}">${esc(l)}</span>`);});add('');}
+  if(Object.hasOwn(FD,f)){add('');FD[f].split('\n').forEach(l=>{const isKey=l.includes('KEY')||l.includes('mock_sec');add(`  <span style="${isKey?'color:var(--red)':'color:var(--text)'}">${esc(l)}</span>`);});add('');}
   else{add(`  <span class="t-err">cat: ${esc(f)}: No such file</span>`);add('');}
 }
 
@@ -403,7 +403,7 @@ function cmdHistory(){add('');G.cmdHistory.forEach((c,i)=>add(`  <span class="t-
 
 async function cmdNano(raw,rest){
   const f=rest.trim();if(!f){add('  <span class="t-err">nano: missing filename</span>');add('');return;}
-  const content=FD[f]||'';
+  const content=Object.hasOwn(FD,f)?FD[f]:'';
   add('');
   add(`  <span class="t-dim">┌──────────────────── nano: ${esc(f)} ─</span>`);
   content.split('\n').forEach(l=>{const isKey=l.includes('KEY')||l.includes('mock_sec');add(`  <span class="t-dim">│ </span><span style="${isKey?'color:var(--red)':'color:var(--muted)'}">${esc(l)}</span>`);});

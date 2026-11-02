@@ -31,14 +31,14 @@ export const ScrollEffects = {
   },
 
   setupCountUp() {
-    const countUp = (el, target, duration) => {
+    const countUp = (el, target, duration, suffix) => {
       const start = performance.now();
       const step = (now) => {
         const progress = Math.min((now - start) / duration, 1);
         const eased = 1 - Math.pow(1 - progress, 3);
-        el.textContent = Math.round(eased * target).toLocaleString();
+        el.textContent = Math.round(eased * target).toLocaleString() + suffix;
         if(progress < 1) requestAnimationFrame(step);
-        else el.textContent = target.toLocaleString();
+        else el.textContent = el.dataset.finalText || target.toLocaleString() + suffix;
       };
       requestAnimationFrame(step);
     };
@@ -47,10 +47,12 @@ export const ScrollEffects = {
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => {
         if(e.isIntersecting) {
-          const raw = e.target.textContent.replace(/,/g, '').replace('+', '').trim();
+          const text = e.target.textContent.trim();
+          const suffix = text.endsWith('+') ? '+' : '';
+          const raw = text.replace(/,/g, '').replace('+', '');
           const n = parseFloat(raw);
           if(!isNaN(n)) {
-            countUp(e.target, n, 1500);
+            countUp(e.target, n, 1500, suffix);
           }
           io.unobserve(e.target);
         }

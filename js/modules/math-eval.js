@@ -44,8 +44,8 @@ export const MathEval = {
 
   // Validate token is safe
   isValidToken(token) {
-    if(/^\d+\.?\d*$/.test(token)) return true;
-    if(token in this.ctx) return true;
+    if(/^(\d+\.?\d*|\.\d+)$/.test(token)) return true;
+    if(Object.hasOwn(this.ctx, token)) return true;
     if('+-*/%(),'.includes(token)) return true;
     return false;
   },
@@ -132,7 +132,7 @@ export const MathEval = {
         if(/[a-zA-Z]/.test(peek())) {
           let name = '';
           while(pos < src.length && /[a-zA-Z0-9_]/.test(peek())) name += eat();
-          if(!(name in ctx)) throw new Error(`Unknown identifier: ${name}`);
+          if(!Object.hasOwn(ctx, name)) throw new Error(`Unknown identifier: ${name}`);
           if(typeof ctx[name] === 'function') {
             if(peek() !== '(') throw new Error(`Expected '(' after ${name}`);
             eat(); // '('
@@ -180,7 +180,10 @@ export const MathEval = {
       if(Number.isInteger(result)) {
         return result.toLocaleString();
       }
-      return result.toPrecision(10).replace(/\.?0+$/, '');
+      // Trim the mantissa only: zeros in the exponent or the integer part are significant
+      const [mantissa, exponent] = result.toPrecision(10).split('e');
+      const trimmed = mantissa.includes('.') ? mantissa.replace(/\.?0+$/, '') : mantissa;
+      return exponent ? `${trimmed}e${exponent}` : trimmed;
     } catch {
       return result.toString();
     }

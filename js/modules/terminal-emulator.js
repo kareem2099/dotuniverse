@@ -17,6 +17,7 @@ export const TerminalEmulator = {
     tabMatches: [],
     tabIdx: -1,
     lastTabInput: '',
+    lastTabValue: '',
     promptHook: null,
   },
 
@@ -27,14 +28,15 @@ export const TerminalEmulator = {
     '~/challenges': ['april-2026.log']
   },
 
-  fileData: {
+  // No prototype, so names like "constructor" or "__proto__" are ordinary (missing) files
+  fileData: Object.assign(Object.create(null), {
     'README.md': "# FreeRave Portfolio v1.0.0\n\nWelcome to the dotUniverse.\nType 'help' to see what you can do here.\n\n[Author]: Kareem (FreeRave)\n[Tools]: 20+ open source projects\n[License]: MIT",
     'todo.md': "[✓] Reach 2.5k followers (Record: 15 days!)\n[✓] Build dotUniverse Ecosystem\n[✓] Finish military service (Done!)\n[ ] World Domination\n[ ] Drink more coffee ☕",
     'brain.exe': "Error: Binary file cannot be edited.\nReason: Human consciousness not yet fully digitized.\nTry: 'neofetch' for system specs.",
     '.env': "PORT=3000\nDB_URL=mongodb://localhost:27017/top_secret\nSECRET_KEY=I_LOVE_TERMINALS_123\nAPI_KEY=FreeRave_is_the_best",
     '.env.bak': "AWS_ACCESS_KEY_ID=MOCK_AWS_KEY_ID_INVALID\nAWS_SECRET_ACCESS_KEY=mock_aws_secret_key_example_do_not_commit\nSTRIPE_API_KEY=mock_sec_51NzABC123XYZ... (DO NOT COMMIT!)",
     '.gitignore': "node_modules/\ndist/\n.DS_Store\n"
-  },
+  }),
 
   init(outputId, inputId) {
     this.state.output = document.getElementById(outputId);
@@ -101,10 +103,10 @@ export const TerminalEmulator = {
     const command = parts[0].toLowerCase();
     const args = cmd.slice(command.length).trim();
 
-    if(this.COMMANDS[command]) {
+    if(Object.hasOwn(this.COMMANDS, command)) {
       await this.COMMANDS[command].call(this, args);
     } else {
-      this.addLine(`  <span class="t-error">Error: ${command}: command not found</span>`);
+      this.addLine(`  <span class="t-error">Error: ${this.escHtml(command)}: command not found</span>`);
       this.addLine('');
     }
   },
@@ -125,6 +127,7 @@ export const TerminalEmulator = {
       this.state.histIdx++;
       this.state.inputEl.value = this.state.history[this.state.histIdx];
     } else {
+      this.state.histIdx = this.state.history.length;
       this.state.inputEl.value = '';
     }
   },
@@ -136,7 +139,8 @@ export const TerminalEmulator = {
     const command = parts[0]?.toLowerCase() || '';
     const isCommand = !input.includes(' ') && !input.endsWith(' ');
 
-    if(this.state.tabIdx === -1 || !input.startsWith(this.state.lastTabInput)) {
+    // Keep cycling only while the input is still what the last Tab left there
+    if(this.state.tabIdx === -1 || input !== this.state.lastTabValue) {
       this.state.lastTabInput = input.substring(0, input.length - lastPart.length);
 
       let pool = [];
@@ -176,7 +180,7 @@ export const TerminalEmulator = {
             return pathPrefix + (isDir ? cleanName + '/' : cleanName + ' ');
           });
         }
-      } else if(this.COMMAND_ARGS[command]) {
+      } else if(Object.hasOwn(this.COMMAND_ARGS, command)) {
         pool = this.COMMAND_ARGS[command].map(a => a + ' ');
       } else {
         return;
@@ -193,6 +197,7 @@ export const TerminalEmulator = {
     if(this.state.tabMatches.length > 0) {
       const match = this.state.tabMatches[this.state.tabIdx];
       this.state.inputEl.value = this.state.lastTabInput + match;
+      this.state.lastTabValue = this.state.inputEl.value;
 
       // Clear old hints
       document.querySelectorAll('.t-line.tab-hint').forEach(el => el.remove());
@@ -203,8 +208,8 @@ export const TerminalEmulator = {
           const clean = m.trim().replace(/\/$/, '');
           const display = clean.startsWith(lastPart) ? clean.substring(lastPart.length) : clean;
           return i === this.state.tabIdx
-            ? `<span class="t-accent2" style="text-decoration:underline">${clean || m}</span>`
-            : `<span>${clean || m}</span>`;
+            ? `<span class="t-accent2" style="text-decoration:underline">${this.escHtml(clean || m)}</span>`
+            : `<span>${this.escHtml(clean || m)}</span>`;
         }).join('  ');
         this.addLine(`  <span class="t-dim">suggestions:</span> ${hints}`, 'tab-hint');
       }

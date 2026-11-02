@@ -231,7 +231,7 @@
     position: relative;
   }
   .march-banner::after {
-    content: 'OCTOBER 2026';
+    content: 'NOVEMBER 2026';
     position: absolute;
     top: -1px; right: 20px;
     font-size: 9px;

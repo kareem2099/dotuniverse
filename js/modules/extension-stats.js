@@ -98,8 +98,11 @@ export const ExtensionStats = {
         updatedAt: new Date().toISOString()
       };
 
+      // A failed store would shrink the total, so keep the static/cached numbers instead
+      const complete = this.EXTENSIONS.every(ext => vsMap[ext.key] && (!ext.ovsxId || ovsxMap[ext.key]));
+
       // Only save and apply if we got meaningful data
-      if (result.totals.grandTotal > 0) {
+      if (complete && result.totals.grandTotal > 0) {
         this.setCache(result);
         this.applyToDOM(result);
       }
@@ -215,11 +218,13 @@ export const ExtensionStats = {
       const headerTotal = document.getElementById('headerExtDownloads');
       if (headerTotal) {
         headerTotal.textContent = totalStr;
+        headerTotal.dataset.finalText = totalStr; // a running count-up must end on this value
       }
 
       const bannerTotal = document.getElementById('bannerExtDownloads') || document.querySelector('.dl-total');
       if (bannerTotal) {
         bannerTotal.textContent = totalStr;
+        bannerTotal.dataset.finalText = totalStr;
       }
     }
   }

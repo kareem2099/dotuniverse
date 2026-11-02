@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dotuniverse-v2';
+const CACHE_NAME = 'dotuniverse-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -11,6 +11,8 @@ const ASSETS = [
   './js/modules/challenges.js',
   './js/modules/scroll-effects.js',
   './js/modules/theme-manager.js',
+  './js/modules/nano-editor.js',
+  './js/modules/extension-stats.js',
   './assets/icon.svg'
 ];
 
@@ -40,12 +42,30 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-// Fetch Event - Cache-first with Network-fallback (safeguarding video requests)
+// Fetch Event - Network-first for pages, Cache-first for the rest (safeguarding video requests)
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
   // Skip video files to prevent range-request bugs on iOS Safari
   if (url.pathname.endsWith('.mp4')) {
+    return;
+  }
+
+  // Pages come from the network so daily stat commits reach returning visitors; the cache is the offline copy
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then((networkResponse) => {
+        if (networkResponse.status === 200 && networkResponse.type === 'basic') {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(e.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        return caches.match(e.request).then((cachedResponse) => cachedResponse || caches.match('./index.html'));
+      })
+    );
     return;
   }
 
@@ -76,11 +96,6 @@ self.addEventListener('fetch', (e) => {
         });
 
         return networkResponse;
-      }).catch(() => {
-        // Fallback offline behavior
-        if (e.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
       });
     })
   );

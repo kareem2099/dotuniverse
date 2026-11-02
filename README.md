@@ -6,7 +6,7 @@
 ![GitHub Stars](https://img.shields.io/badge/Tools-20%2B-00e5ff?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSI4IiBjeT0iOCIgcj0iOCIgZmlsbD0iIzAwZTVmZiIvPjwvc3ZnPg==)
 ![VS Code Downloads](https://img.shields.io/badge/Downloads-23%2C513-39ff14?style=flat-square)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
-![dev.to Followers](https://img.shields.io/badge/dev.to-3%2C986%20Followers-00e5ff?style=flat-square&logo=dev.to)
+![dev.to Followers](https://img.shields.io/badge/dev.to-4%2C069%20Followers-00e5ff?style=flat-square&logo=dev.to)
 
 ---
 
@@ -79,7 +79,7 @@ This portfolio website includes:
 - **Animated Particle Background** — Canvas-based particle system with connected nodes
 - **Glitch Text Effect** — CSS-driven chromatic aberration on the title
 - **Interactive Terminal** — Full-featured terminal emulator with 20+ commands
-- **Growth Challenge Tracker** — Visual progress bars for October 2026 follower goals
+- **Growth Challenge Tracker** — Visual progress bars for November 2026 follower goals
 - **VS Code Extension Stats** — Download counts from VS Marketplace & Open VSX
 - **AMA Section** — Ask Me Anything with topic categorization
 - **Collaboration CTA** — Open for collaboration section
@@ -203,8 +203,8 @@ No build step, no dependencies, no frameworks. Just open and go.
 |--------|-------|
 | Tools Built | 20+ |
 | VS Code Downloads | 23,513+ |
-| dev.to Followers | 3,986 |
-| Posts Published | 93 |
+| dev.to Followers | 4,069 |
+| Posts Published | 100 |
 | License | MIT |
 
 ---
@@ -213,14 +213,14 @@ No build step, no dependencies, no frameworks. Just open and go.
 
 | Platform | Link | Followers |
 |----------|------|-----------|
-| dev.to | [@freerave](https://dev.to/freerave) | 3,986 |
-| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 709 |
+| dev.to | [@freerave](https://dev.to/freerave) | 4,069 |
+| LinkedIn | [freerave](https://www.linkedin.com/in/freerave/) | 772 |
 | GitHub | [kareem2099](https://github.com/kareem2099) | — |
 | TikTok | [@dotfreerave](https://www.tiktok.com/@dotfreerave) | 37 |
 | YouTube | [@DotFreeRave](https://www.youtube.com/@DotFreeRave) | 30 |
-| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 18 |
-| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 21 |
-| Medium | [@freerave](https://medium.com/@freerave) | 6 |
+| X / Twitter | [@FreeRave2](https://x.com/FreeRave2) | 20 |
+| Bluesky | [freerave.bsky.social](https://bsky.app/profile/freerave.bsky.social) | 27 |
+| Medium | [@freerave](https://medium.com/@freerave) | 8 |
 | Facebook | [FreeRave](https://www.facebook.com/profile.php?id=61582297589938) | 15 |
 | Instagram | [@dotfreerave](https://www.instagram.com/dotfreerave/) | 7 |
 

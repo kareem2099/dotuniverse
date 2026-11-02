@@ -9,7 +9,7 @@ export class NanoEditor {
     this.isOpen = true;
 
     // Temporarily hide normal terminal input line
-    const inputLine = this.T.state.inputEl.closest('.input-line') || this.T.state.inputEl;
+    const inputLine = this.T.state.inputEl.closest('.terminal-input-row') || this.T.state.inputEl;
     if (inputLine) inputLine.style.display = 'none';
 
     // Create the full nano editor container
@@ -31,7 +31,7 @@ export class NanoEditor {
     container.innerHTML = `
       <div style="background: #c8d8e8; color: #060a0f; padding: 2px 10px; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between;">
         <span>UW-Nano 5.4</span>
-        <span>File: ${fileName}</span>
+        <span>File: ${this.T.escHtml(fileName)}</span>
         <span>Modified</span>
       </div>
       <textarea id="nanoTextArea" style="all: revert; width: 100%; height: 180px; background: transparent; color: #39ff14; border: none; font-family: 'Space Mono', monospace; font-size: 14px; outline: none; resize: none; margin-top: 10px; line-height: 1.5; padding: 5px; box-sizing: border-box;"></textarea>
@@ -62,14 +62,14 @@ export class NanoEditor {
         if (onSaveCallback) {
           onSaveCallback(textarea.value);
         }
-        this.T.addLine(`  <span class="t-success">[✔] Wrote ${textarea.value.split('\n').length} lines to ${fileName}</span>`);
+        this.T.addLine(`  <span class="t-success">[✔] Wrote ${textarea.value.split('\n').length} lines to ${this.T.escHtml(fileName)}</span>`);
       }
 
       // Ctrl + X: Exit
       if (e.ctrlKey && e.key.toLowerCase() === 'x') {
         e.preventDefault();
         container.remove();
-        if (inputLine) inputLine.style.display = 'flex';
+        if (inputLine) inputLine.style.display = '';
         this.T.state.inputEl.focus();
         this.isOpen = false;
         

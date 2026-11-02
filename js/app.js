@@ -210,11 +210,13 @@ class App {
       // ── LS ──────────────────────────────────────────────
       ls: (raw) => {
         const args = raw.replace(/^ls\s*/i, '').trim();
-        const showHidden = args.includes('-a') || args.includes('-la');
-        const showLongFormat = args.includes('-l') || args.includes('-la');
+        const words = args.split(/\s+/).filter(Boolean);
+        const flags = words.filter(w => w.startsWith('-')).join('');
+        const showHidden = flags.includes('a');
+        const showLongFormat = flags.includes('l');
         
         let targetPath = T.state.currentPath;
-        let pathArg = args.replace(/-[la]+/g, '').trim();
+        let pathArg = words.filter(w => !w.startsWith('-')).join(' ');
         if (pathArg) {
           const c = pathArg.replace(/\/$/, '');
           if (c === '..')            targetPath = T.state.currentPath !== '~' ? T.state.currentPath.split('/').slice(0,-1).join('/') || '~' : '~';
@@ -236,13 +238,13 @@ class App {
               const isDir = item.endsWith('/') || T.fileSystem[`${targetPath}/${cleanName}`];
               const perm = isDir ? 'drwxr-xr-x' : (item.startsWith('.') ? '-rw-------' : '-rw-r--r--');
               const size = isDir ? ' 4096' : '  256';
-              const nameColor = isDir ? `<span style="color:var(--accent);font-weight:bold">${item}</span>` : `<span class="t-val">${item}</span>`;
+              const nameColor = isDir ? `<span style="color:var(--accent);font-weight:bold">${T.escHtml(item)}</span>` : `<span class="t-val">${T.escHtml(item)}</span>`;
               T.addLine(`  <span class="t-dim">${perm}  1 freerave freerave ${size} Jul 18 00:00</span> ${nameColor}`);
             });
           } else {
             const out = contents.map(item => {
               const isDir = item.endsWith('/') || T.fileSystem[`${targetPath}/${item.replace('/','')}`];
-              return isDir ? `<span style="color:var(--accent);font-weight:bold">${item}</span>` : `<span class="t-val">${item}</span>`;
+              return isDir ? `<span style="color:var(--accent);font-weight:bold">${T.escHtml(item)}</span>` : `<span class="t-val">${T.escHtml(item)}</span>`;
             }).join('&nbsp;&nbsp;&nbsp;&nbsp;');
             T.addLine(`  ${out}`);
           }
@@ -272,7 +274,7 @@ class App {
           }
         } else {
           const clean = target.replace(/\/$/, '');
-          const pot = T.state.currentPath === '~' ? `~/${clean}` : `${T.state.currentPath}/${clean}`;
+          const pot = clean.startsWith('~/') ? clean : (T.state.currentPath === '~' ? `~/${clean}` : `${T.state.currentPath}/${clean}`);
           if (T.fileSystem[pot]) {
             T.state.currentPath = pot;
           } else {
@@ -306,7 +308,7 @@ class App {
           'DotFetch':       ['╔══════════════════════════════════════╗','║  DotFetch — HTTP Client (VS Code)    ║','╠══════════════════════════════════════╣','║  Features: Full HTTP, .env Support   ║','╚══════════════════════════════════════╝'],
           'DotReadme':      ['╔══════════════════════════════════════╗','║  DotReadme — README Optimizer        ║','╠══════════════════════════════════════╣','║  Features: Live Preview, AI Enhance  ║','╚══════════════════════════════════════╝'],
         };
-        const data = (T.fileData && T.fileData[file] ? T.fileData[file].split('\n') : null) || virtualFiles[file];
+        const data = (T.fileData && T.fileData[file] ? T.fileData[file].split('\n') : null) || (Object.hasOwn(virtualFiles, file) ? virtualFiles[file] : null);
         if (data) {
           T.addLine('');
           data.forEach(line => T.addLine('  <span class="t-val">' + T.escHtml(line) + '</span>'));
@@ -403,7 +405,7 @@ class App {
         const len = msg.length + 2;
         T.addLine('');
         T.addLine(`  <span class="t-val"> ${'_'.repeat(len)}</span>`);
-        T.addLine(`  <span class="t-val">< ${msg} ></span>`);
+        T.addLine(`  <span class="t-val">&lt; ${T.escHtml(msg)} &gt;</span>`);
         T.addLine(`  <span class="t-val"> ${'-'.repeat(len)}</span>`);
         T.addLine('  <span class="t-val">        \\   ^__^</span>');
         T.addLine('  <span class="t-val">         \\  (oo)\\_______</span>');
@@ -542,9 +544,9 @@ class App {
           const subject = encodeURIComponent('[AMA] ' + q.substring(0, 60));
           const body    = encodeURIComponent(`AMA Question:\n\n${q}`);
           window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
-          T.addLine('  <span class="t-success">✓ Question sent! Opening mail client...</span>');
+          T.addLine('  <span class="t-success">✓ Opening mail client...</span>');
           T.addLine('');
-          if (window.showToast) window.showToast('Question sent to FreeRave!');
+          if (window.showToast) window.showToast('✓ Opening your mail client!');
         }, 500);
       },
 
@@ -556,7 +558,7 @@ class App {
           T.addLine('  <span class="t-dim">example: collab --idea a CLI tool for docker stats</span>');
           T.addLine(''); return;
         }
-        T.addLine('  <span class="t-info">Sending collab request...</span>');
+        T.addLine('  <span class="t-info">Preparing collab request...</span>');
         T.addLine(`  <span class="t-label">idea  </span><span class="t-val">${T.escHtml(a.idea)}</span>`);
         T.addLine('');
         setTimeout(() => {
@@ -565,7 +567,7 @@ class App {
           window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
           T.addLine('  <span class="t-success">✓ Opening mail client!</span>');
           T.addLine('');
-          if (window.showToast) window.showToast('Collab idea sent!');
+          if (window.showToast) window.showToast('✓ Opening your mail client!');
         }, 500);
       },
 
@@ -581,12 +583,16 @@ class App {
           T.addLine('  <span class="t-dim">[sudo] password for kareem:</span>');
           T.addLine('  <span class="t-dim">********</span>');
           T.addLine('');
-          await T.COMMANDS.apt(raw);
+          await T.COMMANDS.apt(`sudo ${sub}`);
         } else if (subCmd === 'nmap') {
           await T.COMMANDS.nmap(raw);
-        } else if (sub.toLowerCase().includes('rm')) {
-          T.addLine('  <span class="t-error">This incident will be reported. 👀</span>');
-          T.addLine('');
+        } else if (subCmd === 'rm') {
+          if (sub.includes('--no-preserve-root')) {
+            T.COMMANDS.rm(sub);
+          } else {
+            T.addLine('  <span class="t-error">This incident will be reported. 👀</span>');
+            T.addLine('');
+          }
         } else {
           T.addLine('  <span class="t-dim">[sudo] password for kareem:</span>');
           T.addLine('  <span class="t-error">Nice try 😏</span>');
@@ -606,7 +612,7 @@ class App {
         if (cmd.startsWith('install')) {
           const pkg = cmd.replace(/^install\s+/i,'').trim();
           if (!pkg) { T.addLine('  <span class="t-error">E: No package specified</span>'); T.addLine(''); return; }
-          if (!raw.toLowerCase().startsWith('sudo')) {
+          if (!/^sudo\s+apt\b/i.test(raw)) {
             T.addLine('');
             T.addLine('  <span class="t-error">E: Could not open lock file (are you root?)</span>');
             T.addLine(`  <span class="t-dim">// Try: sudo apt install ${T.escHtml(pkg)}</span>`);
@@ -865,9 +871,9 @@ class App {
           
           if (g.staged.size > 0) {
             T.addLine('  <span class="t-success">Changes to be committed:</span>');
-            T.addLine('  <span class="t-dim">  (use "git restore --staged <file>..." to unstage)</span>');
+            T.addLine('  <span class="t-dim">  (use "git restore --staged &lt;file&gt;..." to unstage)</span>');
             g.staged.forEach(f => {
-              T.addLine(`  <span class="t-success">\tnew file:   ${f}</span>`);
+              T.addLine(`  <span class="t-success">\tnew file:   ${T.escHtml(f)}</span>`);
             });
             T.addLine('');
           }
@@ -885,9 +891,9 @@ class App {
           
           if (untracked.length > 0) {
             T.addLine('  <span class="t-error">Untracked files:</span>');
-            T.addLine('  <span class="t-dim">  (use "git add <file>..." to include in what will be committed)</span>');
+            T.addLine('  <span class="t-dim">  (use "git add &lt;file&gt;..." to include in what will be committed)</span>');
             untracked.forEach(f => {
-              T.addLine(`  <span class="t-error">\t${f}</span>`);
+              T.addLine(`  <span class="t-error">\t${T.escHtml(f)}</span>`);
             });
             T.addLine('');
           }
@@ -925,12 +931,12 @@ class App {
             const hiddenFiles  = toStage.filter(f => f.startsWith('.'));
             T.addLine('');
             visibleFiles.forEach(f => {
-              T.addLine(`  <span class="t-dim">add '${f}'</span>`);
+              T.addLine(`  <span class="t-dim">add '${T.escHtml(f)}'</span>`);
             });
             if (hiddenFiles.length > 0) {
               // Hidden dotfiles show up quietly — easy to miss!
               hiddenFiles.forEach(f => {
-                T.addLine(`  <span class="t-dim">add '${f}'</span>`);
+                T.addLine(`  <span class="t-dim">add '${T.escHtml(f)}'</span>`);
               });
             }
             T.addLine('');
@@ -941,10 +947,10 @@ class App {
           } else {
             if (allFiles.includes(fileArg)) {
               g.staged.add(fileArg);
-              T.addLine(`  <span class="t-dim">add '${fileArg}'</span>`);
+              T.addLine(`  <span class="t-dim">add '${T.escHtml(fileArg)}'</span>`);
               T.addLine(`  <span class="t-success">✓ staged.</span>`);
             } else {
-              T.addLine(`  <span class="t-error">fatal: pathspec '${fileArg}' did not match any files</span>`);
+              T.addLine(`  <span class="t-error">fatal: pathspec '${T.escHtml(fileArg)}' did not match any files</span>`);
             }
           }
           T.addLine('');
@@ -967,18 +973,19 @@ class App {
           
           const commitHash = Math.random().toString(16).substring(2,8);
           g.lastCommitHash = commitHash;
+          g.lastCommitMsg = commitMsg;
           g.committed = new Set([...g.staged]);
           g.staged.clear();
           
           T.addLine('');
-          T.addLine(`  <span class="t-white">[main ${commitHash}] ${commitMsg}</span>`);
+          T.addLine(`  <span class="t-white">[main ${commitHash}] ${T.escHtml(commitMsg)}</span>`);
           T.addLine(`  <span class="t-dim"> ${g.committed.size} file(s) changed, ${g.committed.size * 14} insertions(+)</span>`);
           // List every file — .env.bak quietly slips in the middle
           const committedArr = [...g.committed];
           committedArr.forEach(f => {
             const isDotFile = f.startsWith('.');
             const color = isDotFile ? 't-dim' : 't-dim';
-            T.addLine(`  <span class="${color}"> create mode 100644 ${f}</span>`);
+            T.addLine(`  <span class="${color}"> create mode 100644 ${T.escHtml(f)}</span>`);
           });
           T.addLine('');
           return;
@@ -1048,7 +1055,7 @@ class App {
           T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
           T.addLine('  <span class="t-dim">Date:   ' + new Date().toUTCString() + '</span>');
           T.addLine('');
-          const lastMsg = subArgs || 'feat: deploy latest changes';
+          const lastMsg = g.lastCommitMsg || 'feat: deploy latest changes';
           T.addLine('      ' + T.escHtml(lastMsg));
           T.addLine('');
           if (g.committed.has('.env.bak')) {
@@ -1057,9 +1064,9 @@ class App {
               if (f === '.env.bak') {
                 T.addLine(`  <span class="t-error">    + ${f}   &lt;-- ⚠️ SECRET FILE</span>`);
               } else if (f.startsWith('.')) {
-                T.addLine(`  <span class="t-dim">    + ${f}</span>`);
+                T.addLine(`  <span class="t-dim">    + ${T.escHtml(f)}</span>`);
               } else {
-                T.addLine(`  <span class="t-dim">    + ${f}</span>`);
+                T.addLine(`  <span class="t-dim">    + ${T.escHtml(f)}</span>`);
               }
             });
             T.addLine('');
@@ -1092,12 +1099,12 @@ class App {
             const file = subArgs.replace('--cached', '').trim();
             if (g.staged.has(file)) {
               g.staged.delete(file);
-              T.addLine(`  <span class="t-success">rm '${file}' untracked</span>`);
+              T.addLine(`  <span class="t-success">rm '${T.escHtml(file)}' untracked</span>`);
             } else if (g.committed.has(file)) {
               g.committed.delete(file);
-              T.addLine(`  <span class="t-success">rm '${file}' untracked</span>`);
+              T.addLine(`  <span class="t-success">rm '${T.escHtml(file)}' untracked</span>`);
             } else {
-              T.addLine(`  <span class="t-error">fatal: pathspec '${file}' did not match any files</span>`);
+              T.addLine(`  <span class="t-error">fatal: pathspec '${T.escHtml(file)}' did not match any files</span>`);
             }
             T.addLine('');
             return;
@@ -1152,7 +1159,7 @@ class App {
               T.addLine('');
               return;
             } else {
-              T.addLine(`  <span class="t-error">error: file '${file}' not found in remote repository.</span>`);
+              T.addLine(`  <span class="t-error">error: file '${T.escHtml(file ?? '')}' not found in remote repository.</span>`);
               T.addLine('');
               return;
             }
@@ -1170,7 +1177,7 @@ class App {
             T.addLine('  <span class="t-white">Enter secret value: ********</span>');
             await sleep(500);
             g.keyRotated = true;
-            T.addLine(`  <span class="t-success">✔ Secret ${secretName} set on remote repository.</span>`);
+            T.addLine(`  <span class="t-success">✔ Secret ${T.escHtml(secretName)} set on remote repository.</span>`);
             T.addLine('');
             return;
           }

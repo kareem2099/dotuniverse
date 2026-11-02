@@ -61,8 +61,9 @@ export const ParticleSystem = {
   },
 
   rebuildGrid() {
-    const cols = Math.ceil(this.width / this.gridSize);
-    const rows = Math.ceil(this.height / this.gridSize);
+    // At least one cell: the viewport can be 0x0 in a hidden tab or frame
+    const cols = Math.max(1, Math.ceil(this.width / this.gridSize));
+    const rows = Math.max(1, Math.ceil(this.height / this.gridSize));
     this.gridCols = cols;
     this.gridRows = rows;
     this.grid = Array.from({length: rows * cols}, () => []);
