@@ -436,7 +436,7 @@ Example:
 
 ### Get in Touch
 
-- **Email:** [kareem209907@gmail.com](mailto:kareem209907@gmail.com)
+- **Email:** [kareem@freerave.dev](mailto:kareem@freerave.dev)
 - **GitHub:** [@kareem2099](https://github.com/kareem2099)
 - **dev.to:** [@freerave](https://dev.to/freerave)
 

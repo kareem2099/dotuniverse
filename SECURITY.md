@@ -18,7 +18,7 @@ We take the security of dotUniverse seriously. If you believe you have found a s
 
 Instead, please report them via email:
 
-**Email:** [kareem209907@gmail.com](mailto:kareem209907@gmail.com)
+**Email:** [kareem@freerave.dev](mailto:kareem@freerave.dev)
 
 **Subject:** `[SECURITY] dotUniverse Vulnerability Report`
 
@@ -183,7 +183,7 @@ Security updates will be:
 
 For security concerns, contact:
 
-- **Email:** [kareem209907@gmail.com](mailto:kareem209907@gmail.com)
+- **Email:** [kareem@freerave.dev](mailto:kareem@freerave.dev)
 - **Subject:** `[SECURITY] dotUniverse`
 
 For non-security issues, please use [GitHub Issues](https://github.com/kareem2099/dotuniverse/issues).

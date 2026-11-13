@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dotuniverse-v4';
+const CACHE_NAME = 'dotuniverse-v5';
 const ASSETS = [
   './',
   './index.html',

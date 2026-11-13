@@ -276,7 +276,7 @@ function sendAMA() {
   if (!question) { showToast('⚠ Please write your question first!', true); return; }
   const subject = encodeURIComponent(`[AMA · ${topic}] ${question.substring(0,60)}`);
   const body    = encodeURIComponent(`Topic: ${topic}\nFrom: ${anon ? 'Anonymous' : name}\n\nQuestion:\n${question}\n\n-- Sent via dotUniverse AMA`);
-  window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
+  window.location.href = `mailto:kareem@freerave.dev?subject=${subject}&body=${body}`;
   showToast('✓ Opening your mail client!');
   document.getElementById('amaQuestion').value = '';
 }

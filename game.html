@@ -507,7 +507,7 @@ async function cmdGit(raw,rest,parts){
   if(sub==='log'){
     const h1=G.lastHash||Math.random().toString(16).substring(2,8);const h0=Math.random().toString(16).substring(2,8);
     add('');add(`  <span style="color:#f1fa8c">commit ${h1}a3f9dd (HEAD -> main, origin/main)</span>`);
-    add('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+    add('  <span class="t-dim">Author: Kareem &lt;kareem@freerave.dev&gt;</span>');
     add(`  <span class="t-dim">Date:   ${new Date().toUTCString()}</span>`);add('');add('      deploy: latest changes');add('');
     if(G.committed.has('.env.bak')){
       [...G.committed].forEach(f=>{
@@ -516,7 +516,7 @@ async function cmdGit(raw,rest,parts){
       });add('');
     }
     add(`  <span style="color:#f1fa8c">commit ${h0}bb91ca</span>`);
-    add('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+    add('  <span class="t-dim">Author: Kareem &lt;kareem@freerave.dev&gt;</span>');
     add('  <span class="t-dim">Date:   Fri Jul 11 02:14:07 2026</span>');add('');add('      chore: initial commit');add('');
     return;
   }

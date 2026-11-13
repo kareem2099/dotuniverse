@@ -180,7 +180,7 @@ class App {
         T.addLine('  <span class="t-label">tools   </span><span class="t-val">VS Code · Python · Kotlin · CLI</span>');
         T.addLine('  <span class="t-label">projects</span><span class="t-val">20+ shipped, all MIT licensed</span>');
         T.addLine('  <span class="t-label">building</span><span class="t-val">DotSuite ecosystem (20+ tools)</span>');
-        T.addLine('  <span class="t-label">email   </span><span class="t-val">kareem209907@gmail.com</span>');
+        T.addLine('  <span class="t-label">email   </span><span class="t-val">kareem@freerave.dev</span>');
         T.addLine('  <span class="t-label">github  </span><span class="t-val">github.com/kareem2099</span>');
         T.addLine('');
       },
@@ -522,7 +522,7 @@ class App {
         setTimeout(() => {
           const subject = encodeURIComponent(`[FreeRave Contact] from ${a.name||'Anonymous'}`);
           const body    = encodeURIComponent(`Name: ${a.name||'Anonymous'}\nEmail: ${a.email||''}\n\nMessage:\n${a.msg}`);
-          window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
+          window.location.href = `mailto:kareem@freerave.dev?subject=${subject}&body=${body}`;
           T.addLine('  <span class="t-success">✓ Opening mail client...</span>');
           T.addLine('');
           if (window.showToast) window.showToast('✓ Opening your mail client!');
@@ -543,7 +543,7 @@ class App {
         setTimeout(() => {
           const subject = encodeURIComponent('[AMA] ' + q.substring(0, 60));
           const body    = encodeURIComponent(`AMA Question:\n\n${q}`);
-          window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
+          window.location.href = `mailto:kareem@freerave.dev?subject=${subject}&body=${body}`;
           T.addLine('  <span class="t-success">✓ Opening mail client...</span>');
           T.addLine('');
           if (window.showToast) window.showToast('✓ Opening your mail client!');
@@ -564,7 +564,7 @@ class App {
         setTimeout(() => {
           const subject = encodeURIComponent('[Collab] ' + a.idea.substring(0, 60));
           const body    = encodeURIComponent(`Collaboration Idea:\n\n${a.idea}`);
-          window.location.href = `mailto:kareem209907@gmail.com?subject=${subject}&body=${body}`;
+          window.location.href = `mailto:kareem@freerave.dev?subject=${subject}&body=${body}`;
           T.addLine('  <span class="t-success">✓ Opening mail client!</span>');
           T.addLine('');
           if (window.showToast) window.showToast('✓ Opening your mail client!');
@@ -1052,7 +1052,7 @@ class App {
           const hash1 = g.lastCommitHash || Math.random().toString(16).substring(2,8);
           const hash0 = Math.random().toString(16).substring(2,8);
           T.addLine(`  <span style="color:#f1fa8c">commit ${hash1}a3f9dd2e17b4c8f0 (HEAD -> main, origin/main)</span>`);
-          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem@freerave.dev&gt;</span>');
           T.addLine('  <span class="t-dim">Date:   ' + new Date().toUTCString() + '</span>');
           T.addLine('');
           const lastMsg = g.lastCommitMsg || 'feat: deploy latest changes';
@@ -1072,7 +1072,7 @@ class App {
             T.addLine('');
           }
           T.addLine(`  <span style="color:#f1fa8c">commit ${hash0}bb91ca4d0f28e376</span>`);
-          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem209907@gmail.com&gt;</span>');
+          T.addLine('  <span class="t-dim">Author: Kareem &lt;kareem@freerave.dev&gt;</span>');
           T.addLine('  <span class="t-dim">Date:   Fri Jul 11 02:14:07 2026 +0300</span>');
           T.addLine('');
           T.addLine('      chore: initial commit');

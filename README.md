@@ -234,7 +234,7 @@ Open for collaboration — CLI tools, VS Code extensions, Python, Kotlin, Telegr
 
 If you have a project idea that fits the vibe, let's talk. No pitches, no fluff. Just good dev work.
 
-**Contact:** [kareem209907@gmail.com](mailto:kareem209907@gmail.com)
+**Contact:** [kareem@freerave.dev](mailto:kareem@freerave.dev)
 
 ---
 

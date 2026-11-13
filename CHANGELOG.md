@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Link to the **git push nightmare** game (`game.html`) under the contact terminal and in the README; the page was live but not linked anywhere.
 
 ### Changed
+- Contact email is now **kareem@freerave.dev** everywhere (terminal `whoami`, `contact`/`ask`/`collab`, AMA form, game, README and policy docs) instead of a personal Gmail address. Service worker cache bumped to `dotuniverse-v5` for the updated scripts.
 - Site moved to **freerave.dev** (`CNAME`, `og:url`, canonical links on the home and game pages); `universe.dotsuite.dev` redirects there.
 - Service worker cache bumped to `dotuniverse-v2` so returning visitors get the updated tool list (the worker is cache-first).
 - **Social Stats Refresh**: Updated followers across platforms (dev.to: 4,069, LinkedIn: 772, TikTok: 37, YouTube: 30, Medium: 8, Facebook: 15, Instagram: 7, X: 20, Bluesky: 27), which also moves the Growth Challenge bars. X reached its goal of 20.
