@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Link to the **git push nightmare** game (`game.html`) under the contact terminal and in the README; the page was live but not linked anywhere.
 
 ### Changed
-- Site moved to **freerave.dev** (`CNAME`, `og:url`); `universe.dotsuite.dev` redirects there.
+- Site moved to **freerave.dev** (`CNAME`, `og:url`, canonical links on the home and game pages); `universe.dotsuite.dev` redirects there.
 - Service worker cache bumped to `dotuniverse-v2` so returning visitors get the updated tool list (the worker is cache-first).
 - **Social Stats Refresh**: Updated followers across platforms (dev.to: 4,069, LinkedIn: 772, TikTok: 37, YouTube: 30, Medium: 8, Facebook: 15, Instagram: 7, X: 20, Bluesky: 27), which also moves the Growth Challenge bars. X reached its goal of 20.
 - **November 2026 Growth Challenge**: New targets across 9 platforms, ending November 30th (dev.to: 4,069 / 4,250, LinkedIn: 772 / 850, TikTok: 37 / 40, YouTube: 30 / 35, Medium: 8 / 10, Facebook: 15 / 20, Instagram: 7 / 10, X: 20 / 25, Bluesky: 27 / 30). Banner, README and footer labels moved from October to November.
