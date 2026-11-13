@@ -79,6 +79,7 @@ This portfolio website includes:
 - **Animated Particle Background** — Canvas-based particle system with connected nodes
 - **Glitch Text Effect** — CSS-driven chromatic aberration on the title
 - **Interactive Terminal** — Full-featured terminal emulator with 20+ commands
+- **git push nightmare** ([`game.html`](game.html)) — Terminal game: fix a leaked `.env.bak` before the bill hits $5,000
 - **Growth Challenge Tracker** — Visual progress bars for November 2026 follower goals
 - **VS Code Extension Stats** — Download counts from VS Marketplace & Open VSX
 - **AMA Section** — Ask Me Anything with topic categorization

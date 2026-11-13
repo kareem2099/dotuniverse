@@ -8,6 +8,8 @@
  * and caches results in localStorage (30-min TTL) to ensure instant page loads.
  */
 
+import { ThemeManager } from './theme-manager.js';
+
 export const ExtensionStats = {
   CACHE_KEY: 'dotuniverse_ext_stats_v1',
   CACHE_TTL: 24 * 60 * 60 * 1000, // 24 hours (1 day)
@@ -177,6 +179,12 @@ export const ExtensionStats = {
   applyToDOM(payload) {
     if (!payload || !payload.extensions) return;
 
+    // Never replace newer numbers with older ones: the page's static stats may be newer than a cached refresh
+    const updatedEl = document.getElementById('lastUpdated');
+    const shownAt = Date.parse(updatedEl?.dataset.updated || '') || 0;
+    const payloadAt = Date.parse(payload.updatedAt || '') || 0;
+    if (payloadAt < shownAt) return;
+
     const { extensions, totals } = payload;
 
     // 1. Update each extension card
@@ -226,6 +234,17 @@ export const ExtensionStats = {
         bannerTotal.textContent = totalStr;
         bannerTotal.dataset.finalText = totalStr;
       }
+
+      const collabTotal = document.getElementById('collabExtDownloads');
+      if (collabTotal) {
+        collabTotal.textContent = totalStr;
+      }
+    }
+
+    // 3. Last updated: this refresh is now what the page shows
+    if (updatedEl && payload.updatedAt) {
+      updatedEl.dataset.updated = payload.updatedAt;
+      ThemeManager.updateTimestamp();
     }
   }
 };

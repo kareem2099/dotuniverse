@@ -60,7 +60,7 @@ function triggerDestruction() {
         A fatal exception has occurred at <span>0x00000000</span>.<br>
         Your portfolio has been <span>terminated</span>.<br>
         All your tools are <span>gone</span>. All your followers? <span>gone</span>.<br>
-        Your April challenge? <span>lol</span>.
+        Your growth challenge? <span>lol</span>.
       </div>
       <div class="bsod-progress">
         <div class="bsod-bar-wrap">
@@ -214,7 +214,7 @@ function runSystemRestoredProgress() {
           <div class="bsod-desc" style="font-size: 14px; line-height: 1.6;">
             All <span style="color:var(--accent2)">20+ tools</span> restored.<br>
             Followers? <span style="color:var(--accent2)">back online</span>.<br>
-            April challenge? <span style="color:var(--accent2)">still happening</span>.<br>
+            Growth challenge? <span style="color:var(--accent2)">still happening</span>.<br>
             Your portfolio? <span style="color:var(--accent2)">indestructible</span>. 😎
           </div>
           <div class="bsod-hint" style="color:var(--accent2); margin-top: 20px; font-size: 12px;">

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **DotMorph** tool card: radial-menu file converter for Linux (440+ conversions, edge dock, global hotkey, file-manager menus), linking to GitHub and its [dotsuite.dev](https://dotsuite.dev/en/product/dotmorph) page.
 - `DotMorph` in the terminal's `~/tools` folder, with a `cat DotMorph` info box.
 - DotMorph row in the README's CLI Tools table.
+- Link to the **git push nightmare** game (`game.html`) under the contact terminal and in the README; the page was live but not linked anywhere.
 
 ### Changed
 - Service worker cache bumped to `dotuniverse-v2` so returning visitors get the updated tool list (the worker is cache-first).
@@ -19,8 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **dev.to Dashboard Metrics**: Post views to 18,097, published posts to 100, reactions to 99, and comments to 71.
 - Service worker cache bumped to `dotuniverse-v3` so returning visitors get the new numbers.
 - Service worker now serves pages network-first, with the cache as the offline copy, so the daily stat commits reach returning visitors without a cache bump. CSS and JS stay cache-first.
+- **Last updated** now shows when the extension stats were last refreshed, with its age (e.g. `3h ago`), instead of the visitor's current time. The daily sync writes the time into `index.html`, and a successful in-browser refresh moves it forward, so a failing store shows up as an aging timestamp. The daily job now commits on every successful run, since the timestamp changes each time.
+- Service worker cache bumped to `dotuniverse-v4` for the updated timestamp scripts.
 
 ### Fixed
+- On phones, the terminal's Run button was pushed off screen and the Growth Challenge percentages and remaining counts were cut off.
+- Game page: the `git commit -m "deploy"` hint did nothing when clicked, ↑ skipped the latest command because the key handler was registered twice, and the game layout was centered at its content width instead of filling the window, which clipped the terminal on phones.
+- The destruction easter egg no longer mentions the April challenge.
+- The collab section's Downloads card showed a stale 4,510; it now shows the extension download total and is kept current by the daily sync and the in-browser refresh.
+- Added a page description and Open Graph tags for link previews, and labels for the terminal and AMA inputs.
+- The daily stats sync no longer commits a lower total when one store request fails: incomplete data fails the run and keeps the last committed numbers.
+- A cached in-browser refresh older than the page's own stats no longer overwrites them with older numbers.
 - Live extension stats were blocked by the Content Security Policy: `connect-src` now allows VS Marketplace and Open VSX.
 - Live extension totals are only applied and cached when every store responded, so a failed request can't shrink the displayed total.
 - Count-up animation no longer drops the `+` from stats like `20+`, and no longer overwrites a live total that arrives while it runs.

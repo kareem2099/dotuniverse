@@ -40,7 +40,7 @@ body::after{content:'';position:fixed;left:0;right:0;height:2px;background:linea
 .btn-start:hover{color:var(--bg);}
 .intro-foot{margin-top:18px;font-size:10px;color:var(--muted);letter-spacing:1px;}
 /* GAME */
-#gameScreen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;}
+#gameScreen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:stretch;}/* .screen centers its children; the game fills the window */
 #gameScreen.hidden{opacity:0;visibility:hidden;pointer-events:none;}
 .game-nav{display:flex;align-items:center;justify-content:space-between;padding:9px 18px;background:rgba(13,21,32,.96);border-bottom:1px solid var(--border);flex-shrink:0;z-index:100;}
 .nav-brand{font-size:11px;letter-spacing:2px;color:var(--accent);display:flex;align-items:center;gap:8px;}
@@ -103,7 +103,7 @@ body::after{content:'';position:fixed;left:0;right:0;height:2px;background:linea
 .t-val{color:var(--text);}
 .term-inp-row{display:flex;align-items:center;border-top:1px solid var(--border);background:rgba(13,21,32,.6);padding:9px 14px;flex-shrink:0;}
 .inp-prompt{color:var(--green);font-size:12.5px;white-space:nowrap;padding-right:8px;}
-#gInput{flex:1;background:transparent;border:none;outline:none;color:var(--accent);font-family:'Space Mono',monospace;font-size:12.5px;caret-color:var(--accent);}
+#gInput{flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--accent);font-family:'Space Mono',monospace;font-size:12.5px;caret-color:var(--accent);}
 #gInput::placeholder{color:var(--dim);}
 .btn-run{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;font-size:10px;padding:4px 10px;cursor:pointer;transition:all .2s;}
 .btn-run:hover{border-color:var(--accent);color:var(--accent);}
@@ -235,7 +235,7 @@ body::after{content:'';position:fixed;left:0;right:0;height:2px;background:linea
       <div class="term-out" id="gOut"></div>
       <div class="term-inp-row">
         <div class="inp-prompt">FreeRave@kali:~$&nbsp;</div>
-        <input id="gInput" type="text" placeholder="type a command..." autocomplete="off" spellcheck="false">
+        <input id="gInput" type="text" aria-label="Terminal command" placeholder="type a command..." autocomplete="off" spellcheck="false">
         <button class="btn-run" onclick="runCmd()">RUN ↵</button>
       </div>
       <div class="hint-bar" id="hintBar">
@@ -333,14 +333,6 @@ $('gInput')?.addEventListener('keydown',e=>{
   if(e.key==='Enter')runCmd();
   if(e.key==='ArrowUp'){e.preventDefault();if(G.histIdx>0)$('gInput').value=G.cmdHistory[--G.histIdx];else if(G.histIdx===-1&&G.cmdHistory.length)$('gInput').value=G.cmdHistory[(G.histIdx=G.cmdHistory.length-1)];}
   if(e.key==='ArrowDown'){e.preventDefault();if(G.histIdx<G.cmdHistory.length-1)$('gInput').value=G.cmdHistory[++G.histIdx];else{G.histIdx=G.cmdHistory.length;$('gInput').value='';}}
-});
-// wait for DOM
-window.addEventListener('DOMContentLoaded',()=>{
-  $('gInput')?.addEventListener('keydown',e=>{
-    if(e.key==='Enter')runCmd();
-    if(e.key==='ArrowUp'){e.preventDefault();if(G.histIdx>0)$('gInput').value=G.cmdHistory[--G.histIdx];else if(G.histIdx===-1&&G.cmdHistory.length)$('gInput').value=G.cmdHistory[(G.histIdx=G.cmdHistory.length-1)];}
-    if(e.key==='ArrowDown'){e.preventDefault();if(G.histIdx<G.cmdHistory.length-1)$('gInput').value=G.cmdHistory[++G.histIdx];else{G.histIdx=G.cmdHistory.length;$('gInput').value='';}}
-  });
 });
 
 async function runCmd(){
@@ -655,7 +647,7 @@ const HINTS={
 function setHint(key){
   const h=HINTS[key];if(!h)return;
   const bar=$('hintBar');bar.className='hint-bar '+h.cls;
-  bar.innerHTML=`<span>${h.cls==='danger'?'🚨 fix:':'💡 next:'}</span>`+h.items.map(([l,c])=>`<span class="ch" onclick="fill('${c}')">${l}</span>`).join('');
+  bar.innerHTML=`<span>${h.cls==='danger'?'🚨 fix:':'💡 next:'}</span>`+h.items.map(([l,c])=>`<span class="ch" data-cmd="${esc(c).replace(/"/g,'&quot;')}" onclick="fill(this.dataset.cmd)">${esc(l)}</span>`).join('');
 }
 </script>
 </body>

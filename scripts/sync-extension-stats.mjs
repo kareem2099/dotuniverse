@@ -89,11 +89,18 @@ function formatNum(n) {
 
 async function main() {
   console.log('🔄 Fetching live extension stats from VS Marketplace and Open VSX...');
-  
+  const fetchedAt = new Date().toISOString();
+
   const [vsMap, ovsxMap] = await Promise.all([
     fetchVsMarketplace(),
     fetchOpenVsx()
   ]);
+
+  // A missing extension would count as 0 and shrink the totals, so fail the run instead of committing it
+  const missing = EXTENSIONS.filter(ext => !vsMap[ext.key] || (ext.ovsxId && !ovsxMap[ext.key]));
+  if (missing.length > 0) {
+    throw new Error(`Incomplete store data for ${missing.map(ext => ext.name).join(', ')}; keeping the last committed stats.`);
+  }
 
   let totalVs = 0;
   let totalOvsx = 0;
@@ -137,6 +144,12 @@ async function main() {
   if (fs.existsSync(indexPath)) {
     let indexHtml = fs.readFileSync(indexPath, 'utf-8');
 
+    // Record when these stats were fetched; the page shows it as "Last updated"
+    indexHtml = indexHtml.replace(
+      /(<span class="ts" id="lastUpdated" data-updated=")[^"]*(")/,
+      `$1${fetchedAt}$2`
+    );
+
     // Update header total
     indexHtml = indexHtml.replace(
       /(<div class="stat-num"(?: id="headerExtDownloads")?>)[^<]+(<\/div>\s*<div class="stat-label">Extension Downloads<\/div>)/,
@@ -146,6 +159,12 @@ async function main() {
     // Update banner total
     indexHtml = indexHtml.replace(
       /(<span class="dl-total stat-num"(?: id="bannerExtDownloads")?>)[^<]+(<\/span>)/,
+      `$1${formatNum(grandTotal)}$2`
+    );
+
+    // Update collab section total
+    indexHtml = indexHtml.replace(
+      /(<span class="collab-stat-num" id="collabExtDownloads">)[^<]+(<\/span>)/,
       `$1${formatNum(grandTotal)}$2`
     );
 
