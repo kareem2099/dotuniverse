@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>The OAuth Battle That Made Me Build My Own Image Privacy Tool — FreeRave</title>
+<meta name="description" content="Day 1 of the Great Session War 🏳️            How an OAuth headache made me build my own...">
+<link rel="canonical" href="https://dev.to/freerave/the-oauth-battle-that-made-me-build-my-own-image-privacy-tool-1gjc">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/the-oauth-battle-that-made-me-build-my-own-image-privacy-tool-1gjc">
+<meta property="og:title" content="The OAuth Battle That Made Me Build My Own Image Privacy Tool — FreeRave">
+<meta property="og:description" content="Day 1 of the Great Session War 🏳️            How an OAuth headache made me build my own...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fzl36mv8ucx507630cznl.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">The OAuth Battle That Made Me Build My Own Image Privacy Tool</h1>
+  <div class="post-meta">
+    <time datetime="2025-11-26T11:31:18Z">26 November 2025</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#opencv</span><span class="post-tag">#computervision</span><span class="post-tag">#developerlife</span></div>
+  </div>
+  <article class="post-body">
+<h1>
+  <a name="day-1-of-the-great-session-war" href="#day-1-of-the-great-session-war">
+  </a>
+  Day 1 of the Great Session War 🏳️
+</h1>
+
+<h3>
+  <a name="how-an-oauth-headache-made-me-build-my-own-image-privacy-tool-dotscramble" href="#how-an-oauth-headache-made-me-build-my-own-image-privacy-tool-dotscramble">
+  </a>
+  How an OAuth headache made me build my own image privacy tool: <strong>DotScramble</strong>
+</h3>
+
+
+<hr>
+
+<h2>
+  <a name="the-oauth-disaster" href="#the-oauth-disaster">
+  </a>
+  The OAuth Disaster
+</h2>
+
+<p>I’ve been battling OAuth session management since <strong>yesterday</strong>.</p>
+
+<p>The plan was simple:<br><br>
+Store the session → redirect → get the callback → match the session.</p>
+
+<p>But reality?</p>
+
+<ul>
+<li>
+<strong>Browser:</strong> “Session Expired.”
+</li>
+<li>
+<strong>Terminal:</strong> <code>Available sessions: []</code>
+</li>
+<li>
+<strong>Me:</strong> “Am I a joke to you?”
+</li>
+</ul>
+
+<p>Here’s the moment everything fell apart:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fymz5hi46vtlj4zs2q2ba.jpg" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fymz5hi46vtlj4zs2q2ba.jpg" alt=" " loading="lazy" width="800" height="450"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-that-started-it-all" href="#the-problem-that-started-it-all">
+  </a>
+  🔐 The Problem That Started It All
+</h2>
+
+<p>I wanted to share a screenshot of this chaos…<br><br>
+but the error page had <strong>sensitive tokens</strong>.</p>
+
+<p>So I searched online for a quick blur tool,<br><br>
+and—of course—EVERY single tool said:</p>
+
+<blockquote>
+<p><strong>“Upgrade to Pro to download!”</strong><br><br>
+or<br><br>
+<strong>“Start your 7-day trial!”</strong></p>
+</blockquote>
+
+<p>Seriously?<br><br>
+I just wanted to hide a token. 😭</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-developer-instinct" href="#the-developer-instinct">
+  </a>
+  ⚡ The Developer Instinct
+</h2>
+
+<p>At that moment, something switched in my brain:</p>
+
+<blockquote>
+<p><strong>“Wait. I'm a Python developer… why don’t I just build my own?”</strong></p>
+</blockquote>
+
+<p>Fast-forward through a few caffeine-fueled hours,<br><br>
+and I <em>accidentally</em> built a full image-privacy desktop application:</p>
+
+
+<hr>
+
+<h2>
+  <a name="introducing-dotscramble" href="#introducing-dotscramble">
+  </a>
+  🚀 Introducing <strong>DotScramble</strong>
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Foguvrh0523jenpxg4pgk.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Foguvrh0523jenpxg4pgk.png" alt=" " loading="lazy" width="800" height="450"></a></p>
+
+<p>DotScramble is a privacy tool that helps you scramble/blur/censor sensitive areas in images—fully offline, and fully yours.</p>
+
+<p>Why pay for a “Pro” subscription when you can use Python &amp; OpenCV?</p>
+
+
+<hr>
+
+<h2>
+  <a name="features" href="#features">
+  </a>
+  ✨ Features
+</h2>
+
+<ul>
+<li><p><strong>Auto-detection</strong><br><br>
+Detect faces, eyes, license plates automatically.</p></li>
+<li><p><strong>Batch Processing</strong><br><br>
+Because doing it one-by-one is for mortals.</p></li>
+<li><p><strong>7 Scramble Effects</strong><br><br>
+Pixelate, Mosaic, Oil Paint, Frosted Glass, and more.</p></li>
+<li><p><strong>Real-Time Preview</strong><br><br>
+With full undo/redo support.</p></li>
+<li><p><strong>Privacy-Focused</strong><br><br>
+No uploads. Everything stays local.</p></li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="status" href="#status">
+  </a>
+  Status
+</h2>
+
+<p>DotScramble is <strong>90% ready</strong>.<br><br>
+Fully functional, just needs:</p>
+
+<ul>
+<li>some performance tuning
+</li>
+<li>minor bug fixes
+</li>
+<li>interface polishing</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="final-thoughts" href="#final-thoughts">
+  </a>
+  💡 Final Thoughts
+</h2>
+
+<p>Sometimes you code to fix a bug<br><br>
+(<em>still fighting that Session ID 💀</em>)<br><br>
+and sometimes you code to <strong>prove a point</strong>.</p>
+
+<p>DotScramble came from pure frustration…<br><br>
+but it turned into a tool I’m genuinely proud of.</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/the-oauth-battle-that-made-me-build-my-own-image-privacy-tool-1gjc" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/the-oauth-battle-that-made-me-build-my-own-image-privacy-tool-1gjc#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

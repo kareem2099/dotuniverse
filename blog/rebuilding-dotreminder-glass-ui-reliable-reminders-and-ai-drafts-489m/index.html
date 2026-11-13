@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Rebuilding DotReminder: Glass UI, Reliable Reminders, and AI Drafts — FreeRave</title>
+<meta name="description" content="A reminder app has a simple promise: help you remember something when it matters.  That makes it an...">
+<link rel="canonical" href="https://dev.to/freerave/rebuilding-dotreminder-glass-ui-reliable-reminders-and-ai-drafts-489m">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/rebuilding-dotreminder-glass-ui-reliable-reminders-and-ai-drafts-489m">
+<meta property="og:title" content="Rebuilding DotReminder: Glass UI, Reliable Reminders, and AI Drafts — FreeRave">
+<meta property="og:description" content="A reminder app has a simple promise: help you remember something when it matters.  That makes it an...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F6ijv22pioj3xqh66e8jp.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F6ijv22pioj3xqh66e8jp.png" alt="">
+  <h1 class="post-title">Rebuilding DotReminder: Glass UI, Reliable Reminders, and AI Drafts</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-05T18:24:58Z">5 November 2026</time> · 4 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>A reminder app has a simple promise: help you remember something when it matters.</p>
+
+<p>That makes it an interesting app to redesign. A polished home screen is useful, but the experience also depends on what happens after you save a reminder, put the phone down, and leave the app alone.</p>
+
+<p>For DotReminder 0.0.7, I worked on both sides: a glass-inspired interface built with Jetpack Compose, and the scheduling, account, and AI flows behind it.</p>
+
+<p>DotReminder is an Android project from <strong>FreeRave (DotSuite)</strong>. The source is available under <strong>Apache License 2.0</strong>:</p>
+
+<p><a href="https://github.com/kareem2099/DotReminder" target="_blank" rel="noopener noreferrer">Explore DotReminder on GitHub</a></p>
+
+<h2>
+  <a name="a-visual-language-shared-across-screens" href="#a-visual-language-shared-across-screens">
+  </a>
+  A visual language shared across screens
+</h2>
+
+<p>The redesign started with the screens people use most: the reminder overview, the creation form, the calendar, and the AI conversation. It then extended to templates and account settings.</p>
+
+<p>The goal was a calmer interface with translucent-looking surfaces, rounded cards, clear grouping, and light and dark appearances. Those choices needed to feel consistent across the app, rather than becoming a separate styling exercise for every screen.</p>
+
+<p>Shared Compose components made that practical. Screens use the same glass surfaces and theme foundations, while their state and actions stay in ViewModels, controllers, and service or repository boundaries.</p>
+
+<p>That division also helped with screenshots: I could render the actual production screen content using local demonstration state, without signing into an account or writing sample reminders to Firestore.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdisymz0pezx1zovflh7s.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdisymz0pezx1zovflh7s.png" alt="DotReminder home overview, using demonstration reminders" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="saving-a-reminder-is-only-the-beginning" href="#saving-a-reminder-is-only-the-beginning">
+  </a>
+  Saving a reminder is only the beginning
+</h2>
+
+<p>One of the most useful findings during device review was also one of the simplest: a saved reminder could exist while notification permission was denied.</p>
+
+<p>The app needed to explain that dependency at the point where it mattered. The updated save flow checks notification access, blocked reminder channels, and precise-alarm access. If the user leaves to grant access, the form keeps its draft and validates the time again when they return.</p>
+
+<p>Reminder scheduling also has to survive more than the current process. Device-local alarm records now keep the information needed to restore registrations after reboot, an app update, or relevant clock and access changes, without first fetching the reminder from the network.</p>
+
+<p>Recurring reminders needed a related correction: after one occurrence, their next occurrence should be scheduled and shown as upcoming. A recurring task should not remain stuck in an overdue state just because its first date passed.</p>
+
+<p>Notification delivery and task completion remain separate concepts. A one-time reminder can sound and still appear overdue until the task is completed.</p>
+
+<p>There are still real device constraints. Permissions, notification-channel settings, Do Not Disturb, and power settings can affect alerts. I tested delivery on the review device, but that does not turn Android scheduling into a universal timing guarantee.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fae0z8hvcsii86sp00j7e.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fae0z8hvcsii86sp00j7e.png" alt="Calendar view with demonstration reminders" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="ai-suggests-the-user-saves" href="#ai-suggests-the-user-saves">
+  </a>
+  AI suggests; the user saves
+</h2>
+
+<p>The assistant supports a different way to start a reminder. Someone can write:</p>
+
+<blockquote>
+<p>Remind me to call Mum tomorrow at 6 pm.</p>
+</blockquote>
+
+<p>The result is a draft, not an automatically saved task. The user reviews the title, date, time, and other details in the regular reminder form before saving.</p>
+
+<p>This keeps the same validation and permission flow for both manual entry and AI-assisted entry. It also gives the user a chance to correct an interpretation before it becomes a notification.</p>
+
+<p>The AI request path changed in this version too. Android calls an authenticated DotSuite gateway, while the provider key stays in the server environment. The gateway verifies the signed-in account's Firebase token, validates request sizes and shapes, and applies account and network usage limits.</p>
+
+<p>On the client, requests are tied to the account that started them. Signing out or switching accounts discards an old result, and cancelling a request cancels its network call.</p>
+
+<p>These are specific controls around credentials and requests. They do not make AI output inherently correct, which is why draft review remains part of the product.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fr19dwxpm3jlkzu5llqrp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fr19dwxpm3jlkzu5llqrp.png" alt="AI conversation with an example reminder draft waiting for review" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="giving-account-controls-clear-meanings" href="#giving-account-controls-clear-meanings">
+  </a>
+  Giving account controls clear meanings
+</h2>
+
+<p>Account work surfaced another distinction that needed to be visible in the interface: biometric app lock and account MFA serve different purposes.</p>
+
+<p>Biometric app lock protects access to an existing signed-in session when returning to the app. Authenticator-based verification remains a separate account sign-in step for enrolled accounts.</p>
+
+<p>The privacy and deletion controls also needed plain wording. DotReminder provides a request pathway for deleting an account and its associated data. Support verifies ownership and processes verified requests within 30 days. Opening the request page or an email draft does not itself erase the account.</p>
+
+<p>These details are less visible than the home screen, but they shape whether people understand what an action will actually do.</p>
+
+<h2>
+  <a name="what-i-wanted-to-keep-maintainable" href="#what-i-wanted-to-keep-maintainable">
+  </a>
+  What I wanted to keep maintainable
+</h2>
+
+<p>The Android stack is Kotlin, Jetpack Compose, Hilt, Firebase, and DataStore. Version 0.0.7 targets Android 16 / API 36, while retaining Android 10 / API 29 as its minimum.</p>
+
+<p>For this update, the useful boundaries were concrete:</p>
+
+<ul>
+<li>Screen rendering can accept demonstration state without live services.</li>
+<li>Reminder drafts pass through a shared review and save flow.</li>
+<li>Alarm restoration has device-local records it can use without a network fetch.</li>
+<li>Authentication challenges and biometric locking stay separate from visual components.</li>
+<li>Provider credentials belong in the backend environment.</li>
+</ul>
+
+<p>The repository includes focused tests and review notes for these flows, along with the localized store artwork sources. The native UI currently uses English labels; the assistant supports Arabic and English requests.</p>
+
+<h2>
+  <a name="try-the-source-and-tell-me-what-you-would-change" href="#try-the-source-and-tell-me-what-you-would-change">
+  </a>
+  Try the source and tell me what you would change
+</h2>
+
+<p>This release is a useful checkpoint for the project: the screens share a visual language, and the less visible flows received attention alongside them.</p>
+
+<p>I'd like feedback on the reminder form, the calendar, and the AI draft review. What would make a reminder app easier for you to trust and use every day?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.remindme" target="_blank" rel="noopener noreferrer">DotReminder on Google Play</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/DotReminder" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotReminder</a></p>
+
+<p><strong>Project:</strong> <a href="https://dotsuite.dev" target="_blank" rel="noopener noreferrer">DotSuite</a></p>
+
+<p><strong>Support:</strong> <a href="mailto:support@dotsuite.dev">support@dotsuite.dev</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/rebuilding-dotreminder-glass-ui-reliable-reminders-and-ai-drafts-489m" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/rebuilding-dotreminder-glass-ui-reliable-reminders-and-ai-drafts-489m#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

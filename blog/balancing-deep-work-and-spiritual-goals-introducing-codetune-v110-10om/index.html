@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Balancing Deep Work and Spiritual Goals: Introducing CodeTune v1.1.0 — FreeRave</title>
+<meta name="description" content="Hey DEV community!  As developers, getting into the &quot;flow state&quot; is amazing for productivity, but it...">
+<link rel="canonical" href="https://dev.to/freerave/balancing-deep-work-and-spiritual-goals-introducing-codetune-v110-10om">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/balancing-deep-work-and-spiritual-goals-introducing-codetune-v110-10om">
+<meta property="og:title" content="Balancing Deep Work and Spiritual Goals: Introducing CodeTune v1.1.0 — FreeRave">
+<meta property="og:description" content="Hey DEV community!  As developers, getting into the &quot;flow state&quot; is amazing for productivity, but it...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxqayaam4xu7oz68b1txg.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxqayaam4xu7oz68b1txg.png" alt="">
+  <h1 class="post-title">Balancing Deep Work and Spiritual Goals: Introducing CodeTune v1.1.0</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-04T20:00:00Z">4 March 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#productivity</span><span class="post-tag">#opensource</span><span class="post-tag">#javascript</span></div>
+  </div>
+  <article class="post-body">
+<p>Hey DEV community!</p>
+
+<p>As developers, getting into the "flow state" is amazing for productivity, but it often comes at a cost: losing track of time. I found myself frequently delaying my prayers or forgetting my daily spiritual routines (like listening to the Quran or doing Dhikr) just because I was deep in a debugging session.</p>
+
+<p>So, I decided to fix my own problem. I built CodeTune—an open-source VS Code extension designed to help developers maintain their spiritual mindfulness without breaking their coding focus.</p>
+
+<p>Today, I'm super excited to announce a massive update: v1.1.0. I focused heavily on UX, gamification, and rock-solid stability.</p>
+
+<p>Here is what’s new:</p>
+
+<ol>
+<li>Smart Focus Mode (Context-Aware)
+Popups are the enemy of flow. In v1.1.0, the extension monitors your typing activity in real-time. If you are actively writing code, Islamic reminders automatically pause. Once you stop and take a break, the deferred notifications seamlessly resume.</li>
+</ol>
+
+<p>Under the hood: This is handled using VS Code's workspace.onDidChangeTextDocument API with strict debouncing and throttling to ensure zero UI lag while you type.</p>
+
+<ol>
+<li>Local Spiritual Dashboard (Gamification)
+I added a full UI dashboard directly in the Activity Bar. You can track your daily Quran listening minutes, Dhikr counts, and build a consecutive-day streak. It even has an unlockable achievements system (from "First Step" to "Legend" status)!</li>
+</ol>
+
+<p>Under the hood: 100% offline and private. Everything is saved locally using VS Code's globalState API. Zero telemetry, zero cloud tracking.</p>
+
+<ol>
+<li>Rock-Solid Error Recovery
+Working with external APIs and audio CDNs can be tricky if the user's internet drops.</li>
+</ol>
+
+<p>Under the hood: I implemented a robust RetryManager with exponential backoff (base 1s → max 30s + jitter) to avoid thundering herd issues. There's also a dedicated "Offline Recovery" UI that queues failed operations and retries them automatically when you reconnect.</p>
+
+<p>See it in action!<br>
+Check out this quick 50-second demo of the new features:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/Xpaz5bfyArw" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>Try it out &amp; Contribute<br>
+Clean code. Clean worship. </p>
+
+<p>I built this open-source project to give back to the community. I'd love for you to try it out and share your feedback!</p>
+
+<p>VS Code Marketplace: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune</a><br>
+GitHub Repository: <a href="https://github.com/kareem2099/codetune" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/codetune</a></p>
+
+<p>If you find it useful, a review on the marketplace or a star on GitHub would mean the world to me. Happy coding! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/balancing-deep-work-and-spiritual-goals-introducing-codetune-v110-10om" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 1
+    · <a href="https://dev.to/freerave/balancing-deep-work-and-spiritual-goals-introducing-codetune-v110-10om#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

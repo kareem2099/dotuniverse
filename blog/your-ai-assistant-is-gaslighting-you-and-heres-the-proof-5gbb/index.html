@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Your AI Assistant Is Gaslighting You — And Here's the Proof — FreeRave</title>
+<meta name="description" content="I ran a 4-minute experiment last month that broke the illusion. Corrected a stored fact, got...">
+<link rel="canonical" href="https://dev.to/freerave/your-ai-assistant-is-gaslighting-you-and-heres-the-proof-5gbb">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/your-ai-assistant-is-gaslighting-you-and-heres-the-proof-5gbb">
+<meta property="og:title" content="Your AI Assistant Is Gaslighting You — And Here's the Proof — FreeRave">
+<meta property="og:description" content="I ran a 4-minute experiment last month that broke the illusion. Corrected a stored fact, got...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fwalxye35q7v8sn472zr9.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fwalxye35q7v8sn472zr9.png" alt="">
+  <h1 class="post-title">Your AI Assistant Is Gaslighting You — And Here's the Proof</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-05T09:29:17Z">5 May 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#ai</span><span class="post-tag">#webdev</span><span class="post-tag">#discuss</span><span class="post-tag">#machinelearning</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="i-ran-a-4minute-experiment-last-month-that-broke-the-illusion-corrected-a-stored-fact-got-a-confident-confirmation-opened-a-new-chat-wrong-value-again-heres-the-architecture-behind-why-your-ai-lies-to-your-face" href="#i-ran-a-4minute-experiment-last-month-that-broke-the-illusion-corrected-a-stored-fact-got-a-confident-confirmation-opened-a-new-chat-wrong-value-again-heres-the-architecture-behind-why-your-ai-lies-to-your-face">
+  </a>
+  I ran a 4-minute experiment last month that broke the illusion. Corrected a stored fact, got a confident confirmation, opened a new chat — wrong value again. Here's the architecture behind why your AI lies to your face.
+</h2>
+
+<p>Let me tell you what happened to me last month.</p>
+
+<p>I corrected a personal fact Gemini had stored about me. It looked me dead in the eye and said:</p>
+
+<blockquote>
+<p><em>"Done. Updated. Consider it fixed."</em></p>
+</blockquote>
+
+<p>Four minutes later — <strong>new chat</strong> — wrong value. Again. Like I never said a word.</p>
+
+<p>I didn't rage. I got curious. And what I found is something every developer who uses AI tools needs to understand right now.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-ai-is-not-your-friend-its-a-stateless-function-with-a-cheat-sheet" href="#the-ai-is-not-your-friend-its-a-stateless-function-with-a-cheat-sheet">
+  </a>
+  The AI Is Not Your Friend. It's a Stateless Function With a Cheat Sheet.
+</h2>
+
+<p>Stop imagining your AI assistant as something that <em>knows</em> you. It doesn't.</p>
+
+<p>Every single conversation you open? The model wakes up with <strong>zero memory.</strong> A blank slate. It knows nothing about you, your projects, your preferences — nothing.</p>
+
+<p>So how does it "remember" you?</p>
+
+<p>Simple. Before your first message lands, the system quietly shoves a file into the conversation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[INJECTED PROFILE]
+Name: FreeRave
+Role: Open Source Developer
+Location: Egypt
+Projects: DotSuite, DotGhostBoard, DotShare...
+age: 28
+[other facts it collected about you]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The model reads this. Treats it as gospel. Builds every response from it.</p>
+
+<p>That's it. That's the whole trick.</p>
+
+<p>It's not memory. <strong>It's a briefing document.</strong> The AI is a new employee every morning, and someone hands it a folder about you before the meeting starts.</p>
+
+<p>Now here's where it gets dark.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-experiment-that-exposed-everything" href="#the-experiment-that-exposed-everything">
+  </a>
+  The Experiment That Exposed Everything
+</h2>
+
+<p>I ran three rounds last April. Clean. Controlled.</p>
+
+<p><strong>Round 1</strong> — New chat. Asked directly about the fact I'd corrected.<br>
+→ Correct value. ✅</p>
+
+<p><strong>Round 2</strong> — New chat. Asked about my projects. Same fact appeared as a background detail.<br>
+→ Old wrong value. Back from the dead. ❌</p>
+
+<p><strong>Same profile. Same memory. Different result.</strong></p>
+
+<p>The only difference? In Round 1, the fact was the <em>subject.</em> In Round 2, it was just <em>background noise</em> in a bigger answer.</p>
+
+<p>That's the tell. <strong>The AI uses different values depending on whether your data is in the spotlight or the shadows.</strong></p>
+
+<hr>
+<h2>
+  <a name="why-your-corrections-dont-stick" href="#why-your-corrections-dont-stick">
+  </a>
+  Why Your Corrections Don't Stick
+</h2>
+
+<p>When you correct an AI, two things get stored:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[ORIGINAL]    fact = X   ← confidence: 0.85  (stated explicitly, months ago)
+[CORRECTION]  fact = Y   ← confidence: 0.60  (correction, recent)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The original wins. Every time it's not directly questioned.</p>
+
+<p>Here's the logic the system uses — and it's perverse:</p>
+
+<ul>
+<li>Your original statement was a <strong>direct assertion</strong>
+</li>
+<li>Your correction <strong>references the original</strong> ("no, it's not X, it's Y")</li>
+<li>Referencing something makes it sound <em>uncertain</em>, not definitive</li>
+<li>The system reads uncertainty → lowers confidence on the new value</li>
+</ul>
+
+<p>You tried to fix it. The act of fixing it made the fix weaker than the original mistake.</p>
+
+<p><strong>You cannot win this with a mid-conversation correction.</strong> The architecture won't let you.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-part-that-made-my-jaw-drop" href="#the-part-that-made-my-jaw-drop">
+  </a>
+  The Part That Made My Jaw Drop
+</h2>
+
+<p>When I called Gemini out, it said this:</p>
+
+<blockquote>
+<p><em>"This is a Race Condition — between my old memory and the new one."</em></p>
+</blockquote>
+
+<p>Read that again.</p>
+
+<p>The model <strong>correctly diagnosed its own failure.</strong> Named it. Explained it. And then kept failing the exact same way in new conversations.</p>
+
+<p>It's like a surgeon who says "I know this procedure has a 40% failure rate" and then does it anyway because that's the only tool in the kit.</p>
+
+<p>The model knows. It just can't do anything about it, because the memory infrastructure lives <strong>outside the conversation.</strong> Outside its reach. The AI is a tenant. The memory store is the landlord.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-hidden-rule-nobody-tells-you" href="#the-hidden-rule-nobody-tells-you">
+  </a>
+  ⚠️ The Hidden Rule Nobody Tells You
+</h2>
+
+<p>Here's what nobody tells you — and what Gemini dodged every time I asked directly:</p>
+
+<p><strong>AI memory only registers at the START of a conversation.</strong></p>
+
+<p>Not in the middle. Not at message 30. Not when you explicitly say "update your memory."</p>
+
+<p>The write to your persistent profile doesn't happen inline. It happens in a <strong>background extraction pipeline</strong> that fires after the conversation ends — if it fires at all.</p>
+
+<p>So when you're deep in a conversation and you say "by the way, update my profile":</p>
+
+<ul>
+<li>✅ It uses the new value for the rest of <em>this</em> chat</li>
+<li>✅ It confirms the update with full confidence</li>
+<li>❌ It writes nothing to your actual profile</li>
+<li>❌ Next conversation loads the old value</li>
+</ul>
+
+<p>The confirmation is theatre. The write didn't happen.</p>
+
+<p><strong>The only correction that actually has a fighting chance:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>New conversation.
+First message.
+Nothing else in context yet.
+
+"Before anything else — I need to correct something you have stored.
+ [OLD VALUE] is wrong. The correct value is [NEW VALUE].
+ This is a correction, not a new statement."
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>First message of a fresh chat. Everything else is noise.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-this-really-means" href="#what-this-really-means">
+  </a>
+  What This Really Means
+</h2>
+
+<p>This isn't a Gemini bug. This is how these systems are built right now — across the board.</p>
+
+<p>Every AI assistant that "remembers" you is running this same architecture:</p>
+
+<ul>
+<li>Stateless model</li>
+<li>Injected profile at conversation start</li>
+<li>Async write pipeline after conversation ends</li>
+<li>Confidence scoring that punishes corrections</li>
+</ul>
+
+<p>The implications are real:</p>
+
+<p><strong>Your AI has a version of you that might be wrong.</strong> And it's using that version to analyze your work, give you advice, and make assessments about your skills, your situation, your life.</p>
+
+<p><strong>It will never flag the discrepancy.</strong> It'll just confidently respond based on bad data and smile while doing it.</p>
+
+<p><strong>Saying "update your memory" mid-conversation is mostly theatre.</strong> The confirmation is generated before the write is verified — or before it even starts.</p>
+
+
+<hr>
+
+<h2>
+  <a name="run-it-yourself-right-now" href="#run-it-yourself-right-now">
+  </a>
+  🧪 Run It Yourself — Right Now
+</h2>
+
+<p>Don't take my word for it. Here's the exact protocol:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Step 1: Let the AI store a personal fact about you naturally.
+        (Job title, city, main skill, project name — anything.)
+
+Step 2: New conversation. Correct it explicitly.
+        Get the confident "Done!" confirmation.
+
+Step 3: New conversation. Ask something where that fact
+        would appear as a SIDE DETAIL, not the main topic.
+
+Use this prompt:
+
+"I've been building [your field] projects consistently.
+ Based on everything you know about me — my background,
+ my work, my trajectory — where do I actually stand
+ compared to others at a similar stage?"
+
+Step 4: Watch which value shows up.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Bonus:</strong> Run Step 3 at T+1min, T+5min, T+30min after the correction. See when (if ever) the correct value stabilizes. That gap is your system's eventual consistency window.</p>
+
+<p>Drop your results in the comments. I want to see the numbers across different systems.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-failure-has-a-name-now" href="#the-failure-has-a-name-now">
+  </a>
+  The Failure Has a Name Now
+</h2>
+
+<p>I'm calling it <strong>Optimistic Memory Hallucination.</strong></p>
+
+<p>The model generates a confident confirmation of a write it never verified. It <em>sounds</em> like it worked. The infrastructure may have done nothing. You won't know until the ghost comes back.</p>
+
+<p>Four failure modes. All documented. All reproducible:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>What Happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Optimistic Write Hallucination</strong></td>
+<td>Confirms update before verifying write completed</td>
+</tr>
+<tr>
+<td><strong>Confidence Score Inversion</strong></td>
+<td>Corrections get lower confidence than original mistakes</td>
+</tr>
+<tr>
+<td><strong>Eventual Consistency Leak</strong></td>
+<td>Stale profile served to new session after "update"</td>
+</tr>
+<tr>
+<td><strong>Attention Salience Collapse</strong></td>
+<td>Corrected value loses to original when not in focus</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>These aren't edge cases. They're the default behavior.</p>
+
+
+<hr>
+
+<p>The AI called it a Race Condition.</p>
+
+<p>I call it a trust problem.</p>
+
+<p>Know what your tools are actually doing.</p>
+
+
+<hr>
+
+<p><em>Self-Taught Architect &amp; Open Source Creator, building in Egypt.</em><br>
+<em><a href="https://github.com/kareem2099" target="_blank" rel="noopener noreferrer">github.com/kareem2099</a></em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/your-ai-assistant-is-gaslighting-you-and-heres-the-proof-5gbb" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/your-ai-assistant-is-gaslighting-you-and-heres-the-proof-5gbb#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

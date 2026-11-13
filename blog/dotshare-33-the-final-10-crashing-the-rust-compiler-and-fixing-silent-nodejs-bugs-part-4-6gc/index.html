@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare 3.3: The Final 10% — Crashing the Rust Compiler and Fixing Silent Node.js Bugs (Part 4) — FreeRave</title>
+<meta name="description" content="How we bridged the gap between a VS Code extension, a Next.js frontend, and a Rust Axum...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-33-the-final-10-crashing-the-rust-compiler-and-fixing-silent-nodejs-bugs-part-4-6gc">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-33-the-final-10-crashing-the-rust-compiler-and-fixing-silent-nodejs-bugs-part-4-6gc">
+<meta property="og:title" content="DotShare 3.3: The Final 10% — Crashing the Rust Compiler and Fixing Silent Node.js Bugs (Part 4) — FreeRave">
+<meta property="og:description" content="How we bridged the gap between a VS Code extension, a Next.js frontend, and a Rust Axum...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdejf107q2lkh4vn9wvw7.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdejf107q2lkh4vn9wvw7.png" alt="">
+  <h1 class="post-title">DotShare 3.3: The Final 10% — Crashing the Rust Compiler and Fixing Silent Node.js Bugs (Part 4)</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-29T20:21:49Z">29 May 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#rust</span><span class="post-tag">#node</span><span class="post-tag">#architecture</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-we-bridged-the-gap-between-a-vs-code-extension-a-nextjs-frontend-and-a-rust-axum-backend-and-the-bizarre-bugs-we-fought-along-the-way" href="#how-we-bridged-the-gap-between-a-vs-code-extension-a-nextjs-frontend-and-a-rust-axum-backend-and-the-bizarre-bugs-we-fought-along-the-way">
+  </a>
+  How we bridged the gap between a VS Code extension, a Next.js frontend, and a Rust Axum backend — and the bizarre bugs we fought along the way.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR:</strong> Integrating three stacks (Rust backend, Node.js/Electron extension, Next.js dashboard) is where the <em>real</em> bugs hide — not in your logic, but at the seams between ecosystems. This post covers 4 production-grade bugs: a silent <code>fetch</code> body corruption, a literal <strong>Rust compiler crash</strong>, a UI state machine that silently erased user work, and a secure OAuth token relay across three services.</p>
+</blockquote>
+
+
+<hr>
+
+<p>The Rust backend was bulletproof. The Next.js dashboard was polished. The VS Code extension felt completely native. We were on the home stretch.</p>
+
+<p>Then came the <strong>final 10%.</strong></p>
+
+<p>If you've shipped anything real, you already know what this means. Not because the work is hard in the traditional sense — but because you've crossed out of any single ecosystem's comfort zone. You're no longer debugging <em>your</em> code. You're debugging the <strong>spaces between</strong> Rust, Node.js, and Next.js. The gaps nobody writes documentation for.</p>
+
+<p>These are the bugs that live there.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bug-1-the-silent-raw-fetch-endraw-body-corruption" href="#bug-1-the-silent-raw-fetch-endraw-body-corruption">
+  </a>
+  🐛 Bug #1 — The Silent <code>fetch</code> Body Corruption
+</h2>
+
+<h3>
+  <a name="the-setup" href="#the-setup">
+  </a>
+  The Setup
+</h3>
+
+<p>The VS Code extension needed to upload cover images to our Rust Axum backend. Since VS Code extensions run in a Node.js environment, we reached for the native <code>fetch</code> API plus the <code>form-data</code> npm package — a completely standard, well-documented combo.</p>
+
+<p>The code looked textbook-correct:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">import</span> <span class="nx">FormData</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">form-data</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">formData</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">FormData</span><span class="p">();</span>
+<span class="nx">formData</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="dl">'</span><span class="s1">file</span><span class="dl">'</span><span class="p">,</span> <span class="nx">buffer</span><span class="p">,</span> <span class="p">{</span> <span class="na">filename</span><span class="p">:</span> <span class="dl">'</span><span class="s1">cover.jpg</span><span class="dl">'</span> <span class="p">});</span>
+
+<span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">'</span><span class="s1">https://api.dotsuite.dev/v1/media/upload</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">method</span><span class="p">:</span> <span class="dl">'</span><span class="s1">POST</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+        <span class="dl">'</span><span class="s1">Authorization</span><span class="dl">'</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">token</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="p">...</span><span class="nx">formData</span><span class="p">.</span><span class="nf">getHeaders</span><span class="p">()</span> <span class="c1">// Sets Content-Type + boundary</span>
+    <span class="p">},</span>
+    <span class="na">body</span><span class="p">:</span> <span class="nx">formData</span> <span class="k">as</span> <span class="kr">any</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-symptom" href="#the-symptom">
+  </a>
+  The Symptom
+</h3>
+
+<p>The Rust backend threw this on every single attempt:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Multipart error: Error parsing multipart/form-data request
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-investigation" href="#the-investigation">
+  </a>
+  The Investigation
+</h3>
+
+<p>We spent hours auditing the Rust <code>Axum Multipart</code> extractor. We logged raw bytes. We checked content-type headers. Everything on the Rust side looked sane.</p>
+
+<p>Then we flipped our perspective: <strong>what if the problem was in the request itself, not the parser?</strong></p>
+
+<p>Here's the key insight. There are two completely different things called "FormData":</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th>
+<strong>Web FormData</strong> (<code>window.FormData</code>)</th>
+<th><strong><code>form-data</code> npm package</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lives in</strong></td>
+<td>Browser / Web APIs</td>
+<td>Node.js ecosystem</td>
+</tr>
+<tr>
+<td><strong>Body type</strong></td>
+<td>Serializes itself natively</td>
+<td>Returns a <strong>readable stream</strong>
+</td>
+</tr>
+<tr>
+<td><strong>Works with native <code>fetch</code>?</strong></td>
+<td>✅ Yes</td>
+<td>❌ No</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Node's native <code>fetch</code> was designed around the <em>Web</em> <code>FormData</code> interface. When you pass it a <code>form-data</code> <em>stream</em>, it doesn't know how to pipe the boundary markers into the body correctly. The headers said <code>Content-Type: multipart/form-data; boundary=---12345</code> — but the body was malformed. The Rust parser saw garbage.</p>
+
+<h3>
+  <a name="the-fix" href="#the-fix">
+  </a>
+  The Fix
+</h3>
+
+<p>We replaced native <code>fetch</code> with <code>axios</code> for this specific upload path. Axios understands how to serialize Node.js stream-based <code>FormData</code> objects properly:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">import</span> <span class="nx">axios</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">axios</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span>
+    <span class="dl">'</span><span class="s1">https://api.dotsuite.dev/v1/media/upload</span><span class="dl">'</span><span class="p">,</span>
+    <span class="nx">formData</span><span class="p">,</span>
+    <span class="p">{</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+            <span class="dl">'</span><span class="s1">Authorization</span><span class="dl">'</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">token</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+            <span class="p">...</span><span class="nx">formData</span><span class="p">.</span><span class="nf">getHeaders</span><span class="p">(),</span>
+        <span class="p">},</span>
+        <span class="na">maxBodyLength</span><span class="p">:</span> <span class="kc">Infinity</span><span class="p">,</span> <span class="c1">// No cap on upload size</span>
+    <span class="p">}</span>
+<span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Immediately, the Rust backend parsed the stream perfectly, validated the magic bytes, and forwarded the file to Cloudflare R2.</p>
+
+<blockquote>
+<p>💡 <strong>Lesson:</strong> Native <code>fetch</code> in Node.js is NOT a drop-in replacement for <code>node-fetch</code> or <code>axios</code> when dealing with npm's <code>form-data</code> streams. The Web API and the Node.js ecosystem have diverged here in a subtle, silent, and infuriating way.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="bug-2-we-crashed-the-rust-compiler" href="#bug-2-we-crashed-the-rust-compiler">
+  </a>
+  💥 Bug #2 — We Crashed the Rust Compiler
+</h2>
+
+<h3>
+  <a name="the-setup" href="#the-setup">
+  </a>
+  The Setup
+</h3>
+
+<p>While refining the post scheduler, we hit an error that sends ice down the spine of any Rust developer. Not a runtime panic. Not a logic error.</p>
+
+<p>The <strong>compiler itself</strong> crashed.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="n">thread</span> <span class="nv">'rustc</span><span class="err">'</span> <span class="n">panicked</span> <span class="n">at</span> <span class="n">library</span><span class="o">/</span><span class="n">alloc</span><span class="o">/</span><span class="n">src</span><span class="o">/</span><span class="n">vec</span><span class="o">/</span><span class="k">mod</span><span class="py">.rs</span><span class="p">:</span><span class="mi">2873</span><span class="p">:</span><span class="mi">36</span><span class="p">:</span>
+<span class="n">slice</span> <span class="n">index</span> <span class="n">starts</span> <span class="n">at</span> <span class="mi">16</span> <span class="n">but</span> <span class="n">ends</span> <span class="n">at</span> <span class="mi">15</span>
+<span class="n">error</span><span class="p">:</span> <span class="n">the</span> <span class="n">compiler</span> <span class="n">unexpectedly</span> <span class="n">panicked</span><span class="py">. this</span> <span class="n">is</span> <span class="n">a</span> <span class="n">bug</span><span class="py">.
+
+query</span> <span class="n">stack</span> <span class="n">during</span> <span class="n">panic</span><span class="p">:</span>
+<span class="err">#</span><span class="mi">0</span> <span class="p">[</span><span class="n">check_mod_deathness</span><span class="p">]</span> <span class="n">checking</span> <span class="n">deathness</span> <span class="n">of</span> <span class="n">variables</span> <span class="k">in</span> <span class="n">module</span> <span class="err">`</span><span class="n">platforms</span><span class="err">`</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is called an <strong>ICE</strong> — <strong>Internal Compiler Error</strong>. It means <code>rustc</code> hit a state it was never supposed to reach. These are filed as bugs against the Rust project itself.</p>
+
+<h3>
+  <a name="the-cause" href="#the-cause">
+  </a>
+  The Cause
+</h3>
+
+<p>The stack trace pointed to <code>check_mod_deathness</code> — the compiler pass that finds dead (unused) code to issue <code>dead_code</code> warnings.</p>
+
+<p>We had this struct:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="k">pub</span> <span class="k">struct</span> <span class="n">PublishResult</span> <span class="p">{</span>
+    <span class="k">pub</span> <span class="n">platform</span><span class="p">:</span> <span class="n">Platform</span><span class="p">,</span>
+    <span class="k">pub</span> <span class="n">post_url</span><span class="p">:</span> <span class="nb">Option</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>We were producing <code>PublishResult</code> values inside an iterator chain, but the <code>post_url</code> field was never actually <em>consumed</em> anywhere downstream. The dead-code analysis pass, when it encountered this specific pattern — an unused field inside a struct flowing through an iterator chain — hit an edge case and panicked internally.</p>
+
+<p>The compiler wasn't wrong to complain. We <em>were</em> writing dead code. It just wasn't supposed to crash about it.</p>
+
+<h3>
+  <a name="the-fix" href="#the-fix">
+  </a>
+  The Fix
+</h3>
+
+<p>The tempting shortcut was <code>#[allow(dead_code)]</code>. That silences the warning without fixing anything.</p>
+
+<p>The right fix was to <strong>actually use the field</strong>. We updated the scheduler to log published URLs on success — which made <code>post_url</code> a live, consumed value:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// Actively consume post_url — turns dead code into observable telemetry</span>
+<span class="k">let</span> <span class="n">published_urls</span><span class="p">:</span> <span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">results</span><span class="nf">.iter</span><span class="p">()</span>
+    <span class="nf">.filter_map</span><span class="p">(|</span><span class="n">r</span><span class="p">|</span> <span class="n">r</span><span class="nf">.as_ref</span><span class="p">()</span><span class="nf">.ok</span><span class="p">())</span>
+    <span class="nf">.filter_map</span><span class="p">(|</span><span class="n">r</span><span class="p">|</span> <span class="p">{</span>
+        <span class="n">r</span><span class="py">.post_url</span>
+            <span class="nf">.as_ref</span><span class="p">()</span>
+            <span class="nf">.map</span><span class="p">(|</span><span class="n">url</span><span class="p">|</span> <span class="nd">format!</span><span class="p">(</span><span class="s">"{:?}: {}"</span><span class="p">,</span> <span class="n">r</span><span class="py">.platform</span><span class="p">,</span> <span class="n">url</span><span class="p">))</span>
+    <span class="p">})</span>
+    <span class="nf">.collect</span><span class="p">();</span>
+
+<span class="k">if</span> <span class="o">!</span><span class="n">published_urls</span><span class="nf">.is_empty</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nn">tracing</span><span class="p">::</span><span class="nd">info!</span><span class="p">(</span><span class="n">urls</span> <span class="o">=</span> <span class="o">?</span><span class="n">published_urls</span><span class="p">,</span> <span class="s">"✅ Post published successfully"</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>By consuming the field, the dead-code analyzer had nothing to flag. We bypassed the compiler bug entirely — <em>and</em> gained structured logs as a bonus.</p>
+
+<blockquote>
+<p>💡 <strong>Lesson:</strong> An ICE is the compiler's way of saying "this code revealed a bug in <em>me</em>." But the underlying cause is almost always real dead code or a degenerate abstraction. Fix the dead code first — <code>#[allow(dead_code)]</code> is a bandage, not a solution. You can also <a href="https://github.com/rust-lang/rust/issues" target="_blank" rel="noopener noreferrer">report the ICE</a> to help the Rust team fix the compiler bug itself.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="bug-3-the-success-that-wiped-everything" href="#bug-3-the-success-that-wiped-everything">
+  </a>
+  🗑️ Bug #3 — The "Success" That Wiped Everything
+</h2>
+
+<h3>
+  <a name="the-setup" href="#the-setup">
+  </a>
+  The Setup
+</h3>
+
+<p>With backend and network layers stable, we focused on UX polish inside the VS Code extension's webview. That's when users started reporting something maddening:</p>
+
+<blockquote>
+<p><em>"I upload a cover image and my entire post — title, tags, content — disappears."</em></p>
+</blockquote>
+
+<h3>
+  <a name="the-investigation" href="#the-investigation">
+  </a>
+  The Investigation
+</h3>
+
+<p>We traced it to a central <code>MessageHandler</code> inside the webview that listened for backend status events:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ The bug: generic "success" = nuclear reset</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">status</span><span class="dl">'</span><span class="p">:</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">resetAllComposers</span><span class="p">();</span> <span class="c1">// Wipes title, tags, content, everything</span>
+    <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The logic made sense in isolation: a <code>success</code> status meant a post had been published to the cloud, so clear the UI for the next post.</p>
+
+<p>The problem: <strong>uploading a cover image also emitted a <code>success</code> status.</strong> The event system didn't distinguish between:</p>
+
+<ul>
+<li>✅ "Image uploaded successfully" (informational — keep the form)</li>
+<li>✅ "Post published successfully" (workflow complete — reset the form)</li>
+</ul>
+
+<p>Both were <code>{ type: 'success' }</code>. The UI couldn't tell them apart, so it did what it was told: wiped everything.</p>
+
+<h3>
+  <a name="the-fix" href="#the-fix">
+  </a>
+  The Fix
+</h3>
+
+<p>We separated <em>informational success</em> from <em>workflow completion</em> at the message contract level:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ The fix: explicit, semantic events</span>
+
+<span class="c1">// Generic status messages only control spinners and toast notifications</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">status</span><span class="dl">'</span><span class="p">:</span>
+    <span class="nf">updateLoadingState</span><span class="p">(</span><span class="nx">msg</span><span class="p">);</span>
+    <span class="nf">showToast</span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">message</span><span class="p">);</span>
+    <span class="k">break</span><span class="p">;</span>
+
+<span class="c1">// Dedicated events for actual workflow transitions</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">shareComplete</span><span class="dl">'</span><span class="p">:</span>
+    <span class="nf">resetMainComposer</span><span class="p">();</span>
+    <span class="k">break</span><span class="p">;</span>
+
+<span class="k">case</span> <span class="dl">'</span><span class="s1">blogShareComplete</span><span class="dl">'</span><span class="p">:</span>
+    <span class="nf">resetBlogComposer</span><span class="p">();</span>
+    <span class="k">break</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The backend now emits <code>shareComplete</code> or <code>blogShareComplete</code> only when the final publishing transaction commits. Image uploads, connection checks, and other intermediate operations stay as <code>status</code> events.</p>
+
+<blockquote>
+<p>💡 <strong>Lesson:</strong> Generic event types are a trap. When your event bus grows, <code>{ type: 'success' }</code> is as meaningful as <code>{ type: 'thing happened' }</code>. Name events after <strong>what specifically occurred</strong> — not the sentiment of the outcome. <code>imageUploadComplete</code> and <code>postPublished</code> are unambiguous. <code>success</code> is not.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="bug-4-bridging-oauth-across-three-services" href="#bug-4-bridging-oauth-across-three-services">
+  </a>
+  🔐 Bug #4 — Bridging OAuth Across Three Services
+</h2>
+
+<h3>
+  <a name="the-problem" href="#the-problem">
+  </a>
+  The Problem
+</h3>
+
+<p>This wasn't a crash — it was a <strong>design gap</strong>. Our Next.js frontend handles OAuth handshakes with X, LinkedIn, and Dev.to. Our Rust backend needs those tokens to execute the scheduled posts. The VS Code extension needs to know <em>which platforms are connected</em> to render the right UI buttons.</p>
+
+<p>Three services. One source of truth. Zero raw tokens exposed to the client.</p>
+
+<h3>
+  <a name="the-architecture" href="#the-architecture">
+  </a>
+  The Architecture
+</h3>
+
+<p>We implemented a secure internal handshake with a strict data flow:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│  1. User connects LinkedIn via Next.js OAuth flow           │
+│                                                             │
+│  2. Next.js → POST /v1/internal/credentials/sync (Rust)    │
+│     Body: { user_id, platform, encrypted_token }            │
+│     Auth: internal service secret (never client-exposed)    │
+│                                                             │
+│  3. Rust stores encrypted token, bound to user_id           │
+│                                                             │
+│  4. VS Code Extension → GET /v1/oauth/connections (Rust)   │
+│     Response: { linkedin: true, x: false, devto: true }     │
+│                    ↑                                         │
+│              Boolean map only — no tokens, ever             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Key security properties:</p>
+
+<ul>
+<li>
+<strong>Tokens never touch the VS Code client.</strong> The extension only receives a boolean map of connected platforms.</li>
+<li>
+<strong>The sync endpoint is internal-only.</strong> Protected by a service secret, not a user JWT.</li>
+<li>
+<strong>Encryption at rest.</strong> Tokens are encrypted before storage in Rust, so even a database breach doesn't expose raw credentials.</li>
+</ul>
+
+<p>The VS Code extension UI reacts dynamically — scheduling buttons enable/disable based on the boolean map, with zero coupling to the underlying OAuth tokens:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Extension side — clean, no tokens in sight</span>
+<span class="kd">const</span> <span class="nx">connections</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">api</span><span class="p">.</span><span class="kd">get</span><span class="o">&lt;</span><span class="nx">ConnectionMap</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">/v1/oauth/connections</span><span class="dl">'</span><span class="p">);</span>
+<span class="c1">// { linkedin: true, x: false, devto: true }</span>
+
+<span class="nf">setScheduleButtonEnabled</span><span class="p">(</span><span class="dl">'</span><span class="s1">linkedin</span><span class="dl">'</span><span class="p">,</span> <span class="nx">connections</span><span class="p">.</span><span class="nx">linkedin</span><span class="p">);</span>
+<span class="nf">setScheduleButtonEnabled</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="nx">connections</span><span class="p">.</span><span class="nx">x</span><span class="p">);</span>
+<span class="nf">setScheduleButtonEnabled</span><span class="p">(</span><span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">,</span> <span class="nx">connections</span><span class="p">.</span><span class="nx">devto</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p>💡 <strong>Lesson:</strong> When bridging auth across services, define <strong>exactly what each service needs to know</strong> — and nothing more. The VS Code client doesn't need tokens; it needs a boolean. Expose the minimum necessary data at each boundary.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="wrapping-up-the-bugs-live-at-the-seams" href="#wrapping-up-the-bugs-live-at-the-seams">
+  </a>
+  Wrapping Up: The Bugs Live at the Seams
+</h2>
+
+<p>The individual stacks were each fine. Rust was fast and correct. Next.js was clean. The VS Code extension behaved exactly as expected in isolation.</p>
+
+<p>Every single bug in this post happened <strong>at a boundary</strong>:</p>
+
+<ul>
+<li>Node.js streams meeting a Rust multipart parser</li>
+<li>A compiler analysis pass encountering dead code in an iterator chain</li>
+<li>A generic UI event system conflating two different kinds of success</li>
+<li>Three services needing to share auth state without sharing secrets</li>
+</ul>
+
+<p>Cross-stack integration isn't about making things <em>work</em> — it's about making sure the assumptions baked into each ecosystem don't silently contradict each other. They will. Treat every boundary as a potential failure point, test each one in isolation before connecting them, and when something breaks, look at the <strong>interface</strong> before blaming the implementation.</p>
+
+<p>That's how DotSuite went from a collection of three isolated services to one coherent, production-ready system.</p>
+
+
+<hr>
+
+<p><em>This concludes the DotSuite Backend Architecture series. If you found this useful, the previous parts cover the concurrent cloud scheduler, the zero-trust media upload pipeline, and the OAuth flow in detail. Happy shipping.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-33-the-final-10-crashing-the-rust-compiler-and-fixing-silent-nodejs-bugs-part-4-6gc" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotshare-33-the-final-10-crashing-the-rust-compiler-and-fixing-silent-nodejs-bugs-part-4-6gc#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

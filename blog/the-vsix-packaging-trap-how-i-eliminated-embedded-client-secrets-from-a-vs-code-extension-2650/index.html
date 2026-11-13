@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>The VSIX Packaging Trap: How I Eliminated Embedded Client Secrets from a VS Code Extension — FreeRave</title>
+<meta name="description" content="A .vsix is just a ZIP archive of plain JavaScript. Here is the post-mortem of how our...">
+<link rel="canonical" href="https://dev.to/freerave/the-vsix-packaging-trap-how-i-eliminated-embedded-client-secrets-from-a-vs-code-extension-2650">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/the-vsix-packaging-trap-how-i-eliminated-embedded-client-secrets-from-a-vs-code-extension-2650">
+<meta property="og:title" content="The VSIX Packaging Trap: How I Eliminated Embedded Client Secrets from a VS Code Extension — FreeRave">
+<meta property="og:description" content="A .vsix is just a ZIP archive of plain JavaScript. Here is the post-mortem of how our...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2qjqvl7hxg2nweoys65a.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F2qjqvl7hxg2nweoys65a.png" alt="">
+  <h1 class="post-title">The VSIX Packaging Trap: How I Eliminated Embedded Client Secrets from a VS Code Extension</h1>
+  <div class="post-meta">
+    <time datetime="2026-09-25T15:04:51Z">25 September 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#security</span><span class="post-tag">#typescript</span><span class="post-tag">#architecture</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-vsix-is-just-a-zip-archive-of-plain-javascript-here-is-the-postmortem-of-how-our-buildtime-secrets-failed-how-we-designed-dynamic-device-registration-with-os-secretstorage-and-how-we-solved-the-scanner-scanning-the-scanner-paradox" href="#a-vsix-is-just-a-zip-archive-of-plain-javascript-here-is-the-postmortem-of-how-our-buildtime-secrets-failed-how-we-designed-dynamic-device-registration-with-os-secretstorage-and-how-we-solved-the-scanner-scanning-the-scanner-paradox">
+  </a>
+  A .vsix is just a ZIP archive of plain JavaScript. Here is the post-mortem of how our build-time secrets failed, how we designed dynamic device registration with OS SecretStorage, and how we solved the 'scanner scanning the scanner' paradox.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR</strong>: Distributing a client-server VS Code extension means accepting a hard truth: <strong>a <code>.vsix</code> file is just a ZIP archive containing JavaScript that can be extracted and inspected.</strong> This article breaks down how our initial attempt to inject build-time backend secrets was scrapped, how we engineered an anonymous dynamic device handshake with OS-level <code>SecretStorage</code>, and how we resolved the bizarre paradox of static security scanners flagging our own secret detection patterns.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-illusion-of-the-extension-package" href="#the-illusion-of-the-extension-package">
+  </a>
+  The Illusion of the Extension Package
+</h2>
+
+<p>When developers distribute software through the VS Code Marketplace or the Open VSX Registry, it is easy to unconsciously think of the <code>.vsix</code> file as a compiled, opaque binary.</p>
+
+<p>It is not.</p>
+
+<p>A <code>.vsix</code> package is an Open Packaging Conventions (OPC) archive — an ordinary ZIP file containing your extension’s manifest (<code>package.json</code>), assets, and compiled JavaScript output (<code>out/</code>).</p>
+
+<p>Anyone can verify this with standard shell utilities:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Rename and extract any published extension</span>
+<span class="nb">cp </span>DotEnvy-2.1.0.vsix DotEnvy.zip
+unzip <span class="nt">-q</span> DotEnvy.zip <span class="nt">-d</span> extracted/
+<span class="nb">cd </span>extracted/extension/out
+
+<span class="c"># Search for sensitive variables</span>
+<span class="nb">grep</span> <span class="nt">-rn</span> <span class="s2">"SHARED_SECRET"</span> <span class="nb">.</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If you injected an API key, an HMAC signing secret, or a database token into your client code at compile time, <strong>you just published that secret to the entire world.</strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="context-why-did-we-need-a-secret-in-the-first-place" href="#context-why-did-we-need-a-secret-in-the-first-place">
+  </a>
+  Context: Why Did We Need a Secret in the First Place?
+</h2>
+
+<p>In <a>Part 1 of this series</a>, I explained how we built <strong>Aegis</strong> — a 4-layer AI secret detection pipeline for <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">DotEnvy</a>.</p>
+
+<p>The first three layers (Regex, Community Blacklist, and Entropy Gating) execute locally inside the editor process. But Layer 4 requires invoking our Python microservice (<code>aegis.dotsuite.dev</code>) on Railway to run contextual neural classification.</p>
+
+<p>To protect the backend against unauthorized abuse, spam, and denial-of-service, we required incoming HTTP requests to be signed using <strong>HMAC-SHA256</strong>:</p>
+
+<p>$$\text{Signature} = \text{HMAC-SHA256}(\text{SharedSecret}, \text{Timestamp} + "." + \text{Payload})$$</p>
+
+<p>This design introduced our fundamental dilemma:</p>
+
+<blockquote>
+<p><strong>How does an open-source, publicly distributed client authenticate with a protected backend service without shipping a hardcoded secret in its package?</strong></p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="attempt-1-the-buildtime-secret-trap-v210" href="#attempt-1-the-buildtime-secret-trap-v210">
+  </a>
+  Attempt 1: The Build-Time Secret Trap (v2.1.0)
+</h2>
+
+<p>Our initial approach relied on build-time environment variable substitution. In our deployment pipeline, a Node script injected a secret before invoking <code>vsce package</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// scripts/build-with-env.js (Flawed Approach)</span>
+<span class="kd">const</span> <span class="nx">secret</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">PRODUCTION_EXTENSION_SECRET</span><span class="p">;</span>
+<span class="kd">let</span> <span class="nx">code</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nf">readFileSync</span><span class="p">(</span><span class="dl">'</span><span class="s1">out/utils/llmAnalyzer.js</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">code</span> <span class="o">=</span> <span class="nx">code</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="dl">'</span><span class="s1">REPLACE_AT_BUILD_TIME</span><span class="dl">'</span><span class="p">,</span> <span class="nx">secret</span><span class="p">);</span>
+<span class="nx">fs</span><span class="p">.</span><span class="nf">writeFileSync</span><span class="p">(</span><span class="dl">'</span><span class="s1">out/utils/llmAnalyzer.js</span><span class="dl">'</span><span class="p">,</span> <span class="nx">code</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>While this kept the secret out of our public git repository, it was an architectural disaster:</p>
+
+<ol>
+<li>
+<strong>The VSIX Leak</strong>: As demonstrated above, extracting the <code>.vsix</code> exposed the secret immediately.</li>
+<li>
+<strong>Automated Scanner Flags</strong>: Automated CI/CD bots (GitHub Secret Scanning, Trufflehog, CodeQL) automatically inspect release assets. A high-entropy hex string inside compiled JavaScript triggers immediate alerts.</li>
+<li>
+<strong>Single Point of Compromise</strong>: If one user decompiles the extension and leaks the shared secret, the backend can no longer trust <em>any</em> extension client without rotating the key and breaking every installed instance worldwide.</li>
+</ol>
+
+<p>We scrapped this design entirely.</p>
+
+
+<hr>
+
+<h2>
+  <a name="attempt-2-zero-embedded-client-secrets-amp-dynamic-device-handshake-v212" href="#attempt-2-zero-embedded-client-secrets-amp-dynamic-device-handshake-v212">
+  </a>
+  Attempt 2: Zero Embedded Client Secrets &amp; Dynamic Device Handshake (v2.1.2)
+</h2>
+
+<p>We established a strict architectural rule: <strong>Zero Embedded / Static Client Secrets</strong>.</p>
+
+<p>Not a single secret, token, or private key may exist in the source code, build scripts, or packaged <code>.vsix</code> bundle.</p>
+
+<p>Instead, we designed an anonymous, zero-touch dynamic device registration handshake:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌────────────────────────────────────────┐           ┌────────────────────────────────────────┐
+│ DotEnvy Client (First Activation)      │           │ Aegis Backend (aegis.dotsuite.dev)     │
+└───────────────────┬────────────────────┘           └───────────────────┬────────────────────┘
+                    │                                                    │
+                    │ 1. POST /extension/register                        │
+                    │    { machine_id: hash(vscode.env.machineId) }      │
+                    ├───────────────────────────────────────────────────►│ Strict IP Rate Limiter
+                    │                                                    │ (Max 10 per hour per IP)
+                    │                                                    │
+                    │                                                    │ 2. Backend generates unique
+                    │                                                    │    cryptographic client_secret
+                    │ 3. Returns per-device secret                       │    and stores active record
+                    │◄───────────────────────────────────────────────────┤
+                    │                                                    │
+                    ▼                                                    ▼
+          Stored Exclusively in                                Subsequent requests signed via
+         OS-level SecretStorage                                HMAC-SHA256(timestamp + body)
+       (macOS Keychain / Windows                               with per-machine rate limiting
+      Credential Manager / libsecret)                                 (30 req/min)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="1-anonymous-environment-identity" href="#1-anonymous-environment-identity">
+  </a>
+  1. Anonymous Environment Identity
+</h3>
+
+<p>When DotEnvy launches for the first time, it generates a non-reversible identifier from VS Code's environment API:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">getMachineId</span><span class="p">():</span> <span class="kr">string</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">machineId</span> <span class="o">||</span> <span class="dl">'</span><span class="s1">anonymous-machine</span><span class="dl">'</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>vscode.env.machineId</code> provides a pseudonymous environment identifier that lets the backend maintain per-client state and rate limits without requiring a user account.</p>
+
+<h3>
+  <a name="2-ephemeral-dynamic-registration" href="#2-ephemeral-dynamic-registration">
+  </a>
+  2. Ephemeral Dynamic Registration
+</h3>
+
+<p>The extension calls <code>/extension/register</code>:</p>
+
+<ul>
+<li>
+<strong>Defense in Depth</strong>: The registration endpoint is protected by strict IP-based rate limiting (maximum 10 registrations per hour per IP) to prevent Sybil registration floods.</li>
+<li>
+<strong>Unique Credential Issuance</strong>: The backend generates an independent 256-bit cryptographically random secret (<code>client_secret</code>), persists the mapping in PostgreSQL, and returns it over TLS.</li>
+</ul>
+
+<h3>
+  <a name="3-oslevel-secretstorage" href="#3-oslevel-secretstorage">
+  </a>
+  3. OS-Level SecretStorage
+</h3>
+
+<p>The extension never writes the returned secret to disk, <code>.env</code> files, or standard workspace settings. It stores the credential directly inside VS Code's <code>SecretStorage</code> API:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">public</span> <span class="k">async</span> <span class="nf">setSharedSecret</span><span class="p">(</span><span class="nx">secret</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotenvy.llm.sharedSecret</span><span class="dl">'</span><span class="p">,</span> <span class="nx">secret</span><span class="p">);</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">sharedSecret</span> <span class="o">=</span> <span class="nx">secret</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Under the hood, VS Code delegates <code>SecretStorage</code> to native operating system keyrings:</p>
+
+<ul>
+<li>
+<strong>macOS</strong>: Apple Keychain</li>
+<li>
+<strong>Windows</strong>: Windows Credential Manager</li>
+<li>
+<strong>Linux</strong>: Secret Service API (gnome-keyring / KWallet)</li>
+</ul>
+
+<h3>
+  <a name="4-authenticated-request-signing" href="#4-authenticated-request-signing">
+  </a>
+  4. Authenticated Request Signing
+</h3>
+
+<p>For all subsequent requests, DotEnvy signs its payloads using HMAC-SHA256:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">signRequest</span><span class="p">(</span><span class="nx">body</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="p">{</span> <span class="nl">timestamp</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">signature</span><span class="p">:</span> <span class="kr">string</span> <span class="p">}</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">timestamp</span> <span class="o">=</span> <span class="nc">String</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">floor</span><span class="p">(</span><span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">));</span>
+    <span class="kd">const</span> <span class="nx">signature</span> <span class="o">=</span> <span class="nx">crypto</span>
+        <span class="p">.</span><span class="nf">createHmac</span><span class="p">(</span><span class="dl">'</span><span class="s1">sha256</span><span class="dl">'</span><span class="p">,</span> <span class="k">this</span><span class="p">.</span><span class="nx">sharedSecret</span><span class="o">!</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">timestamp</span><span class="p">}</span><span class="s2">.</span><span class="p">${</span><span class="nx">body</span><span class="p">}</span><span class="s2">`</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">digest</span><span class="p">(</span><span class="dl">'</span><span class="s1">hex</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="nx">timestamp</span><span class="p">,</span> <span class="nx">signature</span> <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>On the backend, Aegis:</p>
+
+<ul>
+<li>Validates the timestamp against a <strong>5-minute sliding window</strong> to prevent replay attacks.</li>
+<li>Looks up the <code>client_secret</code> corresponding to the <code>X-Machine-ID</code> header.</li>
+<li>Uses Python's constant-time comparison <code>hmac.compare_digest</code> to prevent timing attacks.</li>
+<li>Applies a machine-level rate limit (30 requests/minute).</li>
+</ul>
+
+<p>If a specific client secret is ever compromised on a developer's local machine, revoking that single record does not disrupt any other user.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-automated-gatekeeper-cicd-prepublish-validation" href="#the-automated-gatekeeper-cicd-prepublish-validation">
+  </a>
+  The Automated Gatekeeper: CI/CD Pre-Publish Validation
+</h2>
+
+<p>To ensure no developer or automated script ever accidentally reintroduces an embedded secret, we added an automated pre-publish scanner to <a><code>scripts/build-with-env.js</code></a>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// scripts/build-with-env.js</span>
+<span class="kd">const</span> <span class="nx">fs</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">fs</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">path</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">path</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">const</span> <span class="nx">outDir</span> <span class="o">=</span> <span class="nx">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nx">__dirname</span><span class="p">,</span> <span class="dl">'</span><span class="s1">..</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">out</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">function</span> <span class="nf">scanDir</span><span class="p">(</span><span class="nx">dir</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">let</span> <span class="nx">flagged</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">files</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nf">readdirSync</span><span class="p">(</span><span class="nx">dir</span><span class="p">);</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">f</span> <span class="k">of</span> <span class="nx">files</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">fullPath</span> <span class="o">=</span> <span class="nx">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span> <span class="nx">f</span><span class="p">);</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nf">statSync</span><span class="p">(</span><span class="nx">fullPath</span><span class="p">).</span><span class="nf">isDirectory</span><span class="p">())</span> <span class="p">{</span>
+            <span class="nx">flagged</span> <span class="o">+=</span> <span class="nf">scanDir</span><span class="p">(</span><span class="nx">fullPath</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">(</span><span class="nx">fullPath</span><span class="p">.</span><span class="nf">endsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1">.js</span><span class="dl">'</span><span class="p">))</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">content</span> <span class="o">=</span> <span class="nx">fs</span><span class="p">.</span><span class="nf">readFileSync</span><span class="p">(</span><span class="nx">fullPath</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">);</span>
+
+            <span class="c1">// Check for illegal embedded secret patterns</span>
+            <span class="k">if </span><span class="p">(</span><span class="sr">/const</span><span class="se">\s</span><span class="sr">+embeddedSecret</span><span class="se">\s</span><span class="sr">*=</span><span class="se">\s</span><span class="sr">*</span><span class="se">[</span><span class="sr">"'</span><span class="se">][</span><span class="sr">A-Za-z0-9_-</span><span class="se">]{20,}[</span><span class="sr">"'</span><span class="se">]</span><span class="sr">/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">content</span><span class="p">))</span> <span class="p">{</span>
+                <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="s2">`❌ Security Alert: Hardcoded embeddedSecret found in </span><span class="p">${</span><span class="nx">fullPath</span><span class="p">}</span><span class="s2">!`</span><span class="p">);</span>
+                <span class="nx">flagged</span><span class="o">++</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nx">flagged</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">const</span> <span class="nx">flags</span> <span class="o">=</span> <span class="nf">scanDir</span><span class="p">(</span><span class="nx">outDir</span><span class="p">);</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">flags</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="s2">`\n❌ Pre-publish check failed: </span><span class="p">${</span><span class="nx">flags</span><span class="p">}</span><span class="s2"> leaked secret(s) found in out/!`</span><span class="p">);</span>
+    <span class="nx">process</span><span class="p">.</span><span class="nf">exit</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="dl">'</span><span class="s1">✅ Security check passed: 0 embedded secrets found in compiled out/ bundle.</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This verification script runs automatically as part of <code>npm run package</code>. If a secret is detected, the build halts with an exit code of <code>1</code>, aborting the release pipeline.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-scanner-scanning-the-scanner-paradox-v213" href="#the-scanner-scanning-the-scanner-paradox-v213">
+  </a>
+  The "Scanner Scanning the Scanner" Paradox (v2.1.3)
+</h2>
+
+<p>Once we eliminated embedded secrets, we collided with an ironic roadblock: <strong>automated static security scanners started blocking our extension releases.</strong></p>
+
+<p>DotEnvy is a security extension designed to detect leaked credentials. Its pattern registry naturally contains regular expressions for popular API tokens:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ v2.1.0: Literal regex prefixes</span>
+<span class="kd">const</span> <span class="nx">KNOWN_SECRET_PATTERNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">AWS Access Key</span><span class="dl">'</span><span class="p">,</span>  <span class="na">regex</span><span class="p">:</span> <span class="sr">/AKIA</span><span class="se">[</span><span class="sr">0-9A-Z</span><span class="se">]{16}</span><span class="sr">/</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Stripe Live Key</span><span class="dl">'</span><span class="p">,</span> <span class="na">regex</span><span class="p">:</span> <span class="sr">/sk_live_</span><span class="se">[</span><span class="sr">0-9a-zA-Z</span><span class="se">]{24,}</span><span class="sr">/</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">GitHub Token</span><span class="dl">'</span><span class="p">,</span>    <span class="na">regex</span><span class="p">:</span> <span class="sr">/ghp_</span><span class="se">[</span><span class="sr">a-zA-Z0-9</span><span class="se">]{36}</span><span class="sr">/</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Google API Key</span><span class="dl">'</span><span class="p">,</span>  <span class="na">regex</span><span class="p">:</span> <span class="sr">/AIza</span><span class="se">[</span><span class="sr">0-9A-Za-z</span><span class="se">\-</span><span class="sr">_</span><span class="se">]{35}</span><span class="sr">/</span> <span class="p">},</span>
+<span class="p">];</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When GitHub’s push protection and marketplace upload scanners inspected our compiled output, their naive string-matching heuristics triggered on our own code:</p>
+
+<blockquote>
+<p><em>"Warning: Leaked AWS Access Key pattern detected in out/utils/llmAnalyzer.js"</em></p>
+</blockquote>
+
+<p>The scanners couldn't differentiate between code <em>containing</em> a secret and code <em>designed to detect</em> a secret.</p>
+
+<h3>
+  <a name="avoiding-static-scanner-false-positives-via-runtime-pattern-construction" href="#avoiding-static-scanner-false-positives-via-runtime-pattern-construction">
+  </a>
+  Avoiding Static Scanner False Positives via Runtime Pattern Construction
+</h3>
+
+<p>To resolve these false positives without weakening our detection capabilities, we refactored the pattern registry to assemble sensitive token prefixes dynamically at runtime:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ v2.1.3: Assembled at runtime — clean scanner bill of health</span>
+<span class="kd">const</span> <span class="nx">KNOWN_SECRET_PATTERNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span> 
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">AWS Access Key</span><span class="dl">'</span><span class="p">,</span>  
+        <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">A</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">KIA</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9A-Z]{16}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> 
+    <span class="p">},</span>
+    <span class="p">{</span> 
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Stripe Live Key</span><span class="dl">'</span><span class="p">,</span> 
+        <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">sk</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">_live_</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9a-zA-Z]{24,}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> 
+    <span class="p">},</span>
+    <span class="p">{</span> 
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">GitHub Token</span><span class="dl">'</span><span class="p">,</span>    
+        <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">g</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">hp_</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[a-zA-Z0-9]{36}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> 
+    <span class="p">},</span>
+    <span class="p">{</span> 
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Google API Key</span><span class="dl">'</span><span class="p">,</span>  
+        <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">AI</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">za</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9A-Za-z</span><span class="se">\\</span><span class="s1">-_]{35}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> 
+    <span class="p">},</span>
+<span class="p">];</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Engineering Note</strong>: This runtime string assembly is <strong>not an evasion technique against security controls</strong>; it is a pragmatic packaging workaround to prevent regex-based linters from confusing detection definitions with genuine credential leaks. Inside Node's V8 engine, the compiled <code>RegExp</code> objects are identical and execute at native engine speed.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="build-hygiene-amp-vsix-purity" href="#build-hygiene-amp-vsix-purity">
+  </a>
+  Build Hygiene &amp; VSIX Purity
+</h2>
+
+<p>Our final hardening step addressed package purity:</p>
+
+<ol>
+<li>
+<strong>Automatic Pre-Build Purging</strong>: We updated our <code>package.json</code> scripts to mandate <code>rm -rf out</code> before every invocation of <code>tsc</code>. Stale, uncompiled test artifacts from previous development sessions can never accidentally be swept into a production <code>.vsix</code>.</li>
+<li>
+<strong>Aggressive <code>.vscodeignore</code> Hardening</strong>: We audited and excluded all non-production files:
+
+<ul>
+<li>Development linter configs (<code>eslint.config.mjs</code>)</li>
+<li>Internal test runners and mock fixtures</li>
+<li>Temporary extraction folders (<code>extracted-vsix/</code>)</li>
+<li>Documentation drafts and article markdowns</li>
+</ul>
+</li>
+</ol>
+
+<p>The resulting <code>.vsix</code> bundle contains solely the minified runtime code and localized UI assets.</p>
+
+
+<hr>
+
+<h2>
+  <a name="checklist-for-vs-code-extension-developers" href="#checklist-for-vs-code-extension-developers">
+  </a>
+  Checklist for VS Code Extension Developers
+</h2>
+
+<p>If you are building a VS Code extension that interacts with a private backend, keep these rules in mind:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th style="text-align: left">Rule</th>
+<th style="text-align: left">Bad Practice ❌</th>
+<th style="text-align: left">Good Practice ✅</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left"><strong>Client Secrets</strong></td>
+<td style="text-align: left">Injecting API keys in build scripts</td>
+<td style="text-align: left">Zero embedded secrets; dynamic device handshake</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Local Storage</strong></td>
+<td style="text-align: left">Saving tokens in <code>workspaceState</code>
+</td>
+<td style="text-align: left">Storing credentials in native OS <code>SecretStorage</code>
+</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Request Signing</strong></td>
+<td style="text-align: left">Sending plain machine IDs</td>
+<td style="text-align: left">HMAC-SHA256 with timestamp sliding window</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Scanner Hygiene</strong></td>
+<td style="text-align: left">Hardcoded token regex literals</td>
+<td style="text-align: left">Dynamic runtime pattern construction</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Package Hygiene</strong></td>
+<td style="text-align: left">Relying on default package contents</td>
+<td style="text-align: left">Automated <code>rm -rf out</code> + strict <code>.vscodeignore</code>
+</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="links-amp-verification" href="#links-amp-verification">
+  </a>
+  Links &amp; Verification
+</h2>
+
+<ul>
+<li>🔗 <strong>VS Code Marketplace</strong>: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy</a>
+</li>
+<li>🌐 <strong>Open VSX Registry</strong>: <a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" rel="noopener noreferrer">open-vsx.org/extension/freerave/dotenvy</a>
+</li>
+<li>📦 <strong>GitHub Repository</strong>: <a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">github.com/kareem2099/dotenvy</a>
+</li>
+<li>📖 <strong>Read Part 1</strong>: <a href="https://dev.to/freerave/dotenvy-aegis-building-a-4-layer-ai-secret-detection-pipeline-for-vs-code-115o">DotEnvy Aegis: Building a 4-Layer AI Secret Detection Pipeline for VS Code</a>
+</li>
+<li>📝 <strong>Full Changelog</strong>: <a href="https://github.com/kareem2099/dotenvy/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">CHANGELOG.md</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Written by FreeRave. If you've encountered packaging headaches or static scanner false alarms in your extensions, feel free to reach out and share your experience.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/the-vsix-packaging-trap-how-i-eliminated-embedded-client-secrets-from-a-vs-code-extension-2650" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/the-vsix-packaging-trap-how-i-eliminated-embedded-client-secrets-from-a-vs-code-extension-2650#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

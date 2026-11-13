@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>From 2000 Lines of Spaghetti to Clean Architecture: The Rebirth of DotShare — FreeRave</title>
+<meta name="description" content="Building in public is a journey of constant learning. Today, I’m excited to share a massive milestone...">
+<link rel="canonical" href="https://dev.to/freerave/from-2000-lines-of-spaghetti-to-clean-architecture-the-rebirth-of-dotshare-35ec">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/from-2000-lines-of-spaghetti-to-clean-architecture-the-rebirth-of-dotshare-35ec">
+<meta property="og:title" content="From 2000 Lines of Spaghetti to Clean Architecture: The Rebirth of DotShare — FreeRave">
+<meta property="og:description" content="Building in public is a journey of constant learning. Today, I’m excited to share a massive milestone...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7xb0guj63ze3q7l9fufk.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">From 2000 Lines of Spaghetti to Clean Architecture: The Rebirth of DotShare</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-23T09:00:00Z">23 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#webdev</span><span class="post-tag">#programming</span><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>Building in public is a journey of constant learning. Today, I’m excited to share a massive milestone for DotShare, my VS Code extension designed to help developers share their coding journey across social platforms.</p>
+
+<p>I didn't just add features; I performed a "heart transplant" on the codebase.</p>
+
+<p>🏗️ The Problem: The 2000-Line Monolith<br>
+We've all been there. You start a project, features pile up, and suddenly you're staring at a single "Monolithic Class" with over 2,000 lines of code. It was working, but it was a nightmare to maintain and even harder to scale.</p>
+
+<p>🛠️ The Solution: Clean Architecture &amp; SOLID<br>
+For version 2.2.0, I decided to stop and do it the right way. I refactored that monolithic class into 9 focused, modular services and handlers.</p>
+
+<p>What's New in v2.2.0:<br>
+Modular Design: Refactored from a single class to 9 focused files with clear separation of concerns.</p>
+
+<p>Encrypted Security 🔒: Migrated from insecure storage to VS Code SecretStorage for API credential encryption.</p>
+
+<p>Structured Logging 📊: Replaced scattered console.log statements with a professional, color-coded logging system.</p>
+
+<p>Premium UI ✨: A complete redesign featuring Glassmorphism, smooth animations, and professional modal designs.</p>
+
+<p>Hybrid Scheduling: Implemented server-side scheduling for Telegram and client-side for other platforms.</p>
+
+<p>📺 See it in Action<br>
+I made a short video documenting the "before and after" of this refactoring journey. You can check out the transformation here:</p>
+
+<p>Watch the Rebirth of DotShare v2.2.0<br>
+  <iframe src="https://www.youtube.com/embed/TxwBps2MPls" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>🚀 Get Involved<br>
+DotShare is open-source and built for the community. Whether you're a VS Code power user or a CLI fan, I'd love for you to try it out.</p>
+
+<p>GitHub: <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotShare</a> (Give it a ⭐ if you find it useful!)</p>
+
+<p>VS Code Marketplace: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare</a></p>
+
+<p>Open VSX: <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">https://open-vsx.org/extension/freerave/dotshare</a> (new)</p>
+
+<p>I'm curious—what was the biggest refactoring challenge you've ever faced? Let's discuss in the comments!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/from-2000-lines-of-spaghetti-to-clean-architecture-the-rebirth-of-dotshare-35ec" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 1
+    · <a href="https://dev.to/freerave/from-2000-lines-of-spaghetti-to-clean-architecture-the-rebirth-of-dotshare-35ec#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

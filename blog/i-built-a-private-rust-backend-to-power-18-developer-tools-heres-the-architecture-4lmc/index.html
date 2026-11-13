@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Private Rust Backend to Power 18 Developer Tools — Here's the Architecture — FreeRave</title>
+<meta name="description" content="A deep dive into building a production-grade Rust API server with multi-tier scheduling,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-private-rust-backend-to-power-18-developer-tools-heres-the-architecture-4lmc">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-private-rust-backend-to-power-18-developer-tools-heres-the-architecture-4lmc">
+<meta property="og:title" content="I Built a Private Rust Backend to Power 18 Developer Tools — Here's the Architecture — FreeRave">
+<meta property="og:description" content="A deep dive into building a production-grade Rust API server with multi-tier scheduling,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fr1lh49afdpp12kc0gft2.jpeg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fr1lh49afdpp12kc0gft2.jpeg" alt="">
+  <h1 class="post-title">I Built a Private Rust Backend to Power 18 Developer Tools — Here's the Architecture</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-09T13:14:47Z">9 May 2026</time> · 10 min read
+    <div class="post-tags"><span class="post-tag">#rust</span><span class="post-tag">#backend</span><span class="post-tag">#architecture</span><span class="post-tag">#devtools</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-dive-into-building-a-productiongrade-rust-api-server-with-multitier-scheduling-hmac-auth-lemon-squeezy-webhooks-and-9-platform-adapters-the-engine-behind-dotsuite" href="#a-deep-dive-into-building-a-productiongrade-rust-api-server-with-multitier-scheduling-hmac-auth-lemon-squeezy-webhooks-and-9-platform-adapters-the-engine-behind-dotsuite">
+  </a>
+  A deep dive into building a production-grade Rust API server with multi-tier scheduling, HMAC auth, Lemon Squeezy webhooks, and 9 platform adapters — the engine behind DotSuite.
+</h2>
+
+<p>Most of my tools in the DotSuite ecosystem — VS Code extensions, CLI tools, Telegram bots — were islands.</p>
+
+<p>Each one doing its own thing. No shared auth. No shared billing. No shared scheduling.</p>
+
+<p>That changed when I started building <strong>DotShare v3</strong>, a VS Code extension that publishes code snippets to 9 platforms simultaneously. The moment I needed scheduling, quotas, and payments, one thing became clear: <strong>I need a real backend.</strong></p>
+
+<p>This article is about <strong>dotsuite-core</strong> — a private Rust server that is the beating heart of the DotSuite ecosystem. I won't open source it, but I'll walk you through the architecture, the decisions, and enough real code that you can build your own version.</p>
+
+
+<hr>
+
+<h2>
+  <a name="why-rust" href="#why-rust">
+  </a>
+  Why Rust?
+</h2>
+
+<p>Not because it's trendy. Three very specific requirements drove the choice:</p>
+
+<p><strong>1. Exact-second scheduling.</strong><br>
+The Max tier dispatches posts with millisecond precision. Node.js event loop jitter makes this unreliable. Tokio tasks with <code>sleep(exact_ms)</code> are deterministic.</p>
+
+<p><strong>2. Atomic quota enforcement.</strong><br>
+Users can fire 5 concurrent requests at the same millisecond. A race condition means they publish more posts than their quota allows. Rust + MongoDB's atomic <code>findOneAndUpdate</code> solves this at the DB level — no mutex needed.</p>
+
+<p><strong>3. Long-running process.</strong><br>
+Vercel serverless functions timeout after 10–60 seconds. My scheduler needs to run forever, with auto-restart on crash.</p>
+
+<hr>
+<h2>
+  <a name="the-architecture" href="#the-architecture">
+  </a>
+  The Architecture
+</h2>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌─────────────────────────┐      Bearer ds_prod_xxx
+│  DotShare VS Code Ext   │ ─────────────────────────────────┐
+└─────────────────────────┘                                  │
+                                                             ▼
+┌─────────────────────────┐   X-Internal-Secret   ┌─────────────────────┐
+│  dotsuite-website       │ ─────────────────────▶ │   dotsuite-core     │
+│  (Next.js on Vercel)    │                        │   (Rust on VPS)     │
+└─────────────────────────┘                        └────────┬────────────┘
+                                                            │
+                                              ┌─────────────┴──────────┐
+                                              │      MongoDB Atlas      │
+                                              └────────────────────────┘
+                                                            │
+                                              Lemon Squeezy webhooks
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Three clients talk to one server:</p>
+
+<ul>
+<li>
+<strong>VS Code extension</strong> → API keys (<code>ds_prod_xxx</code>)</li>
+<li>
+<strong>Next.js website</strong> → internal shared secret (server-to-server)</li>
+<li>
+<strong>Lemon Squeezy</strong> → HMAC-signed webhooks</li>
+</ul>
+
+<hr>
+<h2>
+  <a name="the-stack" href="#the-stack">
+  </a>
+  The Stack
+</h2>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight toml"><code><span class="c"># Cargo.toml</span>
+<span class="py">axum</span>              <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"0.7"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"macros"</span><span class="p">,</span> <span class="s">"ws"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">tokio</span>             <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"1"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"full"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">mongodb</span>           <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"3"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"tokio-runtime"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">tower_governor</span>    <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"0.4"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"axum"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">serde</span>             <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"1"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"derive"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">jsonwebtoken</span>      <span class="p">=</span> <span class="s">"9"</span>
+<span class="py">hmac</span>              <span class="p">=</span> <span class="s">"0.12"</span>
+<span class="py">sha2</span>              <span class="p">=</span> <span class="s">"0.10"</span>
+<span class="py">constant_time_eq</span>  <span class="p">=</span> <span class="s">"0.3"</span>
+<span class="py">tokio-cron-scheduler</span> <span class="p">=</span> <span class="s">"0.10"</span>
+<span class="py">reqwest</span>           <span class="o">=</span> <span class="p">{</span> <span class="py">version</span> <span class="p">=</span> <span class="s">"0.12"</span><span class="p">,</span> <span class="py">features</span> <span class="p">=</span> <span class="p">[</span><span class="s">"json"</span><span class="p">,</span> <span class="s">"rustls-tls"</span><span class="p">,</span> <span class="s">"multipart"</span><span class="p">]</span> <span class="p">}</span>
+<span class="py">argon2</span>            <span class="p">=</span> <span class="s">"0.5"</span>
+<span class="py">futures-util</span>      <span class="p">=</span> <span class="s">"0.3"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>No unnecessary dependencies. Every crate earns its place.</p>
+
+<hr>
+<h2>
+  <a name="file-structure" href="#file-structure">
+  </a>
+  File Structure
+</h2>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>dotsuite-core/
+├── Cargo.toml
+├── .env.example
+└── src/
+    ├── main.rs              ← entry point, graceful shutdown
+    ├── config.rs            ← typed env vars, validated at startup
+    ├── state.rs             ← AppState shared across handlers
+    ├── db.rs                ← MongoDB pool + indexes
+    ├── errors.rs            ← AppError → HTTP responses
+    ├── scheduler.rs         ← 4-tier cron + Look-Ahead + recovery
+    │
+    ├── auth/
+    │   ├── mod.rs
+    │   └── tokens.rs        ← HMAC API key generation (OsRng)
+    │
+    ├── middleware/
+    │   ├── mod.rs
+    │   ├── auth.rs          ← API key validation + blacklist check
+    │   └── internal.rs      ← server-to-server secret validation
+    │
+    ├── models/
+    │   ├── mod.rs
+    │   └── user.rs          ← User, Tier, ApiKey, ScheduledPost, AuditLog
+    │
+    ├── payments/
+    │   ├── mod.rs
+    │   ├── signature.rs     ← HMAC-SHA256 webhook verification
+    │   ├── webhook.rs       ← Lemon Squeezy event dispatcher
+    │   ├── handlers.rs      ← subscription_created/cancelled/expired
+    │   └── checkout.rs      ← checkout URL + customer portal
+    │
+    ├── platforms/
+    │   ├── mod.rs           ← PlatformAdapter trait + concurrent dispatcher
+    │   ├── x.rs             ← X (Twitter) — tweets, threads, 4 images
+    │   ├── bluesky.rs       ← Bluesky — facets, blob upload, JIT compression
+    │   ├── linkedin.rs      ← LinkedIn — 2-step media upload
+    │   ├── telegram.rs      ← Telegram — text/photo/video/mediaGroup
+    │   ├── facebook.rs      ← Facebook — Graph API v19
+    │   ├── discord.rs       ← Discord — webhooks + embeds
+    │   ├── reddit.rs        ← Reddit — r/ and u/ support
+    │   ├── devto.rs         ← Dev.to — articles + cover image
+    │   └── medium.rs        ← Medium — draft/publish/unlisted
+    │
+    └── routes/
+        ├── mod.rs           ← router assembly
+        ├── health.rs        ← /health + /ready
+        ├── posts.rs         ← schedule + list + cancel
+        ├── keys.rs          ← generate + list + revoke
+        ├── billing.rs       ← checkout + portal + status
+        ├── admin.rs         ← ban + unban + reset-quota
+        └── internal.rs      ← Next.js → Rust server-to-server
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<hr>
+<h2>
+  <a name="part-1-the-core-engine" href="#part-1-the-core-engine">
+  </a>
+  Part 1 — The Core Engine
+</h2>
+<h3>
+  <a name="typed-config-fail-fast-not-at-runtime" href="#typed-config-fail-fast-not-at-runtime">
+  </a>
+  Typed Config: Fail Fast, Not at Runtime
+</h3>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/config.rs</span>
+<span class="nd">#[derive(Debug,</span> <span class="nd">Clone)]</span>
+<span class="k">pub</span> <span class="k">struct</span> <span class="n">AppConfig</span> <span class="p">{</span>
+    <span class="k">pub</span> <span class="n">mongodb_uri</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span>
+    <span class="k">pub</span> <span class="n">api_token_secret</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span>    <span class="c1">// min 32 chars enforced at startup</span>
+    <span class="k">pub</span> <span class="n">jwt_secret</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span>
+    <span class="k">pub</span> <span class="n">internal_api_secret</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span> <span class="c1">// Next.js ↔ Rust shared secret</span>
+    <span class="k">pub</span> <span class="n">lemon_webhook_secret</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span>
+    <span class="k">pub</span> <span class="n">lemon_api_key</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span>
+    <span class="k">pub</span> <span class="n">ls_variants</span><span class="p">:</span> <span class="n">LemonVariants</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">impl</span> <span class="n">AppConfig</span> <span class="p">{</span>
+    <span class="k">pub</span> <span class="k">fn</span> <span class="nf">from_env</span><span class="p">()</span> <span class="k">-&gt;</span> <span class="nb">Result</span><span class="o">&lt;</span><span class="k">Self</span><span class="o">&gt;</span> <span class="p">{</span>
+        <span class="nf">Ok</span><span class="p">(</span><span class="k">Self</span> <span class="p">{</span>
+            <span class="n">api_token_secret</span><span class="p">:</span> <span class="nf">required_min_len</span><span class="p">(</span><span class="s">"API_TOKEN_SECRET"</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span><span class="o">?</span><span class="p">,</span>
+            <span class="c1">// If the secret is weak, the server refuses to start.</span>
+            <span class="c1">// Better to crash at boot than silently accept weak keys.</span>
+        <span class="p">})</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>If the secret is weak, the server refuses to start. A misconfigured env var that crashes on boot is far better than one that silently accepts fake webhooks in production.</p>
+
+<hr>
+<h3>
+  <a name="hmac-api-keys-the-right-way" href="#hmac-api-keys-the-right-way">
+  </a>
+  HMAC API Keys — The Right Way
+</h3>
+
+<p>Generated once, hashed in the DB, never stored in plaintext:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/auth/tokens.rs</span>
+<span class="k">use</span> <span class="nn">hmac</span><span class="p">::{</span><span class="n">Hmac</span><span class="p">,</span> <span class="n">Mac</span><span class="p">};</span>
+<span class="k">use</span> <span class="nn">rand</span><span class="p">::</span><span class="nn">rngs</span><span class="p">::</span><span class="n">OsRng</span><span class="p">;</span>  <span class="c1">// OsRng, NOT thread_rng — cryptographic quality</span>
+<span class="k">use</span> <span class="nn">sha2</span><span class="p">::</span><span class="n">Sha256</span><span class="p">;</span>
+
+<span class="k">const</span> <span class="n">PREFIX</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span> <span class="o">=</span> <span class="s">"ds_prod_"</span><span class="p">;</span>
+<span class="k">const</span> <span class="n">RAW_BYTES</span><span class="p">:</span> <span class="nb">usize</span> <span class="o">=</span> <span class="mi">24</span><span class="p">;</span> <span class="c1">// 24 bytes → 48 hex chars</span>
+
+<span class="k">pub</span> <span class="k">fn</span> <span class="nf">generate_api_key</span><span class="p">(</span><span class="n">secret</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="p">(</span><span class="nb">String</span><span class="p">,</span> <span class="nb">String</span><span class="p">,</span> <span class="nb">String</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="k">mut</span> <span class="n">random_bytes</span> <span class="o">=</span> <span class="nd">vec!</span><span class="p">[</span><span class="mi">0u8</span><span class="p">;</span> <span class="n">RAW_BYTES</span><span class="p">];</span>
+    <span class="n">OsRng</span><span class="nf">.fill_bytes</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span> <span class="n">random_bytes</span><span class="p">);</span> <span class="c1">// OS entropy, not pseudo-random</span>
+
+    <span class="k">let</span> <span class="n">random_hex</span> <span class="o">=</span> <span class="nn">hex</span><span class="p">::</span><span class="nf">encode</span><span class="p">(</span><span class="o">&amp;</span><span class="n">random_bytes</span><span class="p">);</span>
+    <span class="k">let</span> <span class="n">plaintext</span> <span class="o">=</span> <span class="nd">format!</span><span class="p">(</span><span class="s">"{PREFIX}{random_hex}"</span><span class="p">);</span>
+    <span class="c1">// Result: "ds_prod_3f9a2c1b8e7d4a6f0c5b2e9d1a8f3c7b4e6d9a2c"</span>
+
+    <span class="k">let</span> <span class="n">key_hash</span> <span class="o">=</span> <span class="nf">hmac_sign</span><span class="p">(</span><span class="o">&amp;</span><span class="n">plaintext</span><span class="p">,</span> <span class="n">secret</span><span class="p">);</span>
+    <span class="c1">// Store only the hash in MongoDB — never the plaintext</span>
+
+    <span class="k">let</span> <span class="n">key_prefix</span> <span class="o">=</span> <span class="nd">format!</span><span class="p">(</span><span class="s">"{PREFIX}{}"</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">random_hex</span><span class="p">[</span><span class="o">..</span><span class="mi">8</span><span class="p">]);</span>
+    <span class="c1">// "ds_prod_3f9a2c1b" — shown to user for identification</span>
+
+    <span class="p">(</span><span class="n">plaintext</span><span class="p">,</span> <span class="n">key_hash</span><span class="p">,</span> <span class="n">key_prefix</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="k">pub</span> <span class="k">fn</span> <span class="nf">verify_api_key</span><span class="p">(</span><span class="n">presented</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">,</span> <span class="n">stored_hash</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">,</span> <span class="n">secret</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="n">AppResult</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">computed</span> <span class="o">=</span> <span class="nf">hmac_sign</span><span class="p">(</span><span class="n">presented</span><span class="p">,</span> <span class="n">secret</span><span class="p">);</span>
+
+    <span class="c1">// NEVER use == here — timing attack vulnerability.</span>
+    <span class="c1">// constant_time_eq always takes the same time regardless of where strings differ.</span>
+    <span class="k">if</span> <span class="o">!</span><span class="nn">constant_time_eq</span><span class="p">::</span><span class="nf">constant_time_eq</span><span class="p">(</span><span class="n">computed</span><span class="nf">.as_bytes</span><span class="p">(),</span> <span class="n">stored_hash</span><span class="nf">.as_bytes</span><span class="p">())</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Invalid API key"</span><span class="nf">.into</span><span class="p">()));</span>
+    <span class="p">}</span>
+    <span class="nf">Ok</span><span class="p">(())</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>💡 Why OsRng over thread_rng?</strong><br>
+<code>thread_rng</code> uses a CSPRNG seeded from the OS — technically fine. But <code>OsRng</code> draws directly from <code>/dev/urandom</code> on Linux with no intermediate state. For security tokens, no intermediate state is what you want.</p>
+</blockquote>
+
+
+<hr>
+
+<h3>
+  <a name="the-race-condition-shield" href="#the-race-condition-shield">
+  </a>
+  The Race Condition Shield
+</h3>
+
+<p>This is the most subtle bug in quota systems:</p>
+
+<ol>
+<li>User has 10 posts remaining.</li>
+<li>They fire 5 simultaneous requests.</li>
+<li>All 5 read <code>posts_used=290</code>, all 5 see "under limit", all 5 publish.</li>
+<li>
+<strong>Result:</strong> 295 posts used — 5 over quota.</li>
+</ol>
+
+<p>The fix is atomic at the DB level:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// ONE atomic operation — not read-then-write</span>
+<span class="k">let</span> <span class="n">updated_user</span> <span class="o">=</span> <span class="n">users_col</span>
+    <span class="nf">.find_one_and_update</span><span class="p">(</span>
+        <span class="nd">doc!</span> <span class="p">{</span>
+            <span class="s">"_id"</span><span class="p">:</span> <span class="n">user_id</span><span class="p">,</span>
+            <span class="c1">// Only match if STILL under quota at the moment of the write</span>
+            <span class="s">"$expr"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"$and"</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span> <span class="s">"$lt"</span><span class="p">:</span> <span class="p">[</span><span class="s">"$posts_used"</span><span class="p">,</span> <span class="n">post_quota</span> <span class="k">as</span> <span class="nb">i64</span><span class="p">]</span> <span class="p">},</span>
+                <span class="p">{</span> <span class="s">"$lt"</span><span class="p">:</span> <span class="p">[</span><span class="s">"$images_used"</span><span class="p">,</span> <span class="n">image_quota</span> <span class="k">as</span> <span class="nb">i64</span><span class="p">]</span> <span class="p">},</span>
+            <span class="p">]}</span>
+        <span class="p">},</span>
+        <span class="nd">doc!</span> <span class="p">{</span> <span class="s">"$inc"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"posts_used"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s">"images_used"</span><span class="p">:</span> <span class="n">has_media</span> <span class="k">as</span> <span class="nb">i32</span> <span class="p">}</span> <span class="p">},</span>
+    <span class="p">)</span>
+    <span class="k">.await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="k">if</span> <span class="n">updated_user</span><span class="nf">.is_none</span><span class="p">()</span> <span class="p">{</span>
+    <span class="c1">// Either quota was hit, or a concurrent request just took the last slot</span>
+    <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Forbidden</span><span class="p">(</span><span class="s">"Monthly quota exceeded"</span><span class="nf">.into</span><span class="p">()));</span>
+<span class="p">}</span>
+<span class="c1">// If we get here, the increment already happened atomically.</span>
+<span class="c1">// No mutex. No race. MongoDB's document-level locking handles it.</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="auth-middleware-flow" href="#auth-middleware-flow">
+  </a>
+  Auth Middleware Flow
+</h3>
+
+<p>Every request to <code>/v1/*</code> goes through this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/middleware/auth.rs</span>
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">require_api_key</span><span class="p">(</span>
+    <span class="nf">State</span><span class="p">(</span><span class="n">state</span><span class="p">):</span> <span class="n">State</span><span class="o">&lt;</span><span class="n">AppState</span><span class="o">&gt;</span><span class="p">,</span>
+    <span class="k">mut</span> <span class="n">req</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+    <span class="n">next</span><span class="p">:</span> <span class="n">Next</span><span class="p">,</span>
+<span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">Result</span><span class="o">&lt;</span><span class="n">Response</span><span class="p">,</span> <span class="n">AppError</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">token</span> <span class="o">=</span> <span class="nf">extract_bearer</span><span class="p">(</span><span class="o">&amp;</span><span class="n">req</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+
+    <span class="c1">// 1. Format check — fast reject before DB hit</span>
+    <span class="k">if</span> <span class="o">!</span><span class="n">token</span><span class="nf">.starts_with</span><span class="p">(</span><span class="s">"ds_prod_"</span><span class="p">)</span> <span class="p">||</span> <span class="n">token</span><span class="nf">.len</span><span class="p">()</span> <span class="o">!=</span> <span class="mi">56</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Invalid token format"</span><span class="nf">.into</span><span class="p">()));</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 2. Prefix lookup — indexed query, not full scan</span>
+    <span class="k">let</span> <span class="n">prefix</span> <span class="o">=</span> <span class="o">&amp;</span><span class="n">token</span><span class="p">[</span><span class="o">..</span><span class="mi">16</span><span class="p">];</span> <span class="c1">// "ds_prod_3f9a2c1b"</span>
+    <span class="k">let</span> <span class="n">api_key</span> <span class="o">=</span> <span class="n">keys_col</span>
+        <span class="nf">.find_one</span><span class="p">(</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"key_prefix"</span><span class="p">:</span> <span class="n">prefix</span><span class="p">,</span> <span class="s">"is_active"</span><span class="p">:</span> <span class="kc">true</span> <span class="p">})</span>
+        <span class="k">.await</span><span class="o">?</span>
+        <span class="nf">.ok_or_else</span><span class="p">(||</span> <span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Key not found"</span><span class="nf">.into</span><span class="p">()))</span><span class="o">?</span><span class="p">;</span>
+
+    <span class="c1">// 3. Constant-time HMAC verification</span>
+    <span class="nf">verify_api_key</span><span class="p">(</span><span class="o">&amp;</span><span class="n">token</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">api_key</span><span class="py">.key_hash</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">state</span><span class="py">.config.api_token_secret</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+
+    <span class="c1">// 4. Update last_used_at (fire-and-forget, don't block the request)</span>
+    <span class="k">let</span> <span class="n">_</span> <span class="o">=</span> <span class="n">keys_col</span><span class="nf">.update_one</span><span class="p">(</span>
+        <span class="nd">doc!</span> <span class="p">{</span> <span class="s">"_id"</span><span class="p">:</span> <span class="n">key_id</span> <span class="p">},</span>
+        <span class="nd">doc!</span> <span class="p">{</span> <span class="s">"$set"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"last_used_at"</span><span class="p">:</span> <span class="nn">bson</span><span class="p">::</span><span class="nn">DateTime</span><span class="p">::</span><span class="nf">now</span><span class="p">()</span> <span class="p">}</span> <span class="p">},</span>
+    <span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+
+    <span class="c1">// 5. Blacklist check — instant ban across all 18 tools</span>
+    <span class="k">if</span> <span class="n">blacklist_col</span><span class="nf">.find_one</span><span class="p">(</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"user_id"</span><span class="p">:</span> <span class="n">api_key</span><span class="py">.user_id</span> <span class="p">})</span><span class="k">.await</span><span class="o">?</span><span class="nf">.is_some</span><span class="p">()</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="n">Blacklisted</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 6. Inject resolved User into request extensions</span>
+    <span class="n">req</span><span class="nf">.extensions_mut</span><span class="p">()</span><span class="nf">.insert</span><span class="p">(</span><span class="n">user</span><span class="p">);</span>
+    <span class="nf">Ok</span><span class="p">(</span><span class="n">next</span><span class="nf">.run</span><span class="p">(</span><span class="n">req</span><span class="p">)</span><span class="k">.await</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="part-2-the-money-pipeline" href="#part-2-the-money-pipeline">
+  </a>
+  Part 2 — The Money Pipeline
+</h2>
+
+<h3>
+  <a name="lemon-squeezy-webhooks-why-raw-bytes-matter" href="#lemon-squeezy-webhooks-why-raw-bytes-matter">
+  </a>
+  Lemon Squeezy Webhooks: Why Raw Bytes Matter
+</h3>
+
+<p>This is one of the most common mistakes in webhook implementations:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// ❌ WRONG — parses JSON first, then tries to verify</span>
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">webhook</span><span class="p">(</span><span class="nf">Json</span><span class="p">(</span><span class="n">payload</span><span class="p">):</span> <span class="n">Json</span><span class="o">&lt;</span><span class="n">LemonPayload</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="k">impl</span> <span class="n">IntoResponse</span> <span class="p">{</span>
+    <span class="nf">verify_signature</span><span class="p">(</span><span class="o">&amp;</span><span class="n">headers</span><span class="p">,</span> <span class="cm">/* what bytes? */</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">secret</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+    <span class="c1">// Problem: serde already consumed the body.</span>
+    <span class="c1">// You can't get the original bytes back after JSON parsing.</span>
+    <span class="c1">// Also: serde might reorder keys, strip whitespace, etc.</span>
+    <span class="c1">// Your HMAC will never match.</span>
+<span class="p">}</span>
+
+<span class="c1">// ✅ CORRECT — raw bytes first, parse after verification</span>
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">webhook</span><span class="p">(</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="n">HeaderMap</span><span class="p">,</span>
+    <span class="n">body</span><span class="p">:</span> <span class="n">Bytes</span><span class="p">,</span> <span class="c1">// axum gives you raw bytes</span>
+<span class="p">)</span> <span class="k">-&gt;</span> <span class="k">impl</span> <span class="n">IntoResponse</span> <span class="p">{</span>
+    <span class="c1">// 1. Verify against the EXACT bytes Lemon Squeezy sent</span>
+    <span class="k">if</span> <span class="k">let</span> <span class="nf">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">=</span> <span class="nf">verify_signature</span><span class="p">(</span><span class="o">&amp;</span><span class="n">headers</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">body</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">secret</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nn">StatusCode</span><span class="p">::</span><span class="n">UNAUTHORIZED</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="c1">// 2. NOW parse — signature is already confirmed</span>
+    <span class="k">let</span> <span class="n">payload</span><span class="p">:</span> <span class="n">LemonPayload</span> <span class="o">=</span> <span class="nn">serde_json</span><span class="p">::</span><span class="nf">from_slice</span><span class="p">(</span><span class="o">&amp;</span><span class="n">body</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-signature-verification" href="#the-signature-verification">
+  </a>
+  The Signature Verification
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/payments/signature.rs</span>
+<span class="k">pub</span> <span class="k">fn</span> <span class="nf">verify_signature</span><span class="p">(</span><span class="n">headers</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">HeaderMap</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">Bytes</span><span class="p">,</span> <span class="n">secret</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="n">AppResult</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">presented</span> <span class="o">=</span> <span class="n">headers</span>
+        <span class="nf">.get</span><span class="p">(</span><span class="s">"X-Signature"</span><span class="p">)</span>
+        <span class="nf">.and_then</span><span class="p">(|</span><span class="n">v</span><span class="p">|</span> <span class="n">v</span><span class="nf">.to_str</span><span class="p">()</span><span class="nf">.ok</span><span class="p">())</span>
+        <span class="nf">.ok_or_else</span><span class="p">(||</span> <span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Missing X-Signature"</span><span class="nf">.into</span><span class="p">()))</span><span class="o">?</span><span class="p">;</span>
+
+    <span class="k">let</span> <span class="k">mut</span> <span class="n">mac</span> <span class="o">=</span> <span class="nn">HmacSha256</span><span class="p">::</span><span class="nf">new_from_slice</span><span class="p">(</span><span class="n">secret</span><span class="nf">.as_bytes</span><span class="p">())</span>
+        <span class="nf">.map_err</span><span class="p">(|</span><span class="n">_</span><span class="p">|</span> <span class="nn">AppError</span><span class="p">::</span><span class="nf">Internal</span><span class="p">(</span><span class="nn">anyhow</span><span class="p">::</span><span class="nd">anyhow!</span><span class="p">(</span><span class="s">"HMAC init failed"</span><span class="p">)))</span><span class="o">?</span><span class="p">;</span>
+    <span class="n">mac</span><span class="nf">.update</span><span class="p">(</span><span class="n">body</span><span class="p">);</span>
+    <span class="k">let</span> <span class="n">expected</span> <span class="o">=</span> <span class="nn">hex</span><span class="p">::</span><span class="nf">encode</span><span class="p">(</span><span class="n">mac</span><span class="nf">.finalize</span><span class="p">()</span><span class="nf">.into_bytes</span><span class="p">());</span>
+
+    <span class="c1">// Timing-safe: always compares all bytes, never short-circuits</span>
+    <span class="k">if</span> <span class="o">!</span><span class="nf">constant_time_eq</span><span class="p">(</span><span class="n">expected</span><span class="nf">.as_bytes</span><span class="p">(),</span> <span class="n">presented</span><span class="nf">.as_bytes</span><span class="p">())</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Signature mismatch"</span><span class="nf">.into</span><span class="p">()));</span>
+    <span class="p">}</span>
+    <span class="nf">Ok</span><span class="p">(())</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="always-return-200-to-webhooks" href="#always-return-200-to-webhooks">
+  </a>
+  Always Return 200 to Webhooks
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// After signature passes, ALWAYS return 200 even if processing fails.</span>
+<span class="c1">// Why? Lemon Squeezy retries on non-2xx responses.</span>
+<span class="c1">// A 500 from your DB being slow = LS fires the webhook again = duplicate upgrade.</span>
+
+<span class="k">if</span> <span class="k">let</span> <span class="nf">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">=</span> <span class="nf">process_event</span><span class="p">(</span><span class="o">&amp;</span><span class="n">state</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">payload</span><span class="p">)</span><span class="k">.await</span> <span class="p">{</span>
+    <span class="nn">tracing</span><span class="p">::</span><span class="nd">error!</span><span class="p">(</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="o">%</span><span class="n">payload</span><span class="py">.meta.event_name</span><span class="p">,</span>
+        <span class="n">error</span> <span class="o">=</span> <span class="o">%</span><span class="n">e</span><span class="p">,</span>
+        <span class="s">"Webhook processing failed — manual review needed"</span>
+    <span class="p">);</span>
+    <span class="c1">// Log it, alert yourself, but DON'T return 500</span>
+<span class="p">}</span>
+
+<span class="nn">StatusCode</span><span class="p">::</span><span class="n">OK</span> <span class="c1">// Always</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="subscription-lifecycle" href="#subscription-lifecycle">
+  </a>
+  Subscription Lifecycle
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// subscription_created  → upgrade tier + reset quota</span>
+<span class="c1">// subscription_cancelled → record ends_at, DON'T downgrade yet</span>
+<span class="c1">// subscription_expired  → downgrade to Free, clear subscription fields</span>
+
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">handle_subscription_expired</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">AppState</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">LemonPayload</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">users_col</span><span class="nf">.update_one</span><span class="p">(</span>
+        <span class="nd">doc!</span> <span class="p">{</span> <span class="s">"_id"</span><span class="p">:</span> <span class="n">user_id</span> <span class="p">},</span>
+        <span class="nd">doc!</span> <span class="p">{</span> <span class="s">"$set"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s">"tier"</span><span class="p">:</span>                 <span class="s">"free"</span><span class="p">,</span>
+            <span class="s">"ls_subscription_id"</span><span class="p">:</span>   <span class="nn">bson</span><span class="p">::</span><span class="nn">Bson</span><span class="p">::</span><span class="n">Null</span><span class="p">,</span>
+            <span class="s">"subscription_ends_at"</span><span class="p">:</span> <span class="nn">bson</span><span class="p">::</span><span class="nn">Bson</span><span class="p">::</span><span class="n">Null</span><span class="p">,</span>
+        <span class="p">}},</span>
+    <span class="p">)</span><span class="k">.await</span><span class="o">?</span><span class="p">;</span>
+    <span class="c1">// User loses paid access on the ACTUAL expiry date, not cancellation date.</span>
+    <span class="c1">// They paid for the full period — this is the fair thing to do.</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="part-3-multitier-scheduler" href="#part-3-multitier-scheduler">
+  </a>
+  Part 3 — Multi-Tier Scheduler
+</h2>
+
+<h3>
+  <a name="the-tier-system" href="#the-tier-system">
+  </a>
+  The Tier System
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="k">pub</span> <span class="k">enum</span> <span class="n">Tier</span> <span class="p">{</span> <span class="n">Free</span><span class="p">,</span> <span class="n">Basic</span><span class="p">,</span> <span class="n">Pro</span><span class="p">,</span> <span class="n">Max</span> <span class="p">}</span>
+
+<span class="k">impl</span> <span class="n">Tier</span> <span class="p">{</span>
+    <span class="k">pub</span> <span class="k">fn</span> <span class="nf">post_quota</span><span class="p">(</span><span class="o">&amp;</span><span class="k">self</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">u32</span> <span class="p">{</span>
+        <span class="k">match</span> <span class="k">self</span> <span class="p">{</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Free</span>  <span class="k">=&gt;</span> <span class="mi">100</span><span class="p">,</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Basic</span> <span class="k">=&gt;</span> <span class="mi">300</span><span class="p">,</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Pro</span>   <span class="k">=&gt;</span> <span class="nn">u32</span><span class="p">::</span><span class="n">MAX</span><span class="p">,</span> <span class="c1">// unlimited</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Max</span>   <span class="k">=&gt;</span> <span class="nn">u32</span><span class="p">::</span><span class="n">MAX</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">pub</span> <span class="k">fn</span> <span class="nf">image_quota</span><span class="p">(</span><span class="o">&amp;</span><span class="k">self</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">u32</span> <span class="p">{</span>
+        <span class="k">match</span> <span class="k">self</span> <span class="p">{</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Free</span> <span class="k">=&gt;</span> <span class="mi">10</span><span class="p">,</span>        <span class="c1">// sub-limit: 10 image posts/month</span>
+            <span class="n">_</span>          <span class="k">=&gt;</span> <span class="nn">u32</span><span class="p">::</span><span class="n">MAX</span><span class="p">,</span>  <span class="c1">// unlimited for paid tiers</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">pub</span> <span class="k">fn</span> <span class="nf">scheduler_interval_minutes</span><span class="p">(</span><span class="o">&amp;</span><span class="k">self</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">u32</span> <span class="p">{</span>
+        <span class="k">match</span> <span class="k">self</span> <span class="p">{</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Free</span>  <span class="k">=&gt;</span> <span class="mi">60</span><span class="p">,</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Basic</span> <span class="k">=&gt;</span> <span class="mi">30</span><span class="p">,</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Pro</span>   <span class="k">=&gt;</span> <span class="mi">15</span><span class="p">,</span>
+            <span class="nn">Tier</span><span class="p">::</span><span class="n">Max</span>   <span class="k">=&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="c1">// instant — Look-Ahead architecture</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-lookahead-sleep-pattern-max-tier" href="#the-lookahead-sleep-pattern-max-tier">
+  </a>
+  The Look-Ahead + Sleep Pattern (Max Tier)
+</h3>
+
+<p>This is the pattern Buffer and Hootsuite use internally. Not polling every second (kills your DB), not trusting in-memory only (crashes lose data):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// Max tier scheduler — runs every 60 seconds</span>
+<span class="k">async</span> <span class="k">fn</span> <span class="nf">dispatch_max_lookahead</span><span class="p">(</span><span class="n">db</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">DbPool</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">now</span> <span class="o">=</span> <span class="nn">Utc</span><span class="p">::</span><span class="nf">now</span><span class="p">();</span>
+    <span class="k">let</span> <span class="n">window_end</span> <span class="o">=</span> <span class="n">now</span> <span class="o">+</span> <span class="nn">chrono</span><span class="p">::</span><span class="nn">Duration</span><span class="p">::</span><span class="nf">seconds</span><span class="p">(</span><span class="mi">60</span><span class="p">);</span>
+
+    <span class="c1">// ONE DB query per minute — not one per second</span>
+    <span class="k">let</span> <span class="n">posts</span> <span class="o">=</span> <span class="nf">find_pending_posts</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="nn">Tier</span><span class="p">::</span><span class="n">Max</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">window_end</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+
+    <span class="k">for</span> <span class="n">post</span> <span class="k">in</span> <span class="n">posts</span> <span class="p">{</span>
+        <span class="c1">// Mark as Dispatched FIRST — this is the crash safety mechanism</span>
+        <span class="nf">mark_dispatched</span><span class="p">(</span><span class="o">&amp;</span><span class="n">post</span><span class="py">.id</span><span class="p">,</span> <span class="n">db</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+
+        <span class="k">let</span> <span class="n">delay_ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">post</span><span class="py">.scheduled_at</span> <span class="o">-</span> <span class="nn">Utc</span><span class="p">::</span><span class="nf">now</span><span class="p">())</span>
+            <span class="nf">.num_milliseconds</span><span class="p">()</span>
+            <span class="nf">.max</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">as</span> <span class="nb">u64</span><span class="p">;</span>
+
+        <span class="k">let</span> <span class="n">db_clone</span> <span class="o">=</span> <span class="n">db</span><span class="nf">.clone</span><span class="p">();</span>
+        <span class="nn">tokio</span><span class="p">::</span><span class="nf">spawn</span><span class="p">(</span><span class="k">async</span> <span class="k">move</span> <span class="p">{</span>
+            <span class="c1">// Sleep for exact remaining milliseconds</span>
+            <span class="nn">tokio</span><span class="p">::</span><span class="nn">time</span><span class="p">::</span><span class="nf">sleep</span><span class="p">(</span><span class="nn">Duration</span><span class="p">::</span><span class="nf">from_millis</span><span class="p">(</span><span class="n">delay_ms</span><span class="p">))</span><span class="k">.await</span><span class="p">;</span>
+            <span class="nf">publish_post</span><span class="p">(</span><span class="o">&amp;</span><span class="n">db_clone</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>Dispatched</code> status is crash safety:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Pending → Dispatched → Published
+                     ↘ Failed
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>On server restart, recovery runs immediately:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="k">async</span> <span class="k">fn</span> <span class="nf">recover_dispatched_posts</span><span class="p">(</span><span class="n">db</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">DbPool</span><span class="p">)</span> <span class="p">{</span>
+    <span class="c1">// Any post still Dispatched = server crashed mid-flight</span>
+    <span class="c1">// Re-spawn them immediately</span>
+    <span class="k">let</span> <span class="n">stuck_posts</span> <span class="o">=</span> <span class="nf">find_dispatched_posts</span><span class="p">(</span><span class="n">db</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+    <span class="k">for</span> <span class="n">post</span> <span class="k">in</span> <span class="n">stuck_posts</span> <span class="p">{</span>
+        <span class="k">let</span> <span class="n">delay_ms</span> <span class="o">=</span> <span class="p">(</span><span class="n">post</span><span class="py">.scheduled_at</span> <span class="o">-</span> <span class="nn">Utc</span><span class="p">::</span><span class="nf">now</span><span class="p">())</span>
+            <span class="nf">.num_milliseconds</span><span class="p">()</span><span class="nf">.max</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">as</span> <span class="nb">u64</span><span class="p">;</span>
+        <span class="nn">tokio</span><span class="p">::</span><span class="nf">spawn</span><span class="p">(</span><span class="k">async</span> <span class="k">move</span> <span class="p">{</span>
+            <span class="nn">tokio</span><span class="p">::</span><span class="nn">time</span><span class="p">::</span><span class="nf">sleep</span><span class="p">(</span><span class="nn">Duration</span><span class="p">::</span><span class="nf">from_millis</span><span class="p">(</span><span class="n">delay_ms</span><span class="p">))</span><span class="k">.await</span><span class="p">;</span>
+            <span class="nf">publish_post</span><span class="p">(</span><span class="o">&amp;</span><span class="n">db</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+    <span class="c1">// Worst case: 60 seconds of scheduling precision lost after a crash.</span>
+    <span class="c1">// Not zero posts.</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="platform-adapter-pattern" href="#platform-adapter-pattern">
+  </a>
+  Platform Adapter Pattern
+</h3>
+
+<p>All 9 platform adapters implement one trait:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="nd">#[async_trait]</span>
+<span class="k">pub</span> <span class="k">trait</span> <span class="n">PlatformAdapter</span><span class="p">:</span> <span class="nb">Send</span> <span class="o">+</span> <span class="nb">Sync</span> <span class="p">{</span>
+    <span class="k">fn</span> <span class="nf">platform</span><span class="p">(</span><span class="o">&amp;</span><span class="k">self</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="n">Platform</span><span class="p">;</span>
+    <span class="k">async</span> <span class="k">fn</span> <span class="nf">publish</span><span class="p">(</span><span class="o">&amp;</span><span class="k">self</span><span class="p">,</span> <span class="n">post</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">ScheduledPost</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="n">AdapterResult</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// Dispatch to all platforms CONCURRENTLY — not sequentially</span>
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">dispatch_all</span><span class="p">(</span><span class="n">post</span><span class="p">:</span> <span class="o">&amp;</span><span class="n">ScheduledPost</span><span class="p">,</span> <span class="n">get_token</span><span class="p">:</span> <span class="k">impl</span> <span class="nf">Fn</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Platform</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">Option</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="k">mut</span> <span class="n">handles</span> <span class="o">=</span> <span class="nd">vec!</span><span class="p">[];</span>
+
+    <span class="k">for</span> <span class="n">adapter</span> <span class="k">in</span> <span class="nf">get_active_adapters</span><span class="p">(</span><span class="n">post</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">let</span> <span class="n">token</span> <span class="o">=</span> <span class="nf">get_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">adapter</span><span class="nf">.platform</span><span class="p">())</span><span class="nf">.unwrap_or_default</span><span class="p">();</span>
+        <span class="k">let</span> <span class="n">post_clone</span> <span class="o">=</span> <span class="n">post</span><span class="nf">.clone</span><span class="p">();</span>
+
+        <span class="c1">// tokio::spawn = true parallelism</span>
+        <span class="c1">// All 9 platforms publish simultaneously, not one after another</span>
+        <span class="n">handles</span><span class="nf">.push</span><span class="p">(</span><span class="nn">tokio</span><span class="p">::</span><span class="nf">spawn</span><span class="p">(</span><span class="k">async</span> <span class="k">move</span> <span class="p">{</span>
+            <span class="n">adapter</span><span class="nf">.publish</span><span class="p">(</span><span class="o">&amp;</span><span class="n">post_clone</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">token</span><span class="p">)</span><span class="k">.await</span>
+        <span class="p">}));</span>
+    <span class="p">}</span>
+
+    <span class="k">for</span> <span class="n">handle</span> <span class="k">in</span> <span class="n">handles</span> <span class="p">{</span>
+        <span class="k">match</span> <span class="n">handle</span><span class="k">.await</span> <span class="p">{</span>
+            <span class="nf">Ok</span><span class="p">(</span><span class="nf">Ok</span><span class="p">(</span><span class="n">result</span><span class="p">))</span> <span class="k">=&gt;</span> <span class="nf">log_success</span><span class="p">(</span><span class="n">result</span><span class="p">),</span>
+            <span class="nf">Ok</span><span class="p">(</span><span class="nf">Err</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>     <span class="k">=&gt;</span> <span class="nf">log_platform_error</span><span class="p">(</span><span class="n">e</span><span class="p">),</span>
+            <span class="nf">Err</span><span class="p">(</span><span class="n">panic</span><span class="p">)</span>     <span class="k">=&gt;</span> <span class="nf">log_adapter_panic</span><span class="p">(</span><span class="n">panic</span><span class="p">),</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-internal-route-nextjs-%E2%86%94-rust" href="#the-internal-route-nextjs-%E2%86%94-rust">
+  </a>
+  The Internal Route (Next.js ↔ Rust)
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// Next.js calls this — never the VS Code extension</span>
+<span class="c1">// POST /internal/keys/generate</span>
+<span class="c1">// GET  /internal/keys/:user_id</span>
+<span class="c1">// DEL  /internal/keys/:prefix</span>
+
+<span class="k">pub</span> <span class="k">async</span> <span class="k">fn</span> <span class="nf">require_internal_secret</span><span class="p">(</span>
+    <span class="nf">State</span><span class="p">(</span><span class="n">state</span><span class="p">):</span> <span class="n">State</span><span class="o">&lt;</span><span class="n">AppState</span><span class="o">&gt;</span><span class="p">,</span>
+    <span class="n">req</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+    <span class="n">next</span><span class="p">:</span> <span class="n">Next</span><span class="p">,</span>
+<span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">Result</span><span class="o">&lt;</span><span class="n">Response</span><span class="p">,</span> <span class="n">AppError</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">secret</span> <span class="o">=</span> <span class="n">req</span><span class="nf">.headers</span><span class="p">()</span>
+        <span class="nf">.get</span><span class="p">(</span><span class="s">"X-Internal-Secret"</span><span class="p">)</span>
+        <span class="nf">.and_then</span><span class="p">(|</span><span class="n">v</span><span class="p">|</span> <span class="n">v</span><span class="nf">.to_str</span><span class="p">()</span><span class="nf">.ok</span><span class="p">())</span>
+        <span class="nf">.ok_or</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Missing internal secret"</span><span class="nf">.into</span><span class="p">()))</span><span class="o">?</span><span class="p">;</span>
+
+    <span class="c1">// Same constant_time_eq pattern — even internal secrets get timing protection</span>
+    <span class="k">if</span> <span class="o">!</span><span class="nf">constant_time_eq</span><span class="p">(</span><span class="n">secret</span><span class="nf">.as_bytes</span><span class="p">(),</span> <span class="n">state</span><span class="py">.config.internal_api_secret</span><span class="nf">.as_bytes</span><span class="p">())</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Unauthorized</span><span class="p">(</span><span class="s">"Invalid internal secret"</span><span class="nf">.into</span><span class="p">()));</span>
+    <span class="p">}</span>
+    <span class="nf">Ok</span><span class="p">(</span><span class="n">next</span><span class="nf">.run</span><span class="p">(</span><span class="n">req</span><span class="p">)</span><span class="k">.await</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="complete-endpoint-map" href="#complete-endpoint-map">
+  </a>
+  Complete Endpoint Map
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code># Public
+GET  /health                          liveness probe
+GET  /ready                           readiness (DB ping)
+POST /v1/webhooks/lemon               LS webhook (HMAC-verified)
+
+# API Key protected (VS Code extension)
+GET  /v1/ping                         auth test
+POST /v1/posts/schedule               schedule a post
+GET  /v1/posts                        list posts (paginated)
+DEL  /v1/posts/:id                    cancel a pending post
+POST /v1/keys/generate                generate new API key
+GET  /v1/keys                         list active keys
+DEL  /v1/keys/:prefix                 revoke a key
+POST /v1/billing/checkout             get LS checkout URL
+GET  /v1/billing/portal               get LS customer portal URL
+GET  /v1/billing/status               current tier + quota usage
+
+# Admin (API key + admin role)
+POST /v1/admin/blacklist              ban user (instant, all 18 tools)
+DEL  /v1/admin/blacklist/:user_id     unban
+POST /v1/admin/reset-quota/:user_id   manual quota reset
+GET  /v1/admin/users/:user_id         user info + stats
+
+# Internal (Next.js server-to-server only)
+POST /internal/keys/generate          generate key for website user
+GET  /internal/keys/:user_id          list keys for website user
+DEL  /internal/keys/:prefix           revoke key for website user
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-part-4" href="#whats-next-part-4">
+  </a>
+  What's Next (Part 4)
+</h2>
+
+<p>The server is feature-complete for the current scope. Still in progress:</p>
+
+<ul>
+<li>
+<strong>OAuth token storage</strong> — storing platform OAuth tokens per user so the scheduler can call the 9 adapters with real credentials</li>
+<li>
+<strong>WebSocket push</strong> — real-time feedback to the VS Code extension when a post publishes (Pro/Max tiers)</li>
+<li>
+<strong>Referral engine</strong> — every 5 referrals = 1 free Pro month, enforced in webhook handlers</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="6-decisions-id-make-again" href="#6-decisions-id-make-again">
+  </a>
+  6 Decisions I'd Make Again
+</h2>
+
+<p><strong>1. Fail at startup, not at runtime.</strong><br>
+Validate all config at boot. A misconfigured <code>WEBHOOK_SECRET</code> that crashes on the first payment is better than silently accepting fake webhooks.</p>
+
+<p><strong>2. Atomic DB operations over application-level locks.</strong><br>
+MongoDB's <code>findOneAndUpdate</code> with a conditional filter is more reliable than <code>Mutex</code> for quota enforcement. The DB is already your source of truth.</p>
+
+<p><strong>3. <code>OsRng</code> for security tokens, <code>constant_time_eq</code> for comparisons.</strong><br>
+Never <code>thread_rng</code> for secrets. Never <code>==</code> for HMAC comparison.</p>
+
+<p><strong>4. Raw bytes before JSON for webhooks.</strong><br>
+Always read <code>Bytes</code> before parsing JSON when you need to verify a signature.</p>
+
+<p><strong>5. <code>Dispatched</code> status as crash safety.</strong><br>
+Any in-memory operation that can't complete atomically needs a DB flag. The scheduler tick is: mark → spawn → publish. If you crash between mark and publish, recovery finds the flag.</p>
+
+<p><strong>6. The Look-Ahead + Sleep pattern scales.</strong><br>
+One DB query per minute + OS-level sleep timers gives you exact-second precision without polling. It's what production schedulers use.</p>
+
+
+<hr>
+
+<p>The server is private, but every pattern here is battle-tested and applicable to any Rust + MongoDB + Axum stack.</p>
+
+<p>If you have questions about any specific part, drop them in the comments.</p>
+
+
+<hr>
+
+<p><em>FreeRave — building DotSuite: a suite of developer productivity tools. Follow for more deep dives into production Rust backends.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-private-rust-backend-to-power-18-developer-tools-heres-the-architecture-4lmc" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 1
+    · <a href="https://dev.to/freerave/i-built-a-private-rust-backend-to-power-18-developer-tools-heres-the-architecture-4lmc#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

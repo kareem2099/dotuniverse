@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built an AI-Powered .env Manager for VS Code — Here's What I Learned — FreeRave</title>
+<meta name="description" content="Managing .env files is one of those things that sounds simple until you're on a team of 5, juggling 4...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-an-ai-powered-env-manager-for-vs-code-heres-what-i-learned-1j64">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-an-ai-powered-env-manager-for-vs-code-heres-what-i-learned-1j64">
+<meta property="og:title" content="I Built an AI-Powered .env Manager for VS Code — Here's What I Learned — FreeRave">
+<meta property="og:description" content="Managing .env files is one of those things that sounds simple until you're on a team of 5, juggling 4...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcwej8pybo8kc3ep6mxai.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcwej8pybo8kc3ep6mxai.png" alt="">
+  <h1 class="post-title">I Built an AI-Powered .env Manager for VS Code — Here's What I Learned</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-18T10:00:00Z">18 March 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#security</span><span class="post-tag">#ai</span></div>
+  </div>
+  <article class="post-body">
+<p>Managing <code>.env</code> files is one of those things that sounds simple until you're on a team of 5, juggling 4 environments, and someone accidentally commits a Stripe secret key to GitHub at 2am.</p>
+
+<p>I built <strong>DotEnvy</strong> — a VS Code extension that handles environment switching, secret detection, and encrypted backups. Version 1.6.0 just shipped and it's the most technically interesting release yet. Let me walk you through what's inside.</p>
+
+<p><strong>Install it:</strong></p>
+
+<ul>
+<li><a href="https://marketplace.visualstudio.com/manage/publishers/freerave" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
+<li><a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" rel="noopener noreferrer">Open VSX Registry</a></li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem" href="#the-problem">
+  </a>
+  The Problem
+</h2>
+
+<p>Every project I've worked on has this folder structure:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>.env
+.env.development
+.env.staging
+.env.production
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And every developer has their own "system" for switching between them — usually <code>cp .env.staging .env</code> and hoping they didn't forget. That's how secrets leak. That's how production breaks.</p>
+
+<p>DotEnvy fixes this with one command: <code>DotEnvy: Switch Environment</code>.</p>
+
+<p>See the new AI Secrets Scanner in action:</p>
+
+<h2>
+  <a name="-youtube-shc2vvqoj9w-" href="#-youtube-shc2vvqoj9w-">
+  </a>
+    <iframe src="https://www.youtube.com/embed/SHc2vVQOj9w" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+
+</h2>
+
+<h2>
+  <a name="v160-the-big-changes" href="#v160-the-big-changes">
+  </a>
+  v1.6.0: The Big Changes
+</h2>
+
+<h3>
+  <a name="1-osencrypted-secret-storage" href="#1-osencrypted-secret-storage">
+  </a>
+  1. OS-Encrypted Secret Storage
+</h3>
+
+<p>The old version embedded the HMAC shared secret directly in the compiled bundle at build time:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ v1.5.0 — secret baked into the .vsix</span>
+<span class="k">private</span> <span class="k">readonly</span> <span class="nx">sharedSecret</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">EXTENSION_SHARED_SECRET</span> <span class="o">||</span> <span class="dl">'</span><span class="s1">REPLACE_AT_BUILD_TIME</span><span class="dl">'</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Anyone could unzip the <code>.vsix</code> file (it's just a zip) and read it in plain text.</p>
+
+<p>v1.6.0 stores it in VS Code's <code>SecretStorage</code> — OS-level encryption (Keychain on macOS, libsecret on Linux, Windows Credential Manager):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ v1.6.0 — OS-encrypted, never in the bundle</span>
+<span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="nf">initialize</span><span class="p">(</span><span class="nx">context</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ExtensionContext</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">LLMAnalyzer</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">LLMAnalyzer</span><span class="p">.</span><span class="nx">instance</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">LLMAnalyzer</span><span class="p">.</span><span class="nx">instance</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">LLMAnalyzer</span><span class="p">(</span><span class="nx">context</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">await</span> <span class="nx">LLMAnalyzer</span><span class="p">.</span><span class="nx">instance</span><span class="p">.</span><span class="nf">loadSecret</span><span class="p">();</span>
+    <span class="k">return</span> <span class="nx">LLMAnalyzer</span><span class="p">.</span><span class="nx">instance</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">private</span> <span class="k">async</span> <span class="nf">loadSecret</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">sharedSecret</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotenvy.llm.sharedSecret</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="k">async</span> <span class="nf">setSharedSecret</span><span class="p">(</span><span class="nx">secret</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotenvy.llm.sharedSecret</span><span class="dl">'</span><span class="p">,</span> <span class="nx">secret</span><span class="p">);</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">sharedSecret</span> <span class="o">=</span> <span class="nx">secret</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The user runs <code>DotEnvy: Setup LLM Secret</code> once. After that, every HMAC request is signed with the stored secret — never hardcoded anywhere.</p>
+
+
+<hr>
+
+<h3>
+  <a name="2-the-ml-feature-extractor-carbon-copy-of-python" href="#2-the-ml-feature-extractor-carbon-copy-of-python">
+  </a>
+  2. The ML Feature Extractor — Carbon Copy of Python
+</h3>
+
+<p>The Railway backend uses a custom transformer model that takes a <strong>35-element feature vector</strong> as input. The TypeScript extension was producing a 31-element vector and silently padding with zeros:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ v1.5.0 — 31 features + 4 silent zeros</span>
+<span class="k">while </span><span class="p">(</span><span class="nx">features</span><span class="p">.</span><span class="nx">length</span> <span class="o">&lt;</span> <span class="mi">35</span><span class="p">)</span> <span class="p">{</span> <span class="nx">features</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This means the model was seeing garbage for features 32–35 on every single request. The fix was to rewrite <code>featureExtractor.ts</code> as an exact mirror of <code>feature_extractor.py</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ v1.6.0 — featureExtractor.ts mirrors feature_extractor.py exactly</span>
+
+<span class="c1">// GROUP 2: Entropy (features 7-13)</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">shannonEntropy</span><span class="p">(</span><span class="nx">secret</span><span class="p">)</span> <span class="o">/</span> <span class="mf">8.0</span><span class="p">);</span>          <span class="c1">// 7: normalized entropy  ← was /6.0 before!</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">ngramEntropy</span><span class="p">(</span><span class="nx">secret</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mf">8.0</span><span class="p">);</span>          <span class="c1">// 8: bigram entropy</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">ngramEntropy</span><span class="p">(</span><span class="nx">secret</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">/</span> <span class="mf">8.0</span><span class="p">);</span>          <span class="c1">// 9: trigram entropy</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">compressionRatio</span><span class="p">(</span><span class="nx">secret</span><span class="p">));</span>               <span class="c1">// 10: incompressibility proxy  ← was missing!</span>
+<span class="kd">const</span> <span class="nx">maxRun</span> <span class="o">=</span> <span class="nf">maxRunLength</span><span class="p">(</span><span class="nx">secret</span><span class="p">);</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nx">maxRun</span> <span class="o">/</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nx">len</span><span class="p">));</span>              <span class="c1">// 11: max repeat run</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="nx">maxRun</span> <span class="o">/</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nx">len</span><span class="p">));</span>        <span class="c1">// 12: randomness score</span>
+<span class="nx">f</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">localEntropyVariance</span><span class="p">(</span><span class="nx">secret</span><span class="p">));</span>           <span class="c1">// 13: entropy variance  ← was missing!</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The entropy normalization was also wrong — dividing by 6.0 instead of 8.0. Shannon entropy for a random string can exceed 6 bits/char, so the model was receiving clipped values.</p>
+
+<p>Here's the <code>localEntropyVariance</code> function that was missing:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Mirrors _local_entropy_variance() in Python exactly</span>
+<span class="kd">function</span> <span class="nf">localEntropyVariance</span><span class="p">(</span><span class="nx">text</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nb">window</span> <span class="o">=</span> <span class="mi">8</span><span class="p">):</span> <span class="kr">number</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">text</span><span class="p">.</span><span class="nx">length</span> <span class="o">&lt;</span> <span class="nb">window</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span> <span class="mf">0.0</span><span class="p">;</span> <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">entropies</span><span class="p">:</span> <span class="kr">number</span><span class="p">[]</span> <span class="o">=</span> <span class="p">[];</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;=</span> <span class="nx">text</span><span class="p">.</span><span class="nx">length</span> <span class="o">-</span> <span class="nb">window</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">entropies</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nf">shannonEntropy</span><span class="p">(</span><span class="nx">text</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">i</span> <span class="o">+</span> <span class="nb">window</span><span class="p">)));</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">mean</span> <span class="o">=</span> <span class="nx">entropies</span><span class="p">.</span><span class="nf">reduce</span><span class="p">((</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">a</span> <span class="o">+</span> <span class="nx">b</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="nx">entropies</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">variance</span> <span class="o">=</span> <span class="nx">entropies</span><span class="p">.</span><span class="nf">reduce</span><span class="p">((</span><span class="nx">a</span><span class="p">,</span> <span class="nx">b</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">a</span> <span class="o">+</span> <span class="p">(</span><span class="nx">b</span> <span class="o">-</span> <span class="nx">mean</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="nx">entropies</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">std</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">sqrt</span><span class="p">(</span><span class="nx">variance</span><span class="p">);</span>
+
+    <span class="c1">// Low variance + high mean = consistently random = likely a real secret</span>
+    <span class="kd">const</span> <span class="nx">consistency</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="nx">std</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">level</span>       <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="nx">mean</span> <span class="o">/</span> <span class="mf">4.0</span><span class="p">);</span>
+    <span class="k">return </span><span class="p">(</span><span class="nx">consistency</span> <span class="o">+</span> <span class="nx">level</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A string like <code>sk-proj-abc123XYZ</code> has <strong>consistent</strong> high entropy across every 8-char window. A human-readable string like <code>my-api-production-key</code> has variable entropy. The model uses this to distinguish them.</p>
+
+
+<hr>
+
+<h3>
+  <a name="3-the-secrets-panel" href="#3-the-secrets-panel">
+  </a>
+  3. The Secrets Panel
+</h3>
+
+<p>The old flow was notification-based and capped at 5 results:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ v1.5.0</span>
+<span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">secret</span> <span class="k">of</span> <span class="nx">secrets</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">notified</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">)</span> <span class="p">{</span> <span class="k">break</span><span class="p">;</span> <span class="p">}</span>   <span class="c1">// just gave up after 5</span>
+    <span class="k">await</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showWarningMessage</span><span class="p">(...);</span>
+    <span class="nx">notified</span><span class="o">++</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showWarningMessage</span><span class="p">(</span><span class="s2">`Found </span><span class="p">${</span><span class="nx">secrets</span><span class="p">.</span><span class="nx">length</span> <span class="o">-</span> <span class="mi">5</span><span class="p">}</span><span class="s2"> more secrets...`</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>v1.6.0 opens a full <code>WebviewPanel</code> showing all secrets:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ v1.6.0 — show everything</span>
+<span class="k">public</span> <span class="k">static</span> <span class="nf">show</span><span class="p">(</span><span class="nx">secrets</span><span class="p">:</span> <span class="nx">DetectedSecret</span><span class="p">[],</span> <span class="nx">extensionUri</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">):</span> <span class="nx">SecretsPanel</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">panel</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">createWebviewPanel</span><span class="p">(</span>
+        <span class="dl">'</span><span class="s1">dotenvy.secretsPanel</span><span class="dl">'</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">🔍 DotEnvy — Secrets Scanner</span><span class="dl">'</span><span class="p">,</span>
+        <span class="nx">vscode</span><span class="p">.</span><span class="nx">ViewColumn</span><span class="p">.</span><span class="nx">One</span><span class="p">,</span>
+        <span class="p">{</span> <span class="na">enableScripts</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> <span class="na">retainContextWhenHidden</span><span class="p">:</span> <span class="kc">true</span> <span class="p">}</span>
+    <span class="p">);</span>
+    <span class="k">return</span> <span class="k">new</span> <span class="nc">SecretsPanel</span><span class="p">(</span><span class="nx">panel</span><span class="p">,</span> <span class="nx">secrets</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The panel has live filter + search, confidence color-coding (red/orange/blue), and three actions per secret: <strong>📍 View</strong>, <strong>📥 Move to .env</strong>, <strong>👁️ Not a Secret</strong>.</p>
+
+
+<hr>
+
+<h3>
+  <a name="4-the-ai-feedback-loop" href="#4-the-ai-feedback-loop">
+  </a>
+  4. The AI Feedback Loop
+</h3>
+
+<p>Every time a user clicks "Not a Secret" or "Move to .env", DotEnvy records it as a training sample:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// FeedbackManager.ts</span>
+<span class="k">private</span> <span class="k">static</span> <span class="k">async</span> <span class="nf">record</span><span class="p">(</span>
+    <span class="nx">secret</span><span class="p">:</span> <span class="nx">DetectedSecret</span><span class="p">,</span>
+    <span class="nx">action</span><span class="p">:</span> <span class="nx">UserAction</span><span class="p">,</span>    <span class="c1">// 'confirmed_secret' | 'marked_false_positive'</span>
+    <span class="nx">label</span><span class="p">:</span> <span class="nx">FeedbackLabel</span>   <span class="c1">// 'high' | 'medium' | 'low' | 'false_positive'</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">features</span> <span class="o">=</span> <span class="nx">FeatureExtractor</span><span class="p">.</span><span class="nf">extract</span><span class="p">(</span>
+        <span class="nx">secret</span><span class="p">.</span><span class="nx">content</span><span class="p">,</span>
+        <span class="nx">secret</span><span class="p">.</span><span class="nx">context</span><span class="p">,</span>
+        <span class="nx">variableName</span>
+    <span class="p">);</span>  <span class="c1">// 35-element vector</span>
+
+    <span class="kd">const</span> <span class="na">entry</span><span class="p">:</span> <span class="nx">FeedbackEntry</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="na">id</span><span class="p">:</span>                  <span class="nx">crypto</span><span class="p">.</span><span class="nf">randomUUID</span><span class="p">(),</span>
+        <span class="na">timestamp</span><span class="p">:</span>           <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+        <span class="na">secret_value</span><span class="p">:</span>        <span class="nx">secret</span><span class="p">.</span><span class="nx">content</span><span class="p">,</span>   <span class="c1">// already redacted: "sk-1****ef"</span>
+        <span class="na">context</span><span class="p">:</span>             <span class="nx">secret</span><span class="p">.</span><span class="nx">context</span><span class="p">,</span>
+        <span class="na">user_action</span><span class="p">:</span>         <span class="nx">action</span><span class="p">,</span>
+        <span class="nx">label</span><span class="p">,</span>
+        <span class="nx">features</span><span class="p">,</span>            <span class="c1">// ← this is what the model learns from</span>
+        <span class="na">original_confidence</span><span class="p">:</span> <span class="nx">secret</span><span class="p">.</span><span class="nx">confidence</span><span class="p">,</span>
+        <span class="na">sent</span><span class="p">:</span>                <span class="kc">false</span><span class="p">,</span>
+    <span class="p">};</span>
+
+    <span class="k">await</span> <span class="nx">FeedbackManager</span><span class="p">.</span><span class="nf">save</span><span class="p">(</span><span class="nx">entry</span><span class="p">);</span>
+    <span class="nx">FeedbackManager</span><span class="p">.</span><span class="nf">flush</span><span class="p">().</span><span class="k">catch</span><span class="p">((</span><span class="nx">_err</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="c1">// Silent fail — will retry on next event</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Entries are batched and sent to the Railway backend via HMAC-signed POST:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Flush sends up to 20 entries at a time</span>
+<span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="nf">flush</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">pending</span> <span class="o">=</span> <span class="nx">all</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="o">!</span><span class="nx">e</span><span class="p">.</span><span class="nx">sent</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">pending</span><span class="p">.</span><span class="nx">length</span> <span class="o">===</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span><span class="p">;</span> <span class="p">}</span>
+
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">pending</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span> <span class="o">+=</span> <span class="mi">20</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">batch</span> <span class="o">=</span> <span class="nx">pending</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">i</span><span class="p">,</span> <span class="nx">i</span> <span class="o">+</span> <span class="mi">20</span><span class="p">);</span>
+        <span class="k">await</span> <span class="nx">analyzer</span><span class="p">.</span><span class="nf">sendFeedback</span><span class="p">(</span><span class="nx">batch</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">({</span>
+            <span class="na">secret_value</span><span class="p">:</span>  <span class="nx">e</span><span class="p">.</span><span class="nx">secret_value</span><span class="p">,</span>
+            <span class="na">context</span><span class="p">:</span>       <span class="nx">e</span><span class="p">.</span><span class="nx">context</span><span class="p">,</span>
+            <span class="na">features</span><span class="p">:</span>      <span class="nx">e</span><span class="p">.</span><span class="nx">features</span><span class="p">,</span>
+            <span class="na">user_action</span><span class="p">:</span>   <span class="nx">e</span><span class="p">.</span><span class="nx">user_action</span><span class="p">,</span>
+            <span class="na">label</span><span class="p">:</span>         <span class="nx">e</span><span class="p">.</span><span class="nx">label</span><span class="p">,</span>
+        <span class="p">})));</span>
+        <span class="nx">batch</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="nx">e</span><span class="p">.</span><span class="nx">sent</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span> <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The model gets smarter with every correction. The <code>/extension/feedback</code> endpoint on the server calls <code>model.train()</code> with the new samples.</p>
+
+
+<hr>
+
+<h3>
+  <a name="5-dotenvyignore" href="#5-dotenvyignore">
+  </a>
+  5. .dotenvyignore
+</h3>
+
+<p><code>.dotenvy/history/*.json</code> files were triggering 50 false positives because they contain AES-256-GCM ciphertext — which looks exactly like a high-entropy secret.</p>
+
+<p>The fix: <code>.dotenvyignore</code> — same syntax as <code>.gitignore</code>, file-change-aware cache:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// dotenvyIgnore.ts — glob → RegExp conversion</span>
+<span class="k">private</span> <span class="k">static</span> <span class="nf">globToRegex</span><span class="p">(</span><span class="nx">glob</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nb">RegExp</span> <span class="p">{</span>
+    <span class="kd">let</span> <span class="nx">regexStr</span> <span class="o">=</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+    <span class="k">while </span><span class="p">(</span><span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">glob</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">c</span> <span class="o">=</span> <span class="nx">glob</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">c</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">*</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">glob</span><span class="p">[</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">*</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">regexStr</span> <span class="o">+=</span> <span class="nx">glob</span><span class="p">[</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">/</span><span class="dl">'</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">(?:.+/)?</span><span class="dl">'</span> <span class="p">:</span> <span class="dl">'</span><span class="s1">.*</span><span class="dl">'</span><span class="p">;</span>
+                <span class="nx">i</span> <span class="o">+=</span> <span class="nx">glob</span><span class="p">[</span><span class="nx">i</span> <span class="o">+</span> <span class="mi">2</span><span class="p">]</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">/</span><span class="dl">'</span> <span class="p">?</span> <span class="mi">3</span> <span class="p">:</span> <span class="mi">2</span><span class="p">;</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+                <span class="nx">regexStr</span> <span class="o">+=</span> <span class="dl">'</span><span class="s1">[^/]*</span><span class="dl">'</span><span class="p">;</span>
+                <span class="nx">i</span><span class="o">++</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="nx">regexStr</span> <span class="o">+=</span> <span class="nx">DotenvyIgnore</span><span class="p">.</span><span class="nf">escapeRegex</span><span class="p">(</span><span class="nx">c</span><span class="p">);</span>
+            <span class="nx">i</span><span class="o">++</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">(</span><span class="nx">regexStr</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">$</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">i</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The default <code>.dotenvyignore</code> excludes:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>.dotenvy/**
+.dotenvy-backups/**
+out/**
+**/*.test.ts
+**/*.spec.ts
+docs/**
+*.md
+k8s/**
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Right-click any file or folder in the Explorer → <strong>"DotEnvy: Ignore this path"</strong> — it adds the pattern instantly.</p>
+
+
+<hr>
+
+<h3>
+  <a name="6-centralized-logging" href="#6-centralized-logging">
+  </a>
+  6. Centralized Logging
+</h3>
+
+<p>94 <code>console.log/warn/error</code> calls across 21 files → one <code>Logger</code> class with VS Code Output Channel:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Before</span>
+<span class="nx">console</span><span class="p">.</span><span class="nf">log</span><span class="p">(</span><span class="s2">`[DotEnvy] History recorded for </span><span class="p">${</span><span class="nx">fileName</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+<span class="nx">console</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Failed to load history:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+
+<span class="c1">// After</span>
+<span class="nx">logger</span><span class="p">.</span><span class="nf">info</span><span class="p">(</span><span class="s2">`History recorded for </span><span class="p">${</span><span class="nx">fileName</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">HistoryManager</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">logger</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Failed to load history</span><span class="dl">'</span><span class="p">,</span> <span class="nx">error</span><span class="p">,</span> <span class="dl">'</span><span class="s1">HistoryManager</span><span class="dl">'</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Output in VS Code:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>2026-03-17 20:28:06.768 INFO  [Extension]    DotEnvy is now active!
+2026-03-17 20:28:07.303 WARN  [LLMAnalyzer]  Shared secret not found in SecretStorage
+2026-03-17 20:28:08.400 INFO  [extension]    LLM Service is online
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>LogLevel.DEBUG</code> in development, <code>LogLevel.WARN</code> in production — auto-detected via <code>context.extensionMode</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-architecture" href="#the-architecture">
+  </a>
+  The Architecture
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>VS Code Extension (TypeScript)
+    │
+    ├── featureExtractor.ts   ← 35 features, mirrors Python exactly
+    ├── llmAnalyzer.ts        ← HMAC signing, SecretStorage, circuit breaker
+    ├── feedbackManager.ts    ← collects training data, sends to Railway
+    ├── dotenvyIgnore.ts      ← .gitignore-style file exclusions
+    └── SecretsPanel.ts       ← WebviewPanel with filter/search/actions
+            │
+            │ HMAC-SHA256 signed POST
+            ▼
+    Railway Backend (Python/FastAPI)
+            │
+            ├── /extension/analyze    ← returns confidence + reasoning
+            ├── /extension/feedback   ← accepts training samples
+            └── CustomLLM (Transformer)
+                    └── feature_embeds = matmul(features, embedding_matrix)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="what-i-learned" href="#what-i-learned">
+  </a>
+  What I Learned
+</h2>
+
+<p><strong>1. Feature alignment matters more than model architecture.</strong> Feeding the wrong values to the right model produces worse results than feeding correct values to a simple heuristic. The 31→35 fix and the /6.0→/8.0 fix probably improved accuracy more than any model tuning would have.</p>
+
+<p><strong>2. <code>vscode.SecretStorage</code> is underused.</strong> It's OS-encrypted, persists across restarts, and requires zero dependencies. If you're building a VS Code extension that needs to store anything sensitive, use it.</p>
+
+<p><strong>3. Deleting code feels good.</strong> <code>secretScanner.ts</code> was 700 lines. <code>SecretDetector.ts</code> + 5 helper classes does the same thing with better separation of concerns and is actually testable. The 700-line version had accumulated debt that nobody wanted to touch.</p>
+
+<p><strong>4. <code>.gitignore</code>-style syntax is worth implementing properly.</strong> Users already know it, it's expressive enough for most cases, and the glob→regex conversion is about 50 lines of code.</p>
+
+
+<hr>
+
+<h2>
+  <a name="install" href="#install">
+  </a>
+  Install
+</h2>
+
+<ul>
+<li>
+<strong>VS Code Marketplace:</strong> <a href="https://marketplace.visualstudio.com/manage/publishers/freerave" target="_blank" rel="noopener noreferrer">marketplace.visualstudio.com/manage/publishers/freerave</a>
+</li>
+<li>
+<strong>Open VSX:</strong> <a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" rel="noopener noreferrer">open-vsx.org/extension/freerave/dotenvy</a>
+</li>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">github.com/kareem2099/dotenvy</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p>The feedback loop is the part I'm most excited about. Every "Not a Secret" click improves the model for the next user. It's a small flywheel, but it's running now.</p>
+
+<p>If you try it and find false positives — that's the point. Click "Not a Secret" and help it learn.</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-an-ai-powered-env-manager-for-vs-code-heres-what-i-learned-1j64" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-an-ai-powered-env-manager-for-vs-code-heres-what-i-learned-1j64#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

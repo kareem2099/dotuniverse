@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I built a &quot;Halal Mode&quot; for VS Code to automate my spiritual habits 🕌💻 — FreeRave</title>
+<meta name="description" content="The Struggle with &quot;Context Switching&quot;   As a Muslim developer, I often find myself breaking...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-halal-mode-for-vs-code-to-automate-my-spiritual-habits-2d0p">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-halal-mode-for-vs-code-to-automate-my-spiritual-habits-2d0p">
+<meta property="og:title" content="I built a &quot;Halal Mode&quot; for VS Code to automate my spiritual habits 🕌💻 — FreeRave">
+<meta property="og:description" content="The Struggle with &quot;Context Switching&quot;   As a Muslim developer, I often find myself breaking...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F4i4dsffohaj8t50a9qti.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">I built a &quot;Halal Mode&quot; for VS Code to automate my spiritual habits 🕌💻</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-16T08:58:34Z">16 January 2026</time> · 1 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#productivity</span><span class="post-tag">#opensource</span><span class="post-tag">#javascript</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="the-struggle-with-context-switching" href="#the-struggle-with-context-switching">
+  </a>
+  The Struggle with "Context Switching"
+</h2>
+
+<p>As a Muslim developer, I often find myself breaking my "flow state" to check prayer times, find the Qibla, or open a browser tab to listen to the Quran. Every <code>Alt+Tab</code> is a potential distraction (hello, YouTube rabbit hole! 🐇).</p>
+
+<p>I wanted a way to keep my spiritual routine integrated directly into my dev environment, without the bloat.</p>
+
+<h2>
+  <a name="introducing-codetune-v100" href="#introducing-codetune-v100">
+  </a>
+  Introducing CodeTune v1.0.0 🚀
+</h2>
+
+<p>I built <strong>CodeTune</strong>, a VS Code extension that brings Islamic tools right into your Activity Bar. It's designed to be "Context-Aware".</p>
+
+<h3>
+  <a name="what-does-contextaware-mean" href="#what-does-contextaware-mean">
+  </a>
+  What does "Context-Aware" mean?
+</h3>
+
+<p>It means the extension knows <em>when</em> it is.<br>
+For example, since today is <strong>Friday (Jumuah)</strong>, the extension automatically:</p>
+
+<ol>
+<li> <strong>Pins Surah Al-Kahf</strong> to the top of the dashboard.</li>
+<li> <strong>Suggests reading it</strong> with a single click.</li>
+<li> <strong>Opens a native player</strong> overlay (no browser needed).</li>
+</ol>
+
+<p><strong>🎥 Check out the Friday Mode demo here:</strong><br>
+  <iframe src="https://www.youtube.com/embed/n20gFLi8UBE" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<h2>
+  <a name="under-the-hood-why-vanilla-js" href="#under-the-hood-why-vanilla-js">
+  </a>
+  Under the Hood: Why Vanilla JS? ⚡
+</h2>
+
+<p>Instead of using heavy frameworks like React or Vue for the webview, I decided to stick to <strong>Vanilla JavaScript</strong> and the native <strong>VS Code Design System</strong>.</p>
+
+<ul>
+<li>
+<strong>Performance:</strong> It loads instantly.</li>
+<li>
+<strong>Memory:</strong> Zero bloat.</li>
+<li>
+<strong>Look &amp; Feel:</strong> It looks exactly like the rest of VS Code.</li>
+</ul>
+
+<h2>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  Try it out!
+</h2>
+
+<p>The project is fully Open Source. I'd love to hear your feedback on the new v1.0.0 UI.</p>
+
+<ul>
+<li>Marketplace: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune</a>
+</li>
+<li>GitHub:
+<a href="https://github.com/kareem2099/codetune" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/codetune</a>
+Happy Coding &amp; Jumuah Mubarak! ❤️</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-halal-mode-for-vs-code-to-automate-my-spiritual-habits-2d0p" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-halal-mode-for-vs-code-to-automate-my-spiritual-habits-2d0p#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How to Prevent Accidental Password Leaks in Your Node.js APIs 🛡️ — FreeRave</title>
+<meta name="description" content="When building an authentication system, we all face a critical scenario: How do we guarantee that a...">
+<link rel="canonical" href="https://dev.to/freerave/how-to-prevent-accidental-password-leaks-in-your-nodejs-apis-24k7">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-to-prevent-accidental-password-leaks-in-your-nodejs-apis-24k7">
+<meta property="og:title" content="How to Prevent Accidental Password Leaks in Your Node.js APIs 🛡️ — FreeRave">
+<meta property="og:description" content="When building an authentication system, we all face a critical scenario: How do we guarantee that a...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fhbl3jyxsz214mbolr76i.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">How to Prevent Accidental Password Leaks in Your Node.js APIs 🛡️</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-22T19:36:32Z">22 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#webdev</span><span class="post-tag">#node</span><span class="post-tag">#mongodb</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<p>When building an authentication system, we all face a critical scenario: <strong>How do we guarantee that a user's hashed password never accidentally leaks to the frontend in an API response?</strong></p>
+
+<p>The traditional way is manually stripping the password before sending the response:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="k">delete</span> <span class="nx">user</span><span class="p">.</span><span class="nx">password</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p>⚠️ <strong>The Problem:</strong> We are human. It's incredibly easy to forget this in a new endpoint (like a newly created <code>/profile</code> route), and boom—you have a massive data leak!</p>
+</blockquote>
+
+
+<hr>
+
+<h3>
+  <a name="the-magic-solution-raw-select-false-endraw-" href="#the-magic-solution-raw-select-false-endraw-">
+  </a>
+  💡 The Magic Solution: <code>select: false</code>
+</h3>
+
+<p>If you are using <strong>Mongoose</strong> (MongoDB), you can give the database a strict command at the Schema level to always "hide" this field by default.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">mongoose</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">mongoose</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="kd">const</span> <span class="nx">UserSchema</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">mongoose</span><span class="p">.</span><span class="nc">Schema</span><span class="p">({</span>
+  <span class="na">email</span><span class="p">:</span> <span class="p">{</span> 
+    <span class="na">type</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span> 
+    <span class="na">required</span><span class="p">:</span> <span class="kc">true</span> 
+  <span class="p">},</span>
+  <span class="na">password</span><span class="p">:</span> <span class="p">{</span> 
+    <span class="na">type</span><span class="p">:</span> <span class="nb">String</span><span class="p">,</span> 
+    <span class="na">required</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> 
+    <span class="na">select</span><span class="p">:</span> <span class="kc">false</span> <span class="c1">// 👈 The secret sauce!</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>With this single line, your code becomes <strong>Secure by Default</strong>. Any standard query like <code>User.findById(id)</code> will automatically return clean data <em>without</em> the password hash. </p>
+
+
+<hr>
+
+<h3>
+  <a name="but-how-do-i-log-in-if-the-password-isnt-returned" href="#but-how-do-i-log-in-if-the-password-isnt-returned">
+  </a>
+  🤔 But how do I log in if the password isn't returned?
+</h3>
+
+<p>This is where the <strong>"Explicit Request"</strong> comes in. Only in your Login function, you force Mongoose to return the password so you can compare it. </p>
+
+<p>You do this by appending a <code>+</code> sign to the field name in your <code>select()</code> chain:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// 1. Explicitly requesting the password for validation</span>
+<span class="kd">const</span> <span class="nx">user</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">User</span><span class="p">.</span><span class="nf">findOne</span><span class="p">({</span> <span class="nx">email</span> <span class="p">}).</span><span class="nf">select</span><span class="p">(</span><span class="dl">"</span><span class="s2">+password</span><span class="dl">"</span><span class="p">);</span>
+
+<span class="c1">// 2. Now you can safely compare it</span>
+<span class="kd">const</span> <span class="nx">isMatch</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">bcrypt</span><span class="p">.</span><span class="nf">compare</span><span class="p">(</span><span class="nx">inputPassword</span><span class="p">,</span> <span class="nx">user</span><span class="p">.</span><span class="nx">password</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  🎯 Conclusion
+</h3>
+
+<p>This simple trick gives you peace of mind, closes the door on accidental data leaks, and ensures your backend architecture is built on solid security best practices.</p>
+
+<p><strong>Have you been using this trick, or are you still manually stripping passwords from your responses? Let me know in the comments! 👇</strong></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-to-prevent-accidental-password-leaks-in-your-nodejs-apis-24k7" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/how-to-prevent-accidental-password-leaks-in-your-nodejs-apis-24k7#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

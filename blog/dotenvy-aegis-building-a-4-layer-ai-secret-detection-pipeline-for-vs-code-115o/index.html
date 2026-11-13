@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotEnvy Aegis: Building a 4-Layer AI Secret Detection Pipeline for VS Code — FreeRave</title>
+<meta name="description" content="How I architected a multi-layer secret scanner combining regex, truncated composite...">
+<link rel="canonical" href="https://dev.to/freerave/dotenvy-aegis-building-a-4-layer-ai-secret-detection-pipeline-for-vs-code-115o">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotenvy-aegis-building-a-4-layer-ai-secret-detection-pipeline-for-vs-code-115o">
+<meta property="og:title" content="DotEnvy Aegis: Building a 4-Layer AI Secret Detection Pipeline for VS Code — FreeRave">
+<meta property="og:description" content="How I architected a multi-layer secret scanner combining regex, truncated composite...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F9oqb4xsupeayhqpnp777.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F9oqb4xsupeayhqpnp777.png" alt="">
+  <h1 class="post-title">DotEnvy Aegis: Building a 4-Layer AI Secret Detection Pipeline for VS Code</h1>
+  <div class="post-meta">
+    <time datetime="2026-09-24T20:38:11Z">24 September 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#security</span><span class="post-tag">#typescript</span><span class="post-tag">#python</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-i-architected-a-multilayer-secret-scanner-combining-regex-truncated-composite-community-hashing-shannon-entropy-gating-and-a-35feature-neural-classifier-cutting-llm-overhead-by-80" href="#how-i-architected-a-multilayer-secret-scanner-combining-regex-truncated-composite-community-hashing-shannon-entropy-gating-and-a-35feature-neural-classifier-cutting-llm-overhead-by-80">
+  </a>
+  How I architected a multi-layer secret scanner combining regex, truncated composite community hashing, Shannon entropy gating, and a 35-feature neural classifier — cutting LLM overhead by ~80%.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR</strong>: DotEnvy Aegis introduces a 4-layer secret detection pipeline (Regex → Truncated Composite Community Blacklist → Shannon Entropy Gate → Neural Context Classifier), migrates encryption keys to the OS keychain, auto-authorizes backups with project master keys, and syncs hashes to an anti-poisoning community blacklist on Railway — all without transmitting raw secret payloads.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="what-is-dotenvy" href="#what-is-dotenvy">
+  </a>
+  What is DotEnvy?
+</h2>
+
+<p><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">DotEnvy</a> is an open-source VS Code extension designed to bring enterprise-grade security to local <code>.env</code> file management:</p>
+
+<ul>
+<li>
+<strong>Encrypted Variable Management</strong> (AES-256-GCM, PBKDF2 with 310,000 iterations)</li>
+<li>
+<strong>Multi-User Envelope Encryption</strong> (each teammate decrypts using individual credentials)</li>
+<li>
+<strong>Cloud Synchronization</strong> (native Doppler, Vercel, and AWS integrations)</li>
+<li>
+<strong>AI-Powered Secret Detection</strong> (the focus of this article)</li>
+<li>
+<strong>Git Pre-Commit Hooks</strong> (blocking credential leaks before commits land in git history)</li>
+<li>
+<strong>Environment Analytics, Timeline, &amp; Diff</strong> panels</li>
+</ul>
+
+<p>The extension communicates with <strong>Aegis</strong> (<code>python-llm</code>), a custom Python microservice deployed on Railway that runs contextual neural classification on candidate secrets.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-one-layer-is-never-enough" href="#the-problem-one-layer-is-never-enough">
+  </a>
+  The Problem: One Layer is Never Enough
+</h2>
+
+<p>In our earliest experimental prototype, secret detection was a blunt instrument: every candidate token triggered an HTTP request to the backend model.</p>
+
+<p>This naive architecture fell apart under real-world development workloads:</p>
+
+<ol>
+<li>
+<strong>Latency Overhead</strong>: Every network round-trip added 200–450ms of latency, quickly degrading editor responsiveness during live typing.</li>
+<li>
+<strong>Availability Dependency</strong>: If the network dropped or the backend restarted, secret detection failed silently.</li>
+<li>
+<strong>The False Positive/Negative Dilemma</strong>: 
+
+<ul>
+<li>A high-entropy random string (like an image hash or UUID) looks like a secret to entropy analyzers, but is harmless.</li>
+<li>A low-entropy or structured token looks harmless to statistical math, but may grant full database admin rights.</li>
+</ul>
+</li>
+</ol>
+
+<p>Context matters. Regex patterns matter. Math matters. Community intelligence matters.</p>
+
+<p><strong>Aegis solves this by decoupling detection into an L1 → L4 pipeline: four independent, complementary layers where each layer filters out noise before invoking the more expensive layer downstream.</strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-l1l4-architecture" href="#the-l1l4-architecture">
+  </a>
+  The L1–L4 Architecture
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Candidate: (secretValue, contextLine, variableName)
+                     │
+                     ▼
+┌──────────────────────────────────────────┐
+│  L1: Regex Pattern Engine                │ ← Sub-millisecond, in-process
+│  Matches well-known vendor prefixes      │   High-confidence match → HIGH
+└────────────────────┬─────────────────────┘
+                     │ no match
+                     ▼
+┌──────────────────────────────────────────┐
+│  L2: Community Blacklist Cache           │ ← O(1) in-memory Set&lt;string&gt;
+│  Truncated composite hash lookup         │   Known leaked hash → HIGH
+└────────────────────┬─────────────────────┘
+                     │ not in blacklist
+                     ▼
+┌──────────────────────────────────────────┐
+│  L3: Shannon Entropy Gate                │ ← Pure mathematical calculation
+│  Normalized entropy &lt; 3.5 → LOW (skip)   │   Filters ~80% of candidate tokens
+└────────────────────┬─────────────────────┘
+                     │ entropy ≥ 3.5
+                     ▼
+┌──────────────────────────────────────────┐
+│  L4: Contextual Neural Classifier        │ ← Remote FastAPI service
+│  35-feature vector + attention layers    │   Deep semantic risk analysis
+└──────────────────────────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>In our current workload benchmarks across typical codebases, <strong>approximately 20% of extracted candidates reach L4</strong>. The remaining ~80% are resolved in-memory with sub-millisecond execution times, saving substantial network bandwidth and cloud compute.</p>
+
+
+<hr>
+
+<h3>
+  <a name="layer-1-inprocess-regex-engine-instant-confidence" href="#layer-1-inprocess-regex-engine-instant-confidence">
+  </a>
+  Layer 1: In-Process Regex Engine (Instant Confidence)
+</h3>
+
+<p>Known secret formats (like AWS access keys, Stripe live tokens, and GitHub personal access tokens) follow strict, deterministic grammars. Running an AI model to identify a string that starts with <code>AKIA</code> followed by 16 alphanumeric characters is wasteful.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="kd">const</span> <span class="nx">KNOWN_SECRET_PATTERNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">AWS Access Key</span><span class="dl">'</span><span class="p">,</span>  <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">A</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">KIA</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9A-Z]{16}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Stripe Live Key</span><span class="dl">'</span><span class="p">,</span> <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">sk</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">_live_</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9a-zA-Z]{24,}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">GitHub Token</span><span class="dl">'</span><span class="p">,</span>    <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">g</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">hp_</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[a-zA-Z0-9]{36}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> <span class="p">},</span>
+    <span class="p">{</span> <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Google API Key</span><span class="dl">'</span><span class="p">,</span>  <span class="na">regex</span><span class="p">:</span> <span class="k">new</span> <span class="nc">RegExp</span><span class="p">([</span><span class="dl">'</span><span class="s1">AI</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">za</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">[0-9A-Za-z</span><span class="se">\\</span><span class="s1">-_]{35}</span><span class="dl">'</span><span class="p">].</span><span class="nf">join</span><span class="p">(</span><span class="dl">''</span><span class="p">))</span> <span class="p">},</span>
+<span class="p">];</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><em>An L1 match immediately assigns <code>high</code> risk, bypasses all subsequent layers, and triggers an asynchronous hash report to the community blacklist.</em></p>
+
+
+<hr>
+
+<h3>
+  <a name="layer-2-community-blacklist-via-truncated-composite-hashing" href="#layer-2-community-blacklist-via-truncated-composite-hashing">
+  </a>
+  Layer 2: Community Blacklist via Truncated Composite Hashing
+</h3>
+
+<p>When a secret is identified and verified across the community, other developers should benefit instantly without having to re-analyze it through the LLM. However, sharing leaked secrets raises an immediate privacy question: <strong>How do you cross-reference secrets without transmitting sensitive values over the network?</strong></p>
+
+<p>L2 utilizes <strong>truncated composite hashing</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">public</span> <span class="nf">hashEntry</span><span class="p">(</span><span class="nx">variableName</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">value</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="kr">string</span> <span class="p">{</span>
+    <span class="c1">// Only capture the variable name and the first 8 characters of the value</span>
+    <span class="kd">const</span> <span class="nx">prefix</span> <span class="o">=</span> <span class="nx">value</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">crypto</span>
+        <span class="p">.</span><span class="nf">createHash</span><span class="p">(</span><span class="dl">'</span><span class="s1">sha256</span><span class="dl">'</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">variableName</span><span class="p">}</span><span class="s2">:</span><span class="p">${</span><span class="nx">prefix</span><span class="p">}</span><span class="s2">`</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">digest</span><span class="p">(</span><span class="dl">'</span><span class="s1">hex</span><span class="dl">'</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">16</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h4>
+  <a name="privacy-nuance-amp-threat-model" href="#privacy-nuance-amp-threat-model">
+  </a>
+  Privacy Nuance &amp; Threat Model
+</h4>
+
+<p>We deliberately avoid claiming that this hashing scheme is an "absolute privacy shield":</p>
+
+<ul>
+<li>
+<strong>What it accomplishes</strong>: The full secret is never transmitted across the wire or stored in community databases.</li>
+<li>
+<strong>The engineering trade-off</strong>: For very short secrets or known formats, truncated prefixes could theoretically be susceptible to targeted dictionary guessing. We treat this composite hash as an effective deduplication fingerprint for collaborative defense, not a one-way cryptographic commitment for sensitive data.</li>
+</ul>
+
+<p>On extension activation, DotEnvy pulls the promoted blacklist hashes into an in-memory <code>Set&lt;string&gt;</code>. Any candidate lookup is an $O(1)$ memory check with zero network overhead.</p>
+
+<h4>
+  <a name="serverside-antipoisoning-architecture" href="#serverside-antipoisoning-architecture">
+  </a>
+  Server-Side Anti-Poisoning Architecture
+</h4>
+
+<p>To prevent malicious clients from poisoning the blacklist or whitelisting actual credentials, submissions must pass a server-side reputation pipeline:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Client Submits Hash
+        │
+        ▼
+Staging Queue (Requires 3 distinct environments + reputation weighting)
+        │
+        ▼
+Server-Side Verification (Backend re-evaluates risk on the pattern)
+        │
+        ▼
+Promoted to Community Blacklist
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Threat Model Note</strong>: The 3-environment quorum and historical accuracy weighting are designed to <strong>raise the operational cost of poisoning attacks</strong>, rather than claiming Byzantine Sybil-proof consensus. High-accuracy reporters gain vote weight, while repeated false reporters are banned.</p>
+</blockquote>
+
+
+<hr>
+
+<h3>
+  <a name="layer-3-shannon-entropy-gate" href="#layer-3-shannon-entropy-gate">
+  </a>
+  Layer 3: Shannon Entropy Gate
+</h3>
+
+<p>Shannon entropy quantifies the unpredictability and information density of a string:</p>
+
+<p>$$H(X) = -\sum_{i=1}^{n} P(x_i) \log_2 P(x_i)$$</p>
+
+<p>In our feature extraction pipeline, Shannon entropy is calculated and normalized into a standard feature scalar:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="kd">const</span> <span class="nx">features</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">extractFeatures</span><span class="p">(</span><span class="nx">secretValue</span><span class="p">,</span> <span class="nx">context</span><span class="p">,</span> <span class="nx">variableName</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">entropy</span> <span class="o">=</span> <span class="nx">features</span><span class="p">[</span><span class="mi">7</span><span class="p">]</span> <span class="o">*</span> <span class="mf">8.0</span><span class="p">;</span> <span class="c1">// Denormalize f[7]</span>
+
+<span class="k">if </span><span class="p">(</span><span class="nx">entropy</span> <span class="o">&lt;</span> <span class="mf">3.5</span><span class="p">)</span> <span class="p">{</span> 
+    <span class="k">return</span> <span class="dl">'</span><span class="s1">low</span><span class="dl">'</span><span class="p">;</span> <span class="c1">// Skip expensive L4 inference entirely</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Plain text words and standard identifiers (<code>const databaseHost = "localhost"</code>) exhibit low entropy ($\approx 2.1 - 2.8$). Cryptographic secrets and API tokens (<code>sk_live_9xQ8...</code>) typically exhibit entropy values above $4.2$. </p>
+
+<p>Filtering out low-entropy candidates at L3 eliminates the vast majority of false alarms before a single byte touches the network.</p>
+
+
+<hr>
+
+<h3>
+  <a name="layer-4-contextual-neural-classifier-aegis" href="#layer-4-contextual-neural-classifier-aegis">
+  </a>
+  Layer 4: Contextual Neural Classifier (Aegis)
+</h3>
+
+<p>Tokens that survive L1–L3 enter L4. This layer evaluates a <strong>35-dimensional feature vector</strong> capturing:</p>
+
+<ol>
+<li>
+<strong>Text Morphology (6)</strong>: Uppercase ratio, digit ratio, symbol density, length normalization.</li>
+<li>
+<strong>Entropy Gradients (3)</strong>: Shannon entropy, bigram entropy, trigram entropy.</li>
+<li>
+<strong>Pattern Signals (3)</strong>: Base64 padding, hex character sets, character transition frequency.</li>
+<li>
+<strong>Context Semantics (5)</strong>: Surrounding keywords (<code>Bearer</code>, <code>Authorization</code>, <code>db_pass</code>, <code>private_key</code>).</li>
+<li>
+<strong>Identifier Conventions (4)</strong>: <code>ALL_CAPS</code> naming, presence of <code>SECRET</code>/<code>TOKEN</code>/<code>KEY</code> substrings.</li>
+<li>
+<strong>Structural Separators (4)</strong>: Dot delimiters (JWTs), underscores, dashes, colons.</li>
+<li>
+<strong>Derived Interactions (10)</strong>: Non-linear threshold flags combining entropy with context sensitivity.
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># python-llm/src/model.py
+</span><span class="k">class</span> <span class="nc">CustomLLM</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Neural risk classifier with self-attention and backpropagation.</span><span class="sh">"""</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">ModelConfig</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">embedding</span> <span class="o">=</span> <span class="nc">DenseLayer</span><span class="p">(</span><span class="mi">35</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="n">hidden_dim</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">attention</span> <span class="o">=</span> <span class="nc">MultiHeadSelfAttention</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">num_heads</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">classifier</span> <span class="o">=</span> <span class="nc">FeedForward</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="n">hidden_dim</span><span class="p">,</span> <span class="n">config</span><span class="p">.</span><span class="n">num_classes</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">optimizer</span> <span class="o">=</span> <span class="nc">Adam</span><span class="p">(</span><span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.001</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>At its current stage, the classifier is trained on an <strong>experimental curated dataset of 112+ labeled secret and non-secret samples</strong>. It runs backpropagation via Adam optimization, with model weights persisted in a PostgreSQL database surviving service redeploys.</p>
+
+
+<hr>
+
+<h2>
+  <a name="important-philosophy-risk-signals-not-a-security-oracle" href="#important-philosophy-risk-signals-not-a-security-oracle">
+  </a>
+  Important Philosophy: Risk Signals, Not a Security Oracle
+</h2>
+
+<p>A vital design principle behind Aegis:</p>
+
+<blockquote>
+<p><strong>No layer is treated as an absolute security oracle.</strong> <br>
+The pipeline generates heuristic risk classifications, not mathematical proofs of secrecy. L1 provides deterministic pattern matching for known vendor formats, while entropy and neural inference provide weighted signals to aid human developers in reviewing their environments.</p>
+</blockquote>
+
+<p>When the remote model is unreachable or rate limits are reached, the extension seamlessly falls back to local heuristic scoring without crashing or blocking the developer.</p>
+
+
+<hr>
+
+<h2>
+  <a name="oslevel-key-security-secretstorage-migration" href="#oslevel-key-security-secretstorage-migration">
+  </a>
+  OS-Level Key Security: SecretStorage Migration
+</h2>
+
+<p>A secret detector is useless if the extension itself stores encryption keys insecurely. </p>
+
+<p>In earlier versions, master keys lived in VS Code’s <code>workspaceState</code> (essentially unencrypted JSON storage). In <strong>Aegis</strong>, all master encryption keys and PBKDF2 salts were migrated to VS Code’s OS-level <strong><code>SecretStorage</code></strong>:</p>
+
+<ul>
+<li>
+<strong>macOS</strong>: Apple Keychain</li>
+<li>
+<strong>Windows</strong>: Windows Credential Manager</li>
+<li>
+<strong>Linux</strong>: Secret Service API / gnome-keyring
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">public</span> <span class="k">static</span> <span class="k">async</span> <span class="nf">ensureMasterKey</span><span class="p">(</span><span class="nx">context</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ExtensionContext</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">Buffer</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">secretsKey</span> <span class="o">=</span> <span class="s2">`</span><span class="p">${</span><span class="k">this</span><span class="p">.</span><span class="nx">SECRET_STORAGE_KEY_PREFIX</span><span class="p">}${</span><span class="nx">workspace</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+
+    <span class="c1">// 1. Check OS SecretStorage</span>
+    <span class="kd">const</span> <span class="nx">stored</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">secretsKey</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">stored</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span> <span class="nx">Buffer</span><span class="p">.</span><span class="k">from</span><span class="p">(</span><span class="nx">stored</span><span class="p">,</span> <span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">);</span> <span class="p">}</span>
+
+    <span class="c1">// 2. Zero-touch migration from legacy workspaceState</span>
+    <span class="kd">const</span> <span class="nx">legacyKey</span> <span class="o">=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">workspaceState</span><span class="p">.</span><span class="kd">get</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">secretsKey</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">legacyKey</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="nx">secretsKey</span><span class="p">,</span> <span class="nx">legacyKey</span><span class="p">);</span>
+        <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">workspaceState</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="nx">secretsKey</span><span class="p">,</span> <span class="kc">undefined</span><span class="p">);</span> <span class="c1">// Secure cleanup</span>
+        <span class="k">return</span> <span class="nx">Buffer</span><span class="p">.</span><span class="k">from</span><span class="p">(</span><span class="nx">legacyKey</span><span class="p">,</span> <span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 3. Cryptographically secure 256-bit key generation</span>
+    <span class="kd">const</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">crypto</span><span class="p">.</span><span class="nf">randomBytes</span><span class="p">(</span><span class="mi">32</span><span class="p">);</span>
+    <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="nx">secretsKey</span><span class="p">,</span> <span class="nx">key</span><span class="p">.</span><span class="nf">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">));</span>
+    <span class="k">return</span> <span class="nx">key</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The migration is completely transparent to the user, executing silently upon extension activation.</p>
+
+
+<hr>
+
+<h2>
+  <a name="test-verification" href="#test-verification">
+  </a>
+  Test Verification
+</h2>
+
+<p>Both the TypeScript extension and the Python backend are verified by end-to-end test suites:</p>
+
+<h3>
+  <a name="dotenvy-extension-vs-code" href="#dotenvy-extension-vs-code">
+  </a>
+  DotEnvy Extension (VS Code)
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>🧪 Running Complete DotEnvy Test Suite
+
+✅ [Encryption Algorithms &amp; PBKDF2]           8/8 passed
+✅ [L1–L4 Multi-Layer AI Scanner &amp; HMAC]      4/4 passed  
+✅ [Master Key Lifecycle, Password Migration]  9/9 passed
+
+🎉 21/21 TESTS PASSED
+npm run compile   → 0 errors
+npm run lint      → 0 warnings
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="aegis-backend-service-fastapi-pytorch" href="#aegis-backend-service-fastapi-pytorch">
+  </a>
+  Aegis Backend Service (FastAPI / PyTorch)
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>✅ Feature extractor: 35 features verified - OK
+✅ Neural model architecture - loss=1.1534
+✅ Forward pass evaluation - prediction: high
+✅ Full analyze pipeline execution - confidence: medium
+✅ Database round-trip test - weights save/load OK
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-next-challenge-shipping-the-detector" href="#the-next-challenge-shipping-the-detector">
+  </a>
+  The Next Challenge: Shipping the Detector
+</h2>
+
+<p>Designing a 4-layer AI scanner was only half the journey. </p>
+
+<p>When we attempted to package this extension into a <code>.vsix</code> bundle and distribute it through the VS Code Marketplace and Open VSX, we collided with two massive engineering road hazards:</p>
+
+<ol>
+<li>
+<strong>The VSIX Trap</strong>: How our attempt to authenticate extension requests with our backend accidentally created a critical secret leak vector.</li>
+<li>
+<strong>The Scanner Paradox</strong>: Why static analysis bots accused DotEnvy of leaking secrets simply because it contained the regex patterns needed to detect them!</li>
+</ol>
+
+<p>👉 <strong>Read the complete post-mortem in Part 2</strong>:<br><br>
+<strong><a href="https://dev.to/freerave/the-vsix-packaging-trap-how-i-eliminated-embedded-client-secrets-from-a-vs-code-extension-2650">The VSIX Packaging Trap: How I Eliminated Embedded Client Secrets from a VS Code Extension</a></strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="links-amp-resources" href="#links-amp-resources">
+  </a>
+  Links &amp; Resources
+</h2>
+
+<ul>
+<li>🔗 <strong>VS Code Marketplace</strong>: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy</a>
+</li>
+<li>🌐 <strong>Open VSX Registry</strong>: <a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" rel="noopener noreferrer">open-vsx.org/extension/freerave/dotenvy</a>
+</li>
+<li>📦 <strong>GitHub Repository</strong>: <a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">github.com/kareem2099/dotenvy</a>
+</li>
+<li>🐍 <strong>Backend Health</strong>: <code>https://aegis.dotsuite.dev/health</code>
+</li>
+<li>📝 <strong>Changelog</strong>: <a href="https://github.com/kareem2099/dotenvy/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">CHANGELOG.md</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Written by FreeRave. Contributions and community feedback are always welcome.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotenvy-aegis-building-a-4-layer-ai-secret-detection-pipeline-for-vs-code-115o" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotenvy-aegis-building-a-4-layer-ai-secret-detection-pipeline-for-vs-code-115o#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

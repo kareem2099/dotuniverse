@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building a Universal Drafts System in a VS Code Extension — Part 2: Sync, UI &amp; Remote Drafts — FreeRave</title>
+<meta name="description" content="In Part 1, we built the Draft type, DraftsService, and the save/upsert flow.  Now for the interesting...">
+<link rel="canonical" href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-2-sync-ui-remote-drafts-3o1j">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-2-sync-ui-remote-drafts-3o1j">
+<meta property="og:title" content="Building a Universal Drafts System in a VS Code Extension — Part 2: Sync, UI &amp; Remote Drafts — FreeRave">
+<meta property="og:description" content="In Part 1, we built the Draft type, DraftsService, and the save/upsert flow.  Now for the interesting...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fhy1s6hebwjgchk1rsz9j.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fhy1s6hebwjgchk1rsz9j.png" alt="">
+  <h1 class="post-title">Building a Universal Drafts System in a VS Code Extension — Part 2: Sync, UI &amp; Remote Drafts</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-28T16:09:38Z">28 April 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#opensource</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<p>In <a href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-1-types-storage">Part 1</a>, we built the <code>Draft</code> type, <code>DraftsService</code>, and the save/upsert flow.</p>
+
+<p>Now for the interesting parts: loading a draft, keeping the Markdown editor in sync, pulling remote drafts from Dev.to, and building the UI.</p>
+
+<p><strong>Check out this 1-minute demo of the Two-Way Sync and Remote Drafts in action:</strong></p>
+
+<p>  <iframe src="https://www.youtube.com/embed/AIb4Ye9PLl4" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="-raw-loadlocaldraft-endraw-the-twoway-sync" href="#-raw-loadlocaldraft-endraw-the-twoway-sync">
+  </a>
+  <code>loadLocalDraft</code> — The Two-Way Sync
+</h2>
+
+<p>This is the most important handler in the system.</p>
+
+<p>When you click <strong>Load</strong> on a draft, the obvious thing to do is populate the WebView form fields. But that creates a mismatch: the WebView has the draft content, but the <code>.md</code> file in your editor still has whatever was there before. If you hit "Read Current File" or save the editor, you overwrite your draft.</p>
+
+<p>The fix: loading a draft rewrites the active Markdown editor file at the same time. Both surfaces end up identical, always.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleLoadLocalDraft</span><span class="p">(</span><span class="nx">message</span><span class="p">:</span> <span class="nx">Message</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">draftId</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">draftId</span> <span class="k">as</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">draftId</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">draft</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">draftsService</span><span class="p">.</span><span class="nf">getDraft</span><span class="p">(</span><span class="nx">draftId</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">draft</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft not found.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Step 1: push the draft data to the WebView form</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">draftLoaded</span><span class="dl">'</span><span class="p">,</span> <span class="nx">draft</span> <span class="p">});</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendInfo</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft loaded!</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="c1">// Step 2: if it's an article, rewrite the active .md editor file</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">draft</span><span class="p">.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">article</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">mdEditor</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nx">visibleTextEditors</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span>
+            <span class="nx">e</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nb">document</span><span class="p">.</span><span class="nx">languageId</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">markdown</span><span class="dl">'</span>
+        <span class="p">);</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">mdEditor</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="nx">draft</span><span class="p">.</span><span class="nx">data</span> <span class="k">as</span> <span class="nx">BlogPost</span><span class="p">;</span>
+
+            <span class="c1">// Reconstruct YAML frontmatter from structured draft data</span>
+            <span class="kd">let</span> <span class="nx">content</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">---</span><span class="se">\n</span><span class="dl">'</span><span class="p">;</span>
+            <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`title: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">title</span> <span class="o">||</span> <span class="dl">'</span><span class="s1">Untitled</span><span class="dl">'</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">tags</span><span class="p">?.</span><span class="nx">length</span><span class="p">)</span>  <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`tags: [</span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">tags</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="dl">'</span><span class="s1">, </span><span class="dl">'</span><span class="p">)}</span><span class="s2">]\n`</span><span class="p">;</span>
+            <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`published: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">status</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">description</span><span class="p">)</span>   <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`description: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">description</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">coverImage</span><span class="p">)</span>    <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`cover_image: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">coverImage</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">)</span>  <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`canonical_url: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">series</span><span class="p">)</span>        <span class="nx">content</span> <span class="o">+=</span> <span class="s2">`series: </span><span class="p">${</span><span class="nx">data</span><span class="p">.</span><span class="nx">series</span><span class="p">}</span><span class="s2">\n`</span><span class="p">;</span>
+            <span class="nx">content</span> <span class="o">+=</span> <span class="dl">'</span><span class="s1">---</span><span class="se">\n</span><span class="dl">'</span><span class="p">;</span>
+            <span class="nx">content</span> <span class="o">+=</span> <span class="nx">data</span><span class="p">.</span><span class="nx">bodyMarkdown</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+
+            <span class="c1">// Replace the entire document atomically</span>
+            <span class="kd">const</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">mdEditor</span><span class="p">.</span><span class="nb">document</span><span class="p">;</span>
+            <span class="kd">const</span> <span class="nx">fullRange</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">vscode</span><span class="p">.</span><span class="nc">Range</span><span class="p">(</span>
+                <span class="nx">doc</span><span class="p">.</span><span class="nf">positionAt</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+                <span class="nx">doc</span><span class="p">.</span><span class="nf">positionAt</span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nf">getText</span><span class="p">().</span><span class="nx">length</span><span class="p">)</span>
+            <span class="p">);</span>
+            <span class="nx">mdEditor</span><span class="p">.</span><span class="nf">edit</span><span class="p">(</span><span class="nx">editBuilder</span> <span class="o">=&gt;</span> <span class="nx">editBuilder</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="nx">fullRange</span><span class="p">,</span> <span class="nx">content</span><span class="p">));</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A few things to note here:</p>
+
+<p><strong>The frontmatter is reconstructed from the structured <code>BlogPost</code> object</strong> — not stored and replayed as raw text. This means the draft system and the frontmatter parser always agree on the schema. If a field is missing from the draft, it simply won't appear in the frontmatter rather than injecting a malformed line.</p>
+
+<p><strong><code>edit()</code> is atomic from the user's perspective.</strong> Undo still works. The file on disk is not touched until the user saves manually with Ctrl+S. VS Code treats the whole replacement as a single edit operation in the history.</p>
+
+<p><strong>No visible <code>.md</code> editor? No problem.</strong> If there's no Markdown file open, the WebView still gets populated. The sync only fires when there's an editor to sync to.</p>
+
+
+<hr>
+
+<h2>
+  <a name="-raw-fetchdevtodrafts-endraw-remote-drafts" href="#-raw-fetchdevtodrafts-endraw-remote-drafts">
+  </a>
+  <code>fetchDevToDrafts</code> — Remote Drafts
+</h2>
+
+<p>Local drafts solve the "WebView reset" problem. But there's another scenario: you saved a draft to Dev.to weeks ago and want to resume editing it in DotShare. That means pulling remote drafts from the API.</p>
+
+<p>The handler calls <code>fetchDevToArticles</code>, which hits <code>/api/articles/me/all?per_page=100</code> — returning both published and draft articles — and maps each result to the same <code>Draft</code> interface:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleFetchDevToDrafts</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">devtoApiKey</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">devtoApiKey</span><span class="dl">'</span><span class="p">)</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">devtoApiKey</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">Dev.to API Key not configured.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">articles</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetchDevToArticles</span><span class="p">(</span><span class="nx">devtoApiKey</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">drafts</span> <span class="o">=</span> <span class="nx">articles</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">a</span> <span class="o">=&gt;</span> <span class="p">({</span>
+        <span class="na">id</span><span class="p">:</span> <span class="s2">`devto_</span><span class="p">${</span><span class="nx">a</span><span class="p">.</span><span class="nx">id</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">article</span><span class="dl">'</span> <span class="k">as</span> <span class="kd">const</span><span class="p">,</span>
+        <span class="na">timestamp</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">published_at</span> <span class="o">||</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+        <span class="na">platforms</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">]</span> <span class="k">as</span> <span class="nx">SocialPlatform</span><span class="p">[],</span>
+        <span class="na">title</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+        <span class="na">isRemote</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+        <span class="na">remoteId</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">id</span><span class="p">?.</span><span class="nf">toString</span><span class="p">(),</span>
+        <span class="na">data</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">title</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+            <span class="na">bodyMarkdown</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">body_markdown</span> <span class="o">||</span> <span class="dl">''</span><span class="p">,</span>
+            <span class="na">tags</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">tags</span> <span class="o">||</span> <span class="p">[],</span>
+            <span class="na">status</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">published</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span> <span class="p">:</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">platformId</span><span class="p">:</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">url</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">url</span><span class="p">,</span>
+            <span class="na">canonicalUrl</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">canonical_url</span><span class="p">,</span>
+            <span class="na">coverImage</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">cover_image</span><span class="p">,</span>
+            <span class="na">description</span><span class="p">:</span> <span class="nx">a</span><span class="p">.</span><span class="nx">description</span><span class="p">,</span>
+        <span class="p">}</span> <span class="k">as</span> <span class="nx">BlogPost</span><span class="p">,</span>
+    <span class="p">}));</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+        <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">remoteDraftsLoaded</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">platform</span><span class="p">:</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">,</span>
+        <span class="nx">drafts</span><span class="p">,</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>isRemote: true</code> is the key flag. The WebView checks it before offering any "Save Locally" action — remote drafts are updated via <code>PUT /api/articles/:id</code>, not written to <code>globalState</code>. Clicking Load on a remote draft still triggers the full two-way sync, so the article body lands in both the WebView and the Markdown editor simultaneously.</p>
+
+<p>The <code>updateDevToArticle</code> handler wraps the Dev.to update API:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleUpdateDevToArticle</span><span class="p">(</span><span class="nx">message</span><span class="p">:</span> <span class="nx">Message</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">devtoApiKey</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">devtoApiKey</span><span class="dl">'</span><span class="p">)</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">remoteId</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">remoteId</span> <span class="k">as</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">data</span> <span class="k">as</span> <span class="nb">Partial</span><span class="o">&lt;</span><span class="nx">BlogPost</span><span class="o">&gt;</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">result</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">updateDevToArticle</span><span class="p">(</span><span class="nx">devtoApiKey</span><span class="p">,</span> <span class="nf">parseInt</span><span class="p">(</span><span class="nx">remoteId</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="p">{</span>
+        <span class="na">text</span><span class="p">:</span>         <span class="nx">data</span><span class="p">.</span><span class="nx">bodyMarkdown</span> <span class="o">??</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">title</span><span class="p">:</span>        <span class="nx">data</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+        <span class="na">tags</span><span class="p">:</span>         <span class="nx">data</span><span class="p">.</span><span class="nx">tags</span><span class="p">,</span>
+        <span class="na">published</span><span class="p">:</span>    <span class="nx">data</span><span class="p">.</span><span class="nx">status</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">description</span><span class="p">:</span>  <span class="nx">data</span><span class="p">.</span><span class="nx">description</span><span class="p">,</span>
+        <span class="na">coverImage</span><span class="p">:</span>   <span class="nx">data</span><span class="p">.</span><span class="nx">coverImage</span><span class="p">,</span>
+        <span class="na">canonicalUrl</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">,</span>
+        <span class="na">series</span><span class="p">:</span>       <span class="nx">data</span><span class="p">.</span><span class="nx">series</span><span class="p">,</span>
+    <span class="p">});</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendSuccess</span><span class="p">(</span><span class="s2">`Updated on Dev.to! </span><span class="p">${</span><span class="nx">result</span><span class="p">.</span><span class="nx">url</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">handleFetchDevToDrafts</span><span class="p">();</span> <span class="c1">// refresh the remote list</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-reset-boilerplate-button" href="#the-reset-boilerplate-button">
+  </a>
+  The Reset Boilerplate Button
+</h2>
+
+<p>A small feature with outsized usefulness. One click wipes both the WebView form and the Markdown editor back to a clean template. No manual selection, no Ctrl+A Delete, no hunting for leftover frontmatter fields.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleResetBlogMarkdown</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">mdEditor</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nx">visibleTextEditors</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span>
+        <span class="nx">e</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nb">document</span><span class="p">.</span><span class="nx">languageId</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">markdown</span><span class="dl">'</span>
+    <span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">mdEditor</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">No active markdown file found to reset.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">boilerplate</span> <span class="o">=</span> <span class="s2">`---
+title: add ur title
+tags: [add, tags, max, 4]
+published: false
+description: add ur description
+---
+Start writing your article here...
+`</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">mdEditor</span><span class="p">.</span><span class="nb">document</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">fullRange</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">vscode</span><span class="p">.</span><span class="nc">Range</span><span class="p">(</span>
+        <span class="nx">doc</span><span class="p">.</span><span class="nf">positionAt</span><span class="p">(</span><span class="mi">0</span><span class="p">),</span>
+        <span class="nx">doc</span><span class="p">.</span><span class="nf">positionAt</span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nf">getText</span><span class="p">().</span><span class="nx">length</span><span class="p">)</span>
+    <span class="p">);</span>
+    <span class="nx">mdEditor</span><span class="p">.</span><span class="nf">edit</span><span class="p">(</span><span class="nx">editBuilder</span> <span class="o">=&gt;</span> <span class="nx">editBuilder</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="nx">fullRange</span><span class="p">,</span> <span class="nx">boilerplate</span><span class="p">));</span>
+
+    <span class="c1">// Sync the WebView form too</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+        <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">updateBlogFrontmatter</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">frontmatter</span><span class="p">:</span> <span class="p">{</span>
+            <span class="na">title</span><span class="p">:</span> <span class="dl">'</span><span class="s1">add ur title</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">tags</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">add</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">tags</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">max</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">4</span><span class="dl">'</span><span class="p">],</span>
+            <span class="na">published</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+            <span class="na">description</span><span class="p">:</span> <span class="dl">'</span><span class="s1">add ur description</span><span class="dl">'</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">});</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+        <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">updatePost</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">post</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Start writing your article here...</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">});</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendSuccess</span><span class="p">(</span><span class="dl">'</span><span class="s1">Markdown boilerplate reset!</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-webview-ui" href="#the-webview-ui">
+  </a>
+  The WebView UI
+</h2>
+
+<p>The drafts section lives at the bottom of every platform panel, after the workspace composer. The HTML uses <code>{{PLATFORM_NAME}}</code> tokens that get injected by <code>DotShareWebView._buildPlatformHtml()</code> at panel creation time:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"drafts-section"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;h3&gt;</span>📝 Saved Drafts<span class="nt">&lt;/h3&gt;</span>
+  <span class="nt">&lt;p&gt;</span>Drafts for {{PLATFORM_NAME}}<span class="nt">&lt;/p&gt;</span>
+
+  <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"drafts-loading"</span> <span class="na">class=</span><span class="s">"empty-state"</span><span class="nt">&gt;</span>Loading drafts...<span class="nt">&lt;/div&gt;</span>
+
+  <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"drafts-empty"</span> <span class="na">class=</span><span class="s">"empty-state"</span> <span class="na">style=</span><span class="s">"display:none;"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"empty-icon"</span><span class="nt">&gt;</span>📝<span class="nt">&lt;/div&gt;</span>
+    <span class="nt">&lt;div&gt;</span>No local drafts yet<span class="nt">&lt;/div&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+
+  <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"drafts-list"</span> <span class="na">class=</span><span class="s">"drafts-grid"</span> <span class="na">style=</span><span class="s">"display:none;"</span><span class="nt">&gt;</span>
+    <span class="c">&lt;!-- Rendered by JS --&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+
+  <span class="c">&lt;!-- Remote drafts — only shown for Dev.to --&gt;</span>
+  <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"remote-drafts-container"</span> <span class="na">style=</span><span class="s">"display:none; margin-top:16px;"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;h3&gt;</span>🌐 Remote Drafts<span class="nt">&lt;/h3&gt;</span>
+    <span class="nt">&lt;button</span> <span class="na">class=</span><span class="s">"btn btn-secondary btn-sm"</span> <span class="na">id=</span><span class="s">"btn-fetch-remote-drafts"</span><span class="nt">&gt;</span>
+      Fetch Remote Drafts
+    <span class="nt">&lt;/button&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"remote-drafts-list"</span> <span class="na">class=</span><span class="s">"drafts-grid"</span> <span class="na">style=</span><span class="s">"display:none;"</span><span class="nt">&gt;&lt;/div&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+<span class="nt">&lt;/div&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Draft cards are rendered dynamically by the WebView JS and styled using VS Code's native CSS variables — they adapt to any theme automatically:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.draft-card</span> <span class="p">{</span>
+    <span class="nl">background</span><span class="p">:</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-editorWorkspace-background</span><span class="p">,</span> <span class="m">#1e1e1e</span><span class="p">);</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-editorWidget-border</span><span class="p">);</span>
+    <span class="nl">border-left</span><span class="p">:</span> <span class="m">3px</span> <span class="nb">solid</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-button-background</span><span class="p">);</span>
+    <span class="nl">border-radius</span><span class="p">:</span> <span class="m">8px</span><span class="p">;</span>
+    <span class="nl">padding</span><span class="p">:</span> <span class="m">12px</span><span class="p">;</span>
+    <span class="nl">transition</span><span class="p">:</span> <span class="n">border-color</span> <span class="m">0.15s</span><span class="p">,</span> <span class="n">box-shadow</span> <span class="m">0.15s</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nc">.draft-card</span><span class="nd">:hover</span> <span class="p">{</span>
+    <span class="nl">border-color</span><span class="p">:</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-focusBorder</span><span class="p">);</span>
+    <span class="nl">box-shadow</span><span class="p">:</span> <span class="m">0</span> <span class="m">2px</span> <span class="m">8px</span> <span class="n">rgba</span><span class="p">(</span><span class="m">0</span><span class="p">,</span><span class="m">0</span><span class="p">,</span><span class="m">0</span><span class="p">,</span><span class="m">0.12</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c">/* Badge colors */</span>
+<span class="nc">.draft-badge.article</span> <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="m">#8b5cf6</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* purple = local article */</span>
+<span class="nc">.draft-badge.remote</span>  <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="m">#10b981</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* green  = remote Dev.to */</span>
+
+<span class="c">/* Active draft gets a focus ring */</span>
+<span class="nc">.draft-card--active</span> <span class="p">{</span>
+    <span class="nl">border-left-color</span><span class="p">:</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-focusBorder</span><span class="p">,</span> <span class="m">#6c63ff</span><span class="p">);</span>
+    <span class="nl">box-shadow</span><span class="p">:</span> <span class="m">0</span> <span class="m">0</span> <span class="m">0</span> <span class="m">1px</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-focusBorder</span><span class="p">,</span> <span class="m">#6c63ff</span><span class="p">),</span>
+                <span class="m">0</span> <span class="m">2px</span> <span class="m">8px</span> <span class="n">rgba</span><span class="p">(</span><span class="m">108</span><span class="p">,</span> <span class="m">99</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.15</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>border-left: 3px solid</code> accent pattern is borrowed from VS Code's own Problems panel — instantly familiar to VS Code users without any learning curve.</p>
+
+
+<hr>
+
+<h2>
+  <a name="spliteditor-workflow" href="#spliteditor-workflow">
+  </a>
+  Split-Editor Workflow
+</h2>
+
+<p>When you click <strong>Create Post</strong> for Dev.to or Medium, the extension creates (or opens) a named <code>.md</code> file and shows it in a side-by-side split next to the WebView panel:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">if </span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nx">workspaceType</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">blogs</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">workspacePath</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">workspace</span><span class="p">.</span><span class="nx">workspaceFolders</span><span class="p">?.[</span><span class="mi">0</span><span class="p">]?.</span><span class="nx">uri</span><span class="p">.</span><span class="nx">fsPath</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">workspacePath</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">mdFilePath</span> <span class="o">=</span> <span class="nx">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nx">workspacePath</span><span class="p">,</span> <span class="s2">`dotshare-</span><span class="p">${</span><span class="nx">platformKey</span><span class="p">}</span><span class="s2">.md`</span><span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">fs</span><span class="p">.</span><span class="nf">existsSync</span><span class="p">(</span><span class="nx">mdFilePath</span><span class="p">))</span> <span class="p">{</span>
+        <span class="nx">fs</span><span class="p">.</span><span class="nf">writeFileSync</span><span class="p">(</span><span class="nx">mdFilePath</span><span class="p">,</span> <span class="s2">`---
+title: add ur title
+tags: [add, tags, max, 4]
+published: false
+description: add ur description
+---
+Start writing your article here...
+`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nx">vscode</span><span class="p">.</span><span class="nx">workspace</span><span class="p">.</span><span class="nf">openTextDocument</span><span class="p">(</span><span class="nx">mdFilePath</span><span class="p">).</span><span class="nf">then</span><span class="p">(</span><span class="nx">doc</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="c1">// WebView = Column One, Markdown = Beside it</span>
+        <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showTextDocument</span><span class="p">(</span><span class="nx">doc</span><span class="p">,</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ViewColumn</span><span class="p">.</span><span class="nx">Beside</span><span class="p">);</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The file is named — <code>dotshare-devto.md</code>, <code>dotshare-medium.md</code> — not untitled. Named files persist across VS Code restarts, work naturally with git, and give you a free version-controlled article history. You can also open the file in any external editor and the Two-Way Sync will pick up the changes next time you hit "Read Current File."</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-flow-in-one-diagram" href="#the-full-flow-in-one-diagram">
+  </a>
+  The Full Flow in One Diagram
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>WebView                  MessageHandler       PostHandler          DraftsService / API
+   │                          │                   │                      │
+   │─ saveLocalDraft ────────►│                   │                      │
+   │                          │─ includes('Draft')►│                      │
+   │                          │                   │─ saveDraft() ────────►│
+   │                          │                   │◄── Draft ────────────│
+   │◄─ draftLoaded ───────────────────────────────│                      │
+   │◄─ draftsLoaded ──────────────────────────────│                      │
+   │                          │                   │                      │
+   │─ loadLocalDraft ────────►│                   │                      │
+   │                          │                   │─ getDraft() ─────────►│
+   │◄─ draftLoaded ───────────────────────────────│                      │
+   │                          │         mdEditor.edit() ◄──── Two-Way Sync
+   │                          │                   │                      │
+   │─ fetchDevToDrafts ──────►│                   │                      │
+   │                          │                   │─ fetchDevToArticles()─►Dev.to API
+   │◄─ remoteDraftsLoaded ────────────────────────│                      │
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next" href="#whats-next">
+  </a>
+  What's Next
+</h2>
+
+<p>The system solves the core problem. A few things I plan to add:</p>
+
+<ul>
+<li>
+<strong>Auto-save on blur</strong> — checkpoint the draft every time the textarea loses focus, no button press needed</li>
+<li>
+<strong>Draft preview</strong> — show the first 3 lines of the article inline in the draft card</li>
+<li>
+<strong>Conflict detection</strong> — when a remote Dev.to draft differs from a local copy, show a diff</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try It
+</h2>
+
+<p>DotShare is free and open source under Apache 2.0. Try it out on your preferred registry:</p>
+
+<ul>
+<li>
+<strong>VS Code Marketplace:</strong> <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">Install DotShare</a> (or run <code>ext install freerave.dotshare</code>)</li>
+<li>
+<strong>Open VSX Registry:</strong> <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Available here</a> (for VSCodium users)</li>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotShare</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Built by <a href="https://dev.to/freerave">@FreeRave</a></em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-2-sync-ui-remote-drafts-3o1j" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-2-sync-ui-remote-drafts-3o1j#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

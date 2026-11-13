@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Native RTL Python GUI with Tkinter (and it actually looks good) — FreeRave</title>
+<meta name="description" content="Let's be honest: Python Tkinter has a bad reputation. Most people think of Windows 95-style gray...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-native-rtl-python-gui-with-tkinter-and-it-actually-looks-good-4og5">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-native-rtl-python-gui-with-tkinter-and-it-actually-looks-good-4og5">
+<meta property="og:title" content="I Built a Native RTL Python GUI with Tkinter (and it actually looks good) — FreeRave">
+<meta property="og:description" content="Let's be honest: Python Tkinter has a bad reputation. Most people think of Windows 95-style gray...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flwz81nn63klhbyn9llst.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flwz81nn63klhbyn9llst.png" alt="">
+  <h1 class="post-title">I Built a Native RTL Python GUI with Tkinter (and it actually looks good)</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-01T11:00:00Z">1 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#opensource</span><span class="post-tag">#gui</span><span class="post-tag">#showdev</span></div>
+  </div>
+  <article class="post-body">
+<p>Let's be honest: Python Tkinter has a bad reputation. Most people think of Windows 95-style gray buttons and clunky interfaces when they hear "Tkinter".</p>
+
+<p>I wanted to challenge that.</p>
+
+<p>For the past few weeks, I've been rebuilding my open-source privacy tool, DotScramble, from the ground up. My goal was to prove that you can build a modern, scalable, and fully localized desktop app with standard Python libraries if you use the right architecture.</p>
+
+<p>Today, I released v1.2.3, and here is how I solved the biggest engineering challenges.</p>
+
+<p>The Move to MVC<br>
+The old version was a "monolithic script"—you know the type. main.py was getting dangerously close to 1,000 lines, and adding a simple feature broke three others.</p>
+
+<p>I refactored the entire codebase into a strict Model-View-Controller (MVC) pattern:</p>
+
+<p>Models: Handle the heavy lifting (OpenCV image processing, Face Detection logic).</p>
+
+<p>Views: Pure UI code. They don't know how things work, they just display data.</p>
+
+<p>Controllers: The glue. They take user input from the View and tell the Model what to do.</p>
+
+<p>This separation made the code incredibly stable and easy to test.</p>
+
+<p>The "RTL" Challenge<br>
+The hardest feature to implement was Native Arabic Support. In many apps, switching languages just changes the text. But for Arabic (or Hebrew), the entire layout needs to mirror.</p>
+
+<p>Sidebar: Left ➡️ Right</p>
+
+<p>Toolbar: Left ➡️ Right</p>
+
+<p>Icons: Flipped</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/rOjPJCLsMV8" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>I built a dynamic RTL_Manager that detects the language direction and rebuilds the grid layout on the fly. You can switch between English and Arabic instantly, and the UI literally flips before your eyes. No restart required.</p>
+
+<p>Modern UI &amp; Persistence<br>
+To make it look 2026-ready, I implemented:</p>
+
+<p>Theme Engine: A centralized theme manager supporting "Cyberpunk", "One Dark", and "Dracula" palettes.</p>
+
+<p>SQLite Auto-Save: I got tired of re-setting my blur strength every time I opened the app. Now, a lightweight SQLite DB saves every slider position and toggle state in real-time.</p>
+
+<p>Features Overview<br>
+Face/Plate/Text Detection: Powered by OpenCV and Tesseract.</p>
+
+<p>Batch Processing: Drag &amp; drop a folder of 100 images, apply a "Pixelate" effect, and export them all in seconds.</p>
+
+<p>Privacy First: Everything runs locally. No cloud uploads.</p>
+
+<p>Open Source<br>
+This project is 100% open source. If you're curious about how I handled the RTL logic or the MVC structure in Python, check out the repo!</p>
+
+<p>GitHub Repository: <a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotScramble</a></p>
+
+<p>I'd love to hear your feedback or see your PRs!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-native-rtl-python-gui-with-tkinter-and-it-actually-looks-good-4og5" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 1
+    · <a href="https://dev.to/freerave/i-built-a-native-rtl-python-gui-with-tkinter-and-it-actually-looks-good-4og5#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

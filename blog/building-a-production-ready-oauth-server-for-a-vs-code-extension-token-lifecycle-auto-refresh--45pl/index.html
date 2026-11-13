@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building a Production-Ready OAuth Server for a VS Code Extension — Token Lifecycle, Auto-Refresh &amp; Edge Rate Limiting — FreeRave</title>
+<meta name="description" content="How we built DotShare Auth: a Next.js 16 OAuth portal that handles token exchange, automatic...">
+<link rel="canonical" href="https://dev.to/freerave/building-a-production-ready-oauth-server-for-a-vs-code-extension-token-lifecycle-auto-refresh--45pl">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-a-production-ready-oauth-server-for-a-vs-code-extension-token-lifecycle-auto-refresh--45pl">
+<meta property="og:title" content="Building a Production-Ready OAuth Server for a VS Code Extension — Token Lifecycle, Auto-Refresh &amp; Edge Rate Limiting — FreeRave">
+<meta property="og:description" content="How we built DotShare Auth: a Next.js 16 OAuth portal that handles token exchange, automatic...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmesotfm2vdfiaam32zya.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmesotfm2vdfiaam32zya.png" alt="">
+  <h1 class="post-title">Building a Production-Ready OAuth Server for a VS Code Extension — Token Lifecycle, Auto-Refresh &amp; Edge Rate Limiting</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-05T14:56:45Z">5 April 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#nextjs</span><span class="post-tag">#vscode</span><span class="post-tag">#oauth</span><span class="post-tag">#typescript</span></div>
+  </div>
+  <article class="post-body">
+<blockquote>
+<p>How we built DotShare Auth: a Next.js 16 OAuth portal that handles token exchange, automatic refresh, and edge-level rate limiting for a VS Code extension that publishes to LinkedIn, X, Facebook, and Reddit.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="table-of-contents" href="#table-of-contents">
+  </a>
+  Table of Contents
+</h2>
+
+<ol>
+<li>The Problem</li>
+<li>Architecture Overview</li>
+<li>The Auth Server</li>
+<li>Token Lifecycle in the Extension</li>
+<li>Edge Rate Limiting with Upstash Redis</li>
+<li>Lessons Learned</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="1-the-problem" href="#1-the-problem">
+  </a>
+  1. The Problem
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcdzxkegtzovwx71dvnkl.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcdzxkegtzovwx71dvnkl.png" alt="Architecture diagram comparing unsafe client-side OAuth with our secure server proxy solution" loading="lazy" width="799" height="436"></a></p>
+
+<p>DotShare is a VS Code extension that lets developers publish content directly to social platforms. To post on behalf of a user, it needs OAuth tokens from LinkedIn, X (Twitter), Facebook, and Reddit.</p>
+
+<p>The naive approach? Ask the user to paste tokens manually. That's awful UX.</p>
+
+<p>The real problems we had to solve:</p>
+
+<ul>
+<li>Each platform has a <strong>different OAuth flow</strong> (PKCE, Basic Auth, state params)</li>
+<li>App secrets (<code>CLIENT_SECRET</code>, <code>APP_SECRET</code>) can't live in the extension — it's client-side code anyone can inspect</li>
+<li>Tokens <strong>expire</strong> — X tokens last ~2 hours, Facebook tokens last ~60 days</li>
+<li>We needed <strong>zero manual re-authentication</strong> after the initial connect</li>
+</ul>
+
+<p>Our solution: a dedicated Next.js 16 auth server that acts as a secure proxy between VS Code and the OAuth providers.</p>
+
+
+<hr>
+
+<h2>
+  <a name="2-architecture-overview" href="#2-architecture-overview">
+  </a>
+  2. Architecture Overview
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyf5aikmnootzm1uibwm5.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyf5aikmnootzm1uibwm5.png" alt="Step-by-step OAuth architecture flow: VS Code to Auth Server to Providers and back via deep link" loading="lazy" width="799" height="436"></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>VS Code Extension
+  → opens browser to https://dotshare-auth-server.vercel.app/auth/{platform}
+  → user clicks "Authenticate" (one click, no credentials to enter)
+  → redirected to platform OAuth page
+  → platform redirects back to /auth/{platform}/callback
+  → server exchanges code for token using .env secrets
+  → browser redirects to vscode://freerave.dotshare/auth?platform=x&amp;access_token=...&amp;refresh_token=...&amp;expires_in=7200
+  → VS Code extension receives token automatically
+  → TokenManager stores token + expiry in SecretStorage
+  → before every API call: TokenManager checks expiry → refreshes if needed
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Key design decisions:</strong></p>
+
+<ul>
+<li>Auth server is <strong>stateless</strong> — no database, no user accounts</li>
+<li>Tokens are <strong>never stored server-side</strong> — passed directly via deep link</li>
+<li>All OAuth secrets live in <strong>server <code>.env</code></strong> only</li>
+<li>The extension handles all <strong>token lifecycle</strong> (expiry tracking, refresh)</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="3-the-auth-server" href="#3-the-auth-server">
+  </a>
+  3. The Auth Server
+</h2>
+
+<h3>
+  <a name="single-source-of-truth" href="#single-source-of-truth">
+  </a>
+  Single Source of Truth
+</h3>
+
+<p>Instead of scattering platform config across multiple files, everything lives in one place:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffujjpsmu0riqozxffjpk.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffujjpsmu0riqozxffjpk.png" alt="Code snippet of lib/platforms.ts showing centralized OAuth configuration for multiple platforms" loading="lazy" width="800" height="1090"></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// lib/platforms.ts</span>
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">PlatformConfig</span> <span class="p">{</span>
+    <span class="nl">name</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">icon</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">description</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">scopes</span><span class="p">:</span> <span class="kr">string</span><span class="p">[];</span>
+    <span class="nl">authUrl</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">envKey</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>           <span class="c1">// NEXT_PUBLIC_* variable name</span>
+    <span class="nl">titleGradientTo</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span> <span class="c1">// gradient color for the title</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">PlatformKey</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">linkedin</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">x</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">facebook</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">PLATFORMS</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="nx">PlatformConfig</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">linkedin</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">LinkedIn</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">in</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">description</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Professional network</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">scopes</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">openid</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">profile</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">email</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">w_member_social</span><span class="dl">'</span><span class="p">],</span>
+        <span class="na">authUrl</span><span class="p">:</span> <span class="dl">'</span><span class="s1">https://www.linkedin.com/oauth/v2/authorization</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">envKey</span><span class="p">:</span> <span class="dl">'</span><span class="s1">NEXT_PUBLIC_LINKEDIN_CLIENT_ID</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">titleGradientTo</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#4da3ff</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="na">x</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">X (Twitter)</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">𝕏</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">description</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Public discourse</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">scopes</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">tweet.read</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">tweet.write</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">users.read</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">offline.access</span><span class="dl">'</span><span class="p">],</span>
+        <span class="na">authUrl</span><span class="p">:</span> <span class="dl">'</span><span class="s1">https://twitter.com/i/oauth2/authorize</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">envKey</span><span class="p">:</span> <span class="dl">'</span><span class="s1">NEXT_PUBLIC_X_CLIENT_ID</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="na">facebook</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Facebook</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">f</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">description</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Social network</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">scopes</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">pages_manage_posts</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">pages_read_engagement</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">publish_to_groups</span><span class="dl">'</span><span class="p">],</span>
+        <span class="na">authUrl</span><span class="p">:</span> <span class="dl">'</span><span class="s1">https://www.facebook.com/v18.0/dialog/oauth</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">envKey</span><span class="p">:</span> <span class="dl">'</span><span class="s1">NEXT_PUBLIC_FACEBOOK_APP_ID</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">titleGradientTo</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#42a5f5</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="na">reddit</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Reddit</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">r/</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">description</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Discussion forums</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">scopes</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">submit</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">read</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">identity</span><span class="dl">'</span><span class="p">],</span>
+        <span class="na">authUrl</span><span class="p">:</span> <span class="dl">'</span><span class="s1">https://www.reddit.com/api/v1/authorize</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">envKey</span><span class="p">:</span> <span class="dl">'</span><span class="s1">NEXT_PUBLIC_REDDIT_CLIENT_ID</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">titleGradientTo</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#ff7043</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Adding a new platform? One file. The home page, auth pages, and callback pages all read from <code>PLATFORMS</code> automatically.</p>
+
+
+<hr>
+
+<h3>
+  <a name="eliminating-duplicate-ui-code" href="#eliminating-duplicate-ui-code">
+  </a>
+  Eliminating Duplicate UI Code
+</h3>
+
+<p>The original codebase had 4 identical auth pages and 4 identical callback pages — ~600 lines of copy-pasted React. We collapsed them into shared components:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Before: 150 lines per platform</span>
+<span class="c1">// facebook/page.tsx — full component with all the logic</span>
+
+<span class="c1">// After: 1 line per platform</span>
+<span class="c1">// facebook/page.tsx</span>
+<span class="dl">'</span><span class="s1">use client</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">AuthPage</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">@/components/AuthPage</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">export</span> <span class="k">default</span> <span class="kd">function</span> <span class="nf">FacebookAuth</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="o">&lt;</span><span class="nx">AuthPage</span> <span class="nx">platform</span><span class="o">=</span><span class="dl">"</span><span class="s2">facebook</span><span class="dl">"</span> <span class="o">/&gt;</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>useOAuthInit</code> hook handles all the OAuth initiation logic — PKCE for X, state for X and Reddit, <code>duration=permanent</code> for Reddit:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// hooks/useOAuthInit.ts</span>
+<span class="kd">const</span> <span class="nx">PKCE_PLATFORMS</span><span class="p">:</span> <span class="nx">PlatformKey</span><span class="p">[]</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">];</span>
+<span class="kd">const</span> <span class="nx">STATEFUL_PLATFORMS</span><span class="p">:</span> <span class="nx">PlatformKey</span><span class="p">[]</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">];</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">useOAuthInit</span><span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="nx">PlatformKey</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="p">[</span><span class="nx">loading</span><span class="p">,</span> <span class="nx">setLoading</span><span class="p">]</span> <span class="o">=</span> <span class="nf">useState</span><span class="p">(</span><span class="kc">false</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="p">[</span><span class="nx">error</span><span class="p">,</span> <span class="nx">setError</span><span class="p">]</span> <span class="o">=</span> <span class="nf">useState</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">handleAuth</span> <span class="o">=</span> <span class="k">async </span><span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">config</span> <span class="o">=</span> <span class="nx">PLATFORMS</span><span class="p">[</span><span class="nx">platform</span><span class="p">];</span>
+        <span class="kd">const</span> <span class="nx">clientId</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">[</span><span class="nx">config</span><span class="p">.</span><span class="nx">envKey</span> <span class="k">as</span> <span class="kr">keyof</span> <span class="k">typeof</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">];</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">clientId</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nf">setError</span><span class="p">(</span><span class="s2">`Missing </span><span class="p">${</span><span class="nx">config</span><span class="p">.</span><span class="nx">envKey</span><span class="p">}</span><span class="s2"> in .env`</span><span class="p">);</span>
+            <span class="k">return</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="nf">setLoading</span><span class="p">(</span><span class="kc">true</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">authUrl</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URL</span><span class="p">(</span><span class="nx">config</span><span class="p">.</span><span class="nx">authUrl</span><span class="p">);</span>
+        <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">client_id</span><span class="dl">'</span><span class="p">,</span> <span class="nx">clientId</span><span class="p">);</span>
+        <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">redirect_uri</span><span class="dl">'</span><span class="p">,</span> <span class="s2">`</span><span class="p">${</span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">origin</span><span class="p">}</span><span class="s2">/auth/</span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2">/callback`</span><span class="p">);</span>
+        <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">response_type</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">code</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">scope</span><span class="dl">'</span><span class="p">,</span> <span class="nx">config</span><span class="p">.</span><span class="nx">scopes</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="dl">'</span><span class="s1"> </span><span class="dl">'</span><span class="p">));</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">STATEFUL_PLATFORMS</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="nx">platform</span><span class="p">))</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">state</span> <span class="o">=</span> <span class="nf">generateState</span><span class="p">();</span>
+            <span class="nx">sessionStorage</span><span class="p">.</span><span class="nf">setItem</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2">_state`</span><span class="p">,</span> <span class="nx">state</span><span class="p">);</span>
+            <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">state</span><span class="dl">'</span><span class="p">,</span> <span class="nx">state</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">PKCE_PLATFORMS</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="nx">platform</span><span class="p">))</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">codeVerifier</span> <span class="o">=</span> <span class="nf">generateCodeVerifier</span><span class="p">();</span>
+            <span class="kd">const</span> <span class="nx">codeChallenge</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">generateCodeChallenge</span><span class="p">(</span><span class="nx">codeVerifier</span><span class="p">);</span>
+            <span class="nx">sessionStorage</span><span class="p">.</span><span class="nf">setItem</span><span class="p">(</span><span class="dl">'</span><span class="s1">x_code_verifier</span><span class="dl">'</span><span class="p">,</span> <span class="nx">codeVerifier</span><span class="p">);</span>
+            <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">code_challenge</span><span class="dl">'</span><span class="p">,</span> <span class="nx">codeChallenge</span><span class="p">);</span>
+            <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">code_challenge_method</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">S256</span><span class="dl">'</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">platform</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">authUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">duration</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">permanent</span><span class="dl">'</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="nx">authUrl</span><span class="p">.</span><span class="nf">toString</span><span class="p">();</span>
+    <span class="p">};</span>
+
+    <span class="k">return</span> <span class="p">{</span> <span class="nx">handleAuth</span><span class="p">,</span> <span class="nx">loading</span><span class="p">,</span> <span class="nx">error</span> <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="token-refresh-endpoints" href="#token-refresh-endpoints">
+  </a>
+  Token Refresh Endpoints
+</h3>
+
+<p>Not all platforms support token refresh the same way:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Support</th>
+<th>Endpoint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>X</td>
+<td>✅ Standard refresh</td>
+<td><code>POST /api/auth/x/refresh</code></td>
+</tr>
+<tr>
+<td>Reddit</td>
+<td>✅ Standard refresh</td>
+<td><code>POST /api/auth/reddit/refresh</code></td>
+</tr>
+<tr>
+<td>Facebook</td>
+<td>⚠️ Token extension (60 days)</td>
+<td><code>POST /api/auth/facebook/extend</code></td>
+</tr>
+<tr>
+<td>LinkedIn</td>
+<td>❌ Enterprise only</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><strong>X refresh</strong> (public client — no secret needed, just client ID):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// app/api/auth/x/refresh/route.ts</span>
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">POST</span><span class="p">(</span><span class="nx">req</span><span class="p">:</span> <span class="nx">NextRequest</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="p">{</span> <span class="nx">refreshToken</span> <span class="p">}</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">req</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">clientId</span> <span class="o">=</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">X_CLIENT_ID</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">params</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+        <span class="na">grant_type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">refresh_token</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">refresh_token</span><span class="p">:</span> <span class="nx">refreshToken</span><span class="p">,</span>
+        <span class="na">client_id</span><span class="p">:</span> <span class="nx">clientId</span><span class="o">!</span><span class="p">,</span>
+    <span class="p">});</span>
+
+    <span class="kd">const</span> <span class="nx">basicAuth</span> <span class="o">=</span> <span class="nx">Buffer</span><span class="p">.</span><span class="k">from</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">clientId</span><span class="p">}</span><span class="s2">:`</span><span class="p">).</span><span class="nf">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">'</span><span class="s1">https://api.twitter.com/2/oauth2/token</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">'</span><span class="s1">POST</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+            <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/x-www-form-urlencoded</span><span class="dl">'</span><span class="p">,</span>
+            <span class="dl">'</span><span class="s1">Authorization</span><span class="dl">'</span><span class="p">:</span> <span class="s2">`Basic </span><span class="p">${</span><span class="nx">basicAuth</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="na">body</span><span class="p">:</span> <span class="nx">params</span><span class="p">.</span><span class="nf">toString</span><span class="p">(),</span>
+    <span class="p">});</span>
+
+    <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">response</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+    <span class="k">return</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">json</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Facebook token extension</strong> (short-lived → 60-day long-lived):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// app/api/auth/facebook/extend/route.ts</span>
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">POST</span><span class="p">(</span><span class="nx">req</span><span class="p">:</span> <span class="nx">NextRequest</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="p">{</span> <span class="nx">accessToken</span> <span class="p">}</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">req</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+
+    <span class="kd">const</span> <span class="nx">params</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+        <span class="na">grant_type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">fb_exchange_token</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">client_id</span><span class="p">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">FACEBOOK_APP_ID</span><span class="o">!</span><span class="p">,</span>
+        <span class="na">client_secret</span><span class="p">:</span> <span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">FACEBOOK_APP_SECRET</span><span class="o">!</span><span class="p">,</span>
+        <span class="na">fb_exchange_token</span><span class="p">:</span> <span class="nx">accessToken</span><span class="p">,</span>
+    <span class="p">});</span>
+
+    <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span>
+        <span class="s2">`https://graph.facebook.com/v18.0/oauth/access_token?</span><span class="p">${</span><span class="nx">params</span><span class="p">.</span><span class="nf">toString</span><span class="p">()}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="p">{</span> <span class="na">method</span><span class="p">:</span> <span class="dl">'</span><span class="s1">GET</span><span class="dl">'</span> <span class="p">}</span>
+    <span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">response</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+    <span class="c1">// data.expires_in ≈ 5184000 seconds = 60 days</span>
+    <span class="k">return</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">json</span><span class="p">(</span><span class="nx">data</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="deep-links-with-expiry-info" href="#deep-links-with-expiry-info">
+  </a>
+  Deep Links with Expiry Info
+</h3>
+
+<p>The callback pages now include <code>expires_in</code> and <code>refresh_token</code> in the deep link back to VS Code:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// hooks/useOAuthCallback.ts (inside the callback handler)</span>
+<span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">params</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+        <span class="nx">platform</span><span class="p">,</span>
+        <span class="na">access_token</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">access_token</span><span class="p">,</span>
+        <span class="p">...(</span><span class="nx">REFRESHABLE_PLATFORMS</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="nx">platform</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nx">data</span><span class="p">.</span><span class="nx">refresh_token</span>
+            <span class="p">?</span> <span class="p">{</span> <span class="na">refresh_token</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">refresh_token</span> <span class="p">}</span>
+            <span class="p">:</span> <span class="p">{}),</span>
+        <span class="p">...(</span><span class="nx">data</span><span class="p">.</span><span class="nx">expires_in</span> <span class="p">?</span> <span class="p">{</span> <span class="na">expires_in</span><span class="p">:</span> <span class="nc">String</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">expires_in</span><span class="p">)</span> <span class="p">}</span> <span class="p">:</span> <span class="p">{}),</span>
+    <span class="p">});</span>
+    <span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span> <span class="o">=</span> <span class="s2">`vscode://freerave.dotshare/auth?</span><span class="p">${</span><span class="nx">params</span><span class="p">.</span><span class="nf">toString</span><span class="p">()}</span><span class="s2">`</span><span class="p">;</span>
+<span class="p">},</span> <span class="mi">1500</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The resulting deep link looks like:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>vscode://freerave.dotshare/auth
+  ?platform=x
+  &amp;access_token=AAA...
+  &amp;refresh_token=BBB...
+  &amp;expires_in=7200
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="4-token-lifecycle-in-the-extension" href="#4-token-lifecycle-in-the-extension">
+  </a>
+  4. Token Lifecycle in the Extension
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fukbzfg2e8mnt6q3k2ftk.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fukbzfg2e8mnt6q3k2ftk.png" alt="Flowchart showing token lifecycle: checking expiry, silent auto-refreshing, and fallback logic" loading="lazy" width="799" height="436"></a><br>
+This is where the magic happens. The extension needs to ensure every API call uses a valid token — without ever asking the user to re-authenticate.</p>
+<h3>
+  <a name="tokenmanager" href="#tokenmanager">
+  </a>
+  TokenManager
+</h3>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/services/TokenManager.ts</span>
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">AUTH_SERVER_URL</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://dotshare-auth-server.vercel.app</span><span class="dl">'</span><span class="p">;</span>
+<span class="kd">const</span> <span class="nx">REFRESH_BUFFER_MS</span> <span class="o">=</span> <span class="mi">5</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">;</span> <span class="c1">// Refresh 5 minutes before expiry</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">TokenManager</span> <span class="p">{</span>
+    <span class="k">private</span> <span class="k">static</span> <span class="nx">_context</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ExtensionContext</span><span class="p">;</span>
+
+    <span class="k">static</span> <span class="nf">init</span><span class="p">(</span><span class="nx">context</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ExtensionContext</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">_context</span> <span class="o">=</span> <span class="nx">context</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Called from URI handler after OAuth callback</span>
+    <span class="k">static</span> <span class="k">async</span> <span class="nf">storeToken</span><span class="p">(</span>
+        <span class="nx">platform</span><span class="p">:</span> <span class="nx">RefreshablePlatform</span><span class="p">,</span>
+        <span class="nx">accessToken</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+        <span class="nx">refreshToken</span><span class="p">?:</span> <span class="kr">string</span><span class="p">,</span>
+        <span class="nx">expiresIn</span><span class="p">?:</span> <span class="kr">number</span>
+    <span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+        <span class="c1">// store access + refresh token in SecretStorage</span>
+        <span class="c1">// store expires_at = Date.now() + expiresIn * 1000</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Called before every API call</span>
+    <span class="k">static</span> <span class="k">async</span> <span class="nf">getValidToken</span><span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="nx">RefreshablePlatform</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">expiring</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">isExpiringSoon</span><span class="p">(</span><span class="nx">platform</span><span class="p">);</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">expiring</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">try</span> <span class="p">{</span>
+                <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">refresh</span><span class="p">(</span><span class="nx">platform</span><span class="p">);</span> <span class="c1">// auto-refresh silently</span>
+            <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">Logger</span><span class="p">.</span><span class="nf">warn</span><span class="p">(</span><span class="s2">`refresh failed, using existing token`</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="k">return</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">_context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">tokenKey</span><span class="p">[</span><span class="nx">platform</span><span class="p">])</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 429 handling via shared post() helper</span>
+    <span class="k">private</span> <span class="k">static</span> <span class="k">async</span> <span class="nx">post</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">url</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">data</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">data</span><span class="p">:</span> <span class="nx">T</span> <span class="p">}</span><span class="o">&gt;</span> <span class="p">{</span>
+        <span class="k">try</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="nx">data</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">axios</span><span class="p">.</span><span class="nf">isAxiosError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">?.</span><span class="nx">status</span> <span class="o">===</span> <span class="mi">429</span><span class="p">)</span> <span class="p">{</span>
+                <span class="kd">const</span> <span class="nx">retryAfter</span> <span class="o">=</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">[</span><span class="dl">'</span><span class="s1">retry-after</span><span class="dl">'</span><span class="p">]</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">60</span><span class="dl">'</span><span class="p">;</span>
+                <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="s2">`Rate limited. Retry after </span><span class="p">${</span><span class="nx">retryAfter</span><span class="p">}</span><span class="s2">s`</span><span class="p">);</span>
+            <span class="p">}</span>
+            <span class="k">throw</span> <span class="nx">err</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="uri-handler" href="#uri-handler">
+  </a>
+  URI Handler
+</h3>
+
+<p>The VS Code URI handler receives the deep link and stores everything:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/extension.ts — URI handler</span>
+<span class="kd">const</span> <span class="nx">uriHandler</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">registerUriHandler</span><span class="p">({</span>
+    <span class="k">async</span> <span class="nf">handleUri</span><span class="p">(</span><span class="na">uri</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">uri</span><span class="p">.</span><span class="nx">path</span> <span class="o">!==</span> <span class="dl">'</span><span class="s1">/auth</span><span class="dl">'</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+        <span class="kd">const</span> <span class="nx">params</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span><span class="nx">uri</span><span class="p">.</span><span class="nx">query</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">platform</span> <span class="o">=</span> <span class="nx">params</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">platform</span><span class="dl">'</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">accessToken</span> <span class="o">=</span> <span class="nx">params</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">access_token</span><span class="dl">'</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">refreshToken</span> <span class="o">=</span> <span class="nx">params</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">refresh_token</span><span class="dl">'</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">expiresIn</span> <span class="o">=</span> <span class="nx">params</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">expires_in</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="k">switch </span><span class="p">(</span><span class="nx">platform</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">case</span> <span class="dl">'</span><span class="s1">linkedin</span><span class="dl">'</span><span class="p">:</span>
+                <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="dl">'</span><span class="s1">linkedinToken</span><span class="dl">'</span><span class="p">,</span> <span class="nx">accessToken</span><span class="o">!</span><span class="p">);</span>
+                <span class="k">break</span><span class="p">;</span>
+            <span class="k">case</span> <span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">:</span>
+                <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">storeToken</span><span class="p">(</span>
+                    <span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span> <span class="nx">accessToken</span><span class="o">!</span><span class="p">,</span>
+                    <span class="nx">refreshToken</span> <span class="o">??</span> <span class="kc">undefined</span><span class="p">,</span>
+                    <span class="nx">expiresIn</span> <span class="p">?</span> <span class="nc">Number</span><span class="p">(</span><span class="nx">expiresIn</span><span class="p">)</span> <span class="p">:</span> <span class="kc">undefined</span>
+                <span class="p">);</span>
+                <span class="k">break</span><span class="p">;</span>
+            <span class="k">case</span> <span class="dl">'</span><span class="s1">facebook</span><span class="dl">'</span><span class="p">:</span>
+                <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">storeToken</span><span class="p">(</span>
+                    <span class="dl">'</span><span class="s1">facebook</span><span class="dl">'</span><span class="p">,</span> <span class="nx">accessToken</span><span class="o">!</span><span class="p">,</span>
+                    <span class="kc">undefined</span><span class="p">,</span>
+                    <span class="nx">expiresIn</span> <span class="p">?</span> <span class="nc">Number</span><span class="p">(</span><span class="nx">expiresIn</span><span class="p">)</span> <span class="p">:</span> <span class="kc">undefined</span>
+                <span class="p">);</span>
+                <span class="k">break</span><span class="p">;</span>
+            <span class="k">case</span> <span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">:</span>
+                <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">storeToken</span><span class="p">(</span>
+                    <span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">,</span> <span class="nx">accessToken</span><span class="o">!</span><span class="p">,</span>
+                    <span class="nx">refreshToken</span> <span class="o">??</span> <span class="kc">undefined</span><span class="p">,</span>
+                    <span class="nx">expiresIn</span> <span class="p">?</span> <span class="nc">Number</span><span class="p">(</span><span class="nx">expiresIn</span><span class="p">)</span> <span class="p">:</span> <span class="kc">undefined</span>
+                <span class="p">);</span>
+                <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showInformationMessage</span><span class="p">(</span><span class="s2">`✓ </span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2"> connected!`</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="using-tokens-in-platform-posters" href="#using-tokens-in-platform-posters">
+  </a>
+  Using Tokens in Platform Posters
+</h3>
+
+<p>Before, platform files used whatever token was passed in. Now they call <code>getValidToken()</code> themselves:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/platforms/x.ts</span>
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">shareToX</span><span class="p">(</span>
+    <span class="nx">_accessToken</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="c1">// ignored — TokenManager handles this</span>
+    <span class="nx">_accessSecret</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+    <span class="nx">tweetData</span><span class="p">:</span> <span class="nx">TweetData</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="c1">// getValidToken() checks expiry and refreshes if needed — all silently</span>
+    <span class="kd">const</span> <span class="nx">accessToken</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">accessToken</span><span class="p">)</span> <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">X: not authenticated</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="c1">// ... rest of posting logic</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="scheduler-integration" href="#scheduler-integration">
+  </a>
+  Scheduler Integration
+</h3>
+
+<p>Even scheduled posts (posted hours later) get fresh tokens:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/extension.ts — credentialsGetter for Scheduler</span>
+<span class="kd">const</span> <span class="nx">credentialsGetter</span> <span class="o">=</span> <span class="k">async </span><span class="p">()</span> <span class="o">=&gt;</span> <span class="p">({</span>
+    <span class="na">linkedinToken</span><span class="p">:</span>     <span class="k">await</span> <span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">linkedinToken</span><span class="dl">'</span><span class="p">)</span> <span class="o">||</span> <span class="dl">''</span><span class="p">,</span>
+    <span class="na">xAccessToken</span><span class="p">:</span>      <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">),</span>      <span class="c1">// auto-refreshes</span>
+    <span class="na">facebookToken</span><span class="p">:</span>     <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">facebook</span><span class="dl">'</span><span class="p">),</span> <span class="c1">// auto-extends</span>
+    <span class="na">redditAccessToken</span><span class="p">:</span> <span class="k">await</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">),</span>  <span class="c1">// auto-refreshes</span>
+    <span class="c1">// ...</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="5-edge-rate-limiting-with-upstash-redis" href="#5-edge-rate-limiting-with-upstash-redis">
+  </a>
+  5. Edge Rate Limiting with Upstash Redis
+</h2>
+
+<h3>
+  <a name="why-inmemory-rate-limiting-fails-on-serverless" href="#why-inmemory-rate-limiting-fails-on-serverless">
+  </a>
+  Why In-Memory Rate Limiting Fails on Serverless
+</h3>
+
+<p>On Vercel, every request can hit a different serverless instance. An in-memory <code>Map</code> resets on every cold start — meaning your rate limiter is completely ineffective under any real load.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Request 1 → Instance A (Map: {ip: 1})
+Request 2 → Instance B (Map: {ip: 1}) ← starts fresh, doesn't know about Request 1
+Request 3 → Instance C (Map: {ip: 1}) ← same problem
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The solution: a shared Redis store that all instances read from.</p>
+
+<h3>
+  <a name="proxyts-nextjs-16" href="#proxyts-nextjs-16">
+  </a>
+  proxy.ts (Next.js 16)
+</h3>
+
+<blockquote>
+<p>Note: In Next.js 16, <code>middleware.ts</code> is deprecated and renamed to <code>proxy.ts</code>. The function export also changes from <code>middleware</code> to <code>proxy</code>.<br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// proxy.ts</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">NextRequest</span><span class="p">,</span> <span class="nx">NextResponse</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">next/server</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">Ratelimit</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">@upstash/ratelimit</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">Redis</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">@upstash/redis</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">ipAddress</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">@vercel/functions</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">redis</span> <span class="o">=</span> <span class="nx">Redis</span><span class="p">.</span><span class="nf">fromEnv</span><span class="p">();</span>
+
+<span class="kd">const</span> <span class="nx">authInitLimiter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Ratelimit</span><span class="p">({</span>
+    <span class="nx">redis</span><span class="p">,</span>
+    <span class="na">limiter</span><span class="p">:</span> <span class="nx">Ratelimit</span><span class="p">.</span><span class="nf">slidingWindow</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="dl">'</span><span class="s1">1 m</span><span class="dl">'</span><span class="p">),</span>
+    <span class="na">analytics</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">prefix</span><span class="p">:</span> <span class="dl">'</span><span class="s1">rl:auth_init</span><span class="dl">'</span><span class="p">,</span>
+<span class="p">});</span>
+
+<span class="kd">const</span> <span class="nx">tokenExchangeLimiter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Ratelimit</span><span class="p">({</span>
+    <span class="nx">redis</span><span class="p">,</span>
+    <span class="na">limiter</span><span class="p">:</span> <span class="nx">Ratelimit</span><span class="p">.</span><span class="nf">slidingWindow</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="dl">'</span><span class="s1">1 m</span><span class="dl">'</span><span class="p">),</span>
+    <span class="na">analytics</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">prefix</span><span class="p">:</span> <span class="dl">'</span><span class="s1">rl:token_exchange</span><span class="dl">'</span><span class="p">,</span>
+<span class="p">});</span>
+
+<span class="kd">const</span> <span class="nx">tokenRefreshLimiter</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Ratelimit</span><span class="p">({</span>
+    <span class="nx">redis</span><span class="p">,</span>
+    <span class="na">limiter</span><span class="p">:</span> <span class="nx">Ratelimit</span><span class="p">.</span><span class="nf">slidingWindow</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="dl">'</span><span class="s1">1 m</span><span class="dl">'</span><span class="p">),</span>
+    <span class="na">analytics</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">prefix</span><span class="p">:</span> <span class="dl">'</span><span class="s1">rl:token_refresh</span><span class="dl">'</span><span class="p">,</span>
+<span class="p">});</span>
+
+<span class="kd">function</span> <span class="nf">getLimiter</span><span class="p">(</span><span class="nx">pathname</span><span class="p">:</span> <span class="kr">string</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="sr">/^</span><span class="se">\/</span><span class="sr">api</span><span class="se">\/</span><span class="sr">auth</span><span class="se">\/[^/]</span><span class="sr">+</span><span class="se">(\/</span><span class="sr">refresh|</span><span class="se">\/</span><span class="sr">extend</span><span class="se">)</span><span class="sr">$/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">pathname</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">tokenRefreshLimiter</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="sr">/^</span><span class="se">\/</span><span class="sr">api</span><span class="se">\/</span><span class="sr">auth</span><span class="se">\/[^/]</span><span class="sr">+$/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">pathname</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">tokenExchangeLimiter</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="sr">/^</span><span class="se">\/</span><span class="sr">auth</span><span class="se">\/[^/]</span><span class="sr">+$/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">pathname</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="nx">authInitLimiter</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">proxy</span><span class="p">(</span><span class="nx">request</span><span class="p">:</span> <span class="nx">NextRequest</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">pathname</span> <span class="o">=</span> <span class="nx">request</span><span class="p">.</span><span class="nx">nextUrl</span><span class="p">.</span><span class="nx">pathname</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">limiter</span> <span class="o">=</span> <span class="nf">getLimiter</span><span class="p">(</span><span class="nx">pathname</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">limiter</span><span class="p">)</span> <span class="k">return</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">next</span><span class="p">();</span>
+
+    <span class="kd">const</span> <span class="nx">ip</span> <span class="o">=</span>
+        <span class="nf">ipAddress</span><span class="p">(</span><span class="nx">request</span><span class="p">)</span> <span class="o">??</span>
+        <span class="nx">request</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">x-forwarded-for</span><span class="dl">'</span><span class="p">)?.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">,</span><span class="dl">'</span><span class="p">)[</span><span class="mi">0</span><span class="p">].</span><span class="nf">trim</span><span class="p">()</span> <span class="o">??</span>
+        <span class="dl">'</span><span class="s1">127.0.0.1</span><span class="dl">'</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="p">{</span> <span class="nx">success</span><span class="p">,</span> <span class="nx">limit</span><span class="p">,</span> <span class="nx">remaining</span><span class="p">,</span> <span class="nx">reset</span> <span class="p">}</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">limiter</span><span class="p">.</span><span class="nf">limit</span><span class="p">(</span><span class="nx">ip</span><span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">success</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Browser hitting /auth/* → redirect gracefully instead of JSON error</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">pathname</span><span class="p">.</span><span class="nf">startsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1">/auth/</span><span class="dl">'</span><span class="p">))</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">url</span> <span class="o">=</span> <span class="nx">request</span><span class="p">.</span><span class="nx">nextUrl</span><span class="p">.</span><span class="nf">clone</span><span class="p">();</span>
+            <span class="nx">url</span><span class="p">.</span><span class="nx">pathname</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">/</span><span class="dl">'</span><span class="p">;</span>
+            <span class="nx">url</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Too many requests. Please try again later.</span><span class="dl">'</span><span class="p">);</span>
+            <span class="k">return</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">redirect</span><span class="p">(</span><span class="nx">url</span><span class="p">);</span>
+        <span class="p">}</span>
+
+        <span class="c1">// API routes → JSON 429 with Retry-After</span>
+        <span class="k">return</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">json</span><span class="p">(</span>
+            <span class="p">{</span> <span class="na">error</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Too many requests. Please try again later.</span><span class="dl">'</span> <span class="p">},</span>
+            <span class="p">{</span>
+                <span class="na">status</span><span class="p">:</span> <span class="mi">429</span><span class="p">,</span>
+                <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="dl">'</span><span class="s1">X-RateLimit-Limit</span><span class="dl">'</span><span class="p">:</span>     <span class="nc">String</span><span class="p">(</span><span class="nx">limit</span><span class="p">),</span>
+                    <span class="dl">'</span><span class="s1">X-RateLimit-Remaining</span><span class="dl">'</span><span class="p">:</span> <span class="nc">String</span><span class="p">(</span><span class="nx">remaining</span><span class="p">),</span>
+                    <span class="dl">'</span><span class="s1">X-RateLimit-Reset</span><span class="dl">'</span><span class="p">:</span>     <span class="nc">String</span><span class="p">(</span><span class="nx">reset</span><span class="p">),</span>
+                    <span class="dl">'</span><span class="s1">Retry-After</span><span class="dl">'</span><span class="p">:</span>           <span class="nc">String</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">ceil</span><span class="p">((</span><span class="nx">reset</span> <span class="o">-</span> <span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">())</span> <span class="o">/</span> <span class="mi">1000</span><span class="p">)),</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="nx">NextResponse</span><span class="p">.</span><span class="nf">next</span><span class="p">();</span>
+    <span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">X-RateLimit-Limit</span><span class="dl">'</span><span class="p">,</span>     <span class="nc">String</span><span class="p">(</span><span class="nx">limit</span><span class="p">));</span>
+    <span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">X-RateLimit-Remaining</span><span class="dl">'</span><span class="p">,</span> <span class="nc">String</span><span class="p">(</span><span class="nx">remaining</span><span class="p">));</span>
+    <span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="dl">'</span><span class="s1">X-RateLimit-Reset</span><span class="dl">'</span><span class="p">,</span>      <span class="nc">String</span><span class="p">(</span><span class="nx">reset</span><span class="p">));</span>
+    <span class="k">return</span> <span class="nx">response</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">config</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">matcher</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">/auth/:path*</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">/api/auth/:path*</span><span class="dl">'</span><span class="p">],</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="rate-limit-tiers" href="#rate-limit-tiers">
+  </a>
+  Rate Limit Tiers
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Limit</th>
+<th>Window</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/auth/*</code></td>
+<td>5 req</td>
+<td>1 min</td>
+<td>Browser redirects only</td>
+</tr>
+<tr>
+<td><code>/api/auth/*</code></td>
+<td>10 req</td>
+<td>1 min</td>
+<td>Initial token exchange</td>
+</tr>
+<tr>
+<td><code>/api/auth/*/refresh</code></td>
+<td>10 req</td>
+<td>1 min</td>
+<td>Extension refresh calls</td>
+</tr>
+</tbody>
+</table></div>
+
+<h3>
+  <a name="the-extension-handles-429s-gracefully" href="#the-extension-handles-429s-gracefully">
+  </a>
+  The Extension Handles 429s Gracefully
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/services/TokenManager.ts</span>
+<span class="k">private</span> <span class="k">static</span> <span class="k">async</span> <span class="nx">post</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">url</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">data</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">data</span><span class="p">:</span> <span class="nx">T</span> <span class="p">}</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="o">&lt;</span><span class="nx">T</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="nx">data</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">axios</span><span class="p">.</span><span class="nf">isAxiosError</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">?.</span><span class="nx">status</span> <span class="o">===</span> <span class="mi">429</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">retryAfter</span> <span class="o">=</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">[</span><span class="dl">'</span><span class="s1">retry-after</span><span class="dl">'</span><span class="p">]</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">60</span><span class="dl">'</span><span class="p">;</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="s2">`Rate limited. Retry after </span><span class="p">${</span><span class="nx">retryAfter</span><span class="p">}</span><span class="s2">s`</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">throw</span> <span class="nx">err</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If a refresh is rate limited, <code>getValidToken()</code> catches the error, logs a warning, and returns the existing token. The user never sees a crash.</p>
+
+
+<hr>
+
+<h2>
+  <a name="6-lessons-learned" href="#6-lessons-learned">
+  </a>
+  6. Lessons Learned
+</h2>
+
+<p><strong>1. Stateless auth servers are beautiful</strong><br>
+No database, no user sessions, no GDPR headaches. The server does one thing: exchange OAuth codes for tokens securely. Everything else is the client's problem.</p>
+
+<p><strong>2. In-memory rate limiting on serverless = placebo</strong><br>
+Don't waste time on it. If you're on a serverless platform, you need a shared store. Upstash Redis is free for small projects and takes 10 minutes to set up.</p>
+
+<p><strong>3. Architecture over prompts</strong><br>
+The biggest win wasn't any single feature — it was establishing <code>lib/platforms.ts</code> as the single source of truth early. Adding a new platform went from "edit 7 files" to "edit 1 file."</p>
+
+<p><strong>4. <code>expires_in</code> belongs in the deep link</strong><br>
+The extension can't know when a token expires unless the auth server tells it. One extra query param saved us from building a polling mechanism.</p>
+
+<p><strong>5. Next.js 16 renames middleware to proxy</strong><br>
+If you're upgrading: <code>middleware.ts</code> → <code>proxy.ts</code>, <code>export function middleware</code> → <code>export function proxy</code>. The codemod handles it: <code>npx @next/codemod@canary middleware-to-proxy .</code></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-picture" href="#the-full-picture">
+  </a>
+  The Full Picture
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="nx">dotshare</span><span class="o">-</span><span class="nx">auth</span><span class="o">-</span><span class="nx">server</span><span class="o">/</span>
+  <span class="nx">proxy</span><span class="p">.</span><span class="nx">ts</span>                    <span class="err">←</span> <span class="nx">Edge</span> <span class="nx">rate</span> <span class="nf">limiting </span><span class="p">(</span><span class="nx">Upstash</span> <span class="nx">Redis</span><span class="p">)</span>
+  <span class="nx">src</span><span class="o">/</span>
+    <span class="nx">app</span><span class="o">/</span>
+      <span class="nx">auth</span><span class="o">/</span><span class="p">[</span><span class="nx">platform</span><span class="p">]</span><span class="o">/</span>
+        <span class="nx">page</span><span class="p">.</span><span class="nx">tsx</span>              <span class="err">←</span> <span class="o">&lt;</span><span class="nx">AuthPage</span> <span class="nx">platform</span><span class="o">=</span><span class="dl">"</span><span class="s2">x</span><span class="dl">"</span> <span class="o">/&gt;</span> <span class="p">(</span><span class="mi">1</span> <span class="nx">line</span><span class="p">)</span>
+        <span class="nx">callback</span><span class="o">/</span><span class="nx">page</span><span class="p">.</span><span class="nx">tsx</span>     <span class="err">←</span> <span class="o">&lt;</span><span class="nx">CallbackPage</span> <span class="nx">platform</span><span class="o">=</span><span class="dl">"</span><span class="s2">x</span><span class="dl">"</span> <span class="o">/&gt;</span> <span class="p">(</span><span class="mi">1</span> <span class="nx">line</span><span class="p">)</span>
+      <span class="nx">api</span><span class="o">/</span><span class="nx">auth</span><span class="o">/</span>
+        <span class="nx">x</span><span class="o">/</span><span class="nx">route</span><span class="p">.</span><span class="nx">ts</span>            <span class="err">←</span> <span class="nx">token</span> <span class="nx">exchange</span>
+        <span class="nx">x</span><span class="o">/</span><span class="nx">refresh</span><span class="o">/</span><span class="nx">route</span><span class="p">.</span><span class="nx">ts</span>    <span class="err">←</span> <span class="nx">token</span> <span class="nx">refresh</span>
+        <span class="nx">facebook</span><span class="o">/</span><span class="nx">extend</span><span class="o">/</span><span class="nx">route</span><span class="p">.</span><span class="nx">ts</span> <span class="err">←</span> <span class="mi">60</span><span class="o">-</span><span class="nx">day</span> <span class="nx">token</span> <span class="nx">extension</span>
+        <span class="nx">reddit</span><span class="o">/</span><span class="nx">refresh</span><span class="o">/</span><span class="nx">route</span><span class="p">.</span><span class="nx">ts</span>  <span class="err">←</span> <span class="nx">token</span> <span class="nx">refresh</span>
+    <span class="nx">components</span><span class="o">/</span>
+      <span class="nx">AuthPage</span><span class="p">.</span><span class="nx">tsx</span>            <span class="err">←</span> <span class="nx">shared</span> <span class="nx">auth</span> <span class="nx">UI</span>
+      <span class="nx">CallbackPage</span><span class="p">.</span><span class="nx">tsx</span>        <span class="err">←</span> <span class="nx">shared</span> <span class="nx">callback</span> <span class="nx">UI</span>
+    <span class="nx">hooks</span><span class="o">/</span>
+      <span class="nx">useOAuthInit</span><span class="p">.</span><span class="nx">ts</span>         <span class="err">←</span> <span class="nx">PKCE</span><span class="p">,</span> <span class="nx">state</span><span class="p">,</span> <span class="nx">redirect</span> <span class="nx">logic</span>
+      <span class="nx">useOAuthCallback</span><span class="p">.</span><span class="nx">ts</span>     <span class="err">←</span> <span class="nx">exchange</span><span class="p">,</span> <span class="nx">deep</span> <span class="nx">link</span> <span class="nx">logic</span>
+    <span class="nx">lib</span><span class="o">/</span>
+      <span class="nx">platforms</span><span class="p">.</span><span class="nx">ts</span>            <span class="err">←</span> <span class="nx">single</span> <span class="nx">source</span> <span class="k">of</span> <span class="nx">truth</span>
+
+<span class="nc">DotShare </span><span class="p">(</span><span class="nx">VS</span> <span class="nx">Code</span> <span class="nx">Extension</span><span class="p">)</span><span class="o">/</span>
+  <span class="nx">src</span><span class="o">/</span>
+    <span class="nx">extension</span><span class="p">.</span><span class="nx">ts</span>              <span class="err">←</span> <span class="nx">URI</span> <span class="nx">handler</span> <span class="err">→</span> <span class="nx">TokenManager</span><span class="p">.</span><span class="nf">storeToken</span><span class="p">()</span>
+    <span class="nx">services</span><span class="o">/</span>
+      <span class="nx">TokenManager</span><span class="p">.</span><span class="nx">ts</span>         <span class="err">←</span> <span class="nx">store</span><span class="p">,</span> <span class="nx">getValidToken</span><span class="p">,</span> <span class="nx">refresh</span><span class="p">,</span> <span class="nx">clear</span>
+    <span class="nx">platforms</span><span class="o">/</span>
+      <span class="nx">x</span><span class="p">.</span><span class="nx">ts</span>                    <span class="err">←</span> <span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">)</span> <span class="nx">before</span> <span class="nx">every</span> <span class="nx">post</span>
+      <span class="nx">reddit</span><span class="p">.</span><span class="nx">ts</span>               <span class="err">←</span> <span class="nf">getValidToken</span><span class="p">(</span><span class="dl">'</span><span class="s1">reddit</span><span class="dl">'</span><span class="p">)</span> <span class="nx">before</span> <span class="nx">every</span> <span class="nx">post</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="resources" href="#resources">
+  </a>
+  Resources
+</h2>
+
+<ul>
+<li><a href="https://github.com/kareem2099/dotshare-auth-server" target="_blank" rel="noopener noreferrer">DotShare Auth Server</a></li>
+<li><a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">DotShare VS Code Extension</a></li>
+<li><a href="https://github.com/upstash/ratelimit-js" target="_blank" rel="noopener noreferrer">Upstash Ratelimit</a></li>
+<li><a href="https://nextjs.org/docs/app/api-reference/file-conventions/proxy" target="_blank" rel="noopener noreferrer">Next.js 16 Proxy (formerly Middleware)</a></li>
+<li><a href="https://code.visualstudio.com/api/references/vscode-api#SecretStorage" target="_blank" rel="noopener noreferrer">VS Code SecretStorage API</a></li>
+</ul>
+
+
+<hr>
+
+<p><em>Built with Next.js 16, TypeScript, Upstash Redis, and VS Code Extension API.</em></p>
+
+<p><em>Part of the DotShare project — a VS Code extension for publishing developer content across social platforms.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-a-production-ready-oauth-server-for-a-vs-code-extension-token-lifecycle-auto-refresh--45pl" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-a-production-ready-oauth-server-for-a-vs-code-extension-token-lifecycle-auto-refresh--45pl#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

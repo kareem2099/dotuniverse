@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a 1-Click OAuth Flow for VS Code to Stop Copying API Keys — FreeRave</title>
+<meta name="description" content="Hey DEV Community!   If you've ever built a CLI tool or a desktop extension that interacts with...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-1-click-oauth-flow-for-vs-code-to-stop-copying-api-keys-257i">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-1-click-oauth-flow-for-vs-code-to-stop-copying-api-keys-257i">
+<meta property="og:title" content="I Built a 1-Click OAuth Flow for VS Code to Stop Copying API Keys — FreeRave">
+<meta property="og:description" content="Hey DEV Community!   If you've ever built a CLI tool or a desktop extension that interacts with...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frz3u8w0uaav0h37d31r5.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frz3u8w0uaav0h37d31r5.png" alt="">
+  <h1 class="post-title">I Built a 1-Click OAuth Flow for VS Code to Stop Copying API Keys</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-12T11:00:00Z">12 March 2026</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span><span class="post-tag">#freerave</span></div>
+  </div>
+  <article class="post-body">
+<p>Hey DEV Community! </p>
+
+<p>If you've ever built a CLI tool or a desktop extension that interacts with social media platforms, you know the absolute nightmare of user authentication. The standard workflow usually involves begging the user to go to a developer portal, generate an API key, copy it, and paste it into a <code>.env</code> or <code>settings.json</code> file. </p>
+
+<p>I got completely tired of doing that. So, for the massive <strong>v2.4.0 update</strong> of my open-source VS Code extension, <strong><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">DotShare</a></strong>, I decided to engineer a seamless, browser-to-editor OAuth 2.0 flow. </p>
+
+<p>Here is a deep dive into how I built it, the code behind it, and how you can do it too.</p>
+
+<h2>
+  <a name="the-problem-browsers-vs-desktop-apps" href="#the-problem-browsers-vs-desktop-apps">
+  </a>
+  The Problem: Browsers vs. Desktop Apps
+</h2>
+
+<p>When building a web app, OAuth is easy: you redirect the user to LinkedIn/X, they authenticate, and the platform redirects them back to your <code>https://</code> callback URL. </p>
+
+<p>But VS Code is a desktop application. You can't redirect a browser tab to <code>localhost</code> reliably without running a clunky local server on the user's machine. </p>
+
+<h3>
+  <a name="the-solution-vs-code-uri-handlers" href="#the-solution-vs-code-uri-handlers">
+  </a>
+  The Solution: VS Code URI Handlers
+</h3>
+
+<p>VS Code has a built-in API called <code>vscode.window.registerUriHandler</code>. It allows the editor to listen for custom deep links (e.g., <code>vscode://publisher.extension-name/auth</code>).</p>
+
+<p>Here is how I implemented the "Magic Redirect" in TypeScript:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="nx">typescript</span>
+<span class="k">import</span> <span class="o">*</span> <span class="k">as</span> <span class="nx">vscode</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">vscode</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">AuthUriHandler</span> <span class="k">implements</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">UriHandler</span> <span class="p">{</span>
+    <span class="c1">// This triggers when the browser redirects back to vscode://...</span>
+    <span class="k">public</span> <span class="nf">handleUri</span><span class="p">(</span><span class="nx">uri</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">queryParams</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">(</span><span class="nx">uri</span><span class="p">.</span><span class="nx">query</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">token</span> <span class="o">=</span> <span class="nx">queryParams</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">token</span><span class="dl">'</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">platform</span> <span class="o">=</span> <span class="nx">queryParams</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">platform</span><span class="dl">'</span><span class="p">);</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">token</span> <span class="o">&amp;&amp;</span> <span class="nx">platform</span><span class="p">)</span> <span class="p">{</span>
+            <span class="c1">// Securely store the token using VS Code's native SecretStorage</span>
+            <span class="k">this</span><span class="p">.</span><span class="nf">storeEncryptedToken</span><span class="p">(</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">token</span><span class="p">);</span>
+
+            <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showInformationMessage</span><span class="p">(</span>
+                <span class="s2">`Status: 200 OK ✅ Successfully connected to </span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2">!`</span>
+            <span class="p">);</span>
+
+            <span class="c1">// Notify the Webview UI to turn the connect button green 🟢</span>
+            <span class="k">this</span><span class="p">.</span><span class="nf">updateWebviewUI</span><span class="p">(</span><span class="nx">platform</span><span class="p">,</span> <span class="dl">'</span><span class="s1">connected</span><span class="dl">'</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">private</span> <span class="k">async</span> <span class="nf">storeEncryptedToken</span><span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">token</span><span class="p">:</span> <span class="kr">string</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">secrets</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">context</span><span class="p">.</span><span class="nx">secrets</span><span class="p">;</span>
+        <span class="k">await</span> <span class="nx">secrets</span><span class="p">.</span><span class="nf">store</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2">_oauth_token`</span><span class="p">,</span> <span class="nx">token</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// In extension.ts activation:</span>
+<span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">registerUriHandler</span><span class="p">(</span><span class="k">new</span> <span class="nc">AuthUriHandler</span><span class="p">());</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now, my Vercel auth server simply redirects to vscode://kareem2099.dotshare/auth?platform=linkedin&amp;token=XYZ, and VS Code instantly wakes up and intercepts the token securely!</p>
+
+<p>Building a "Smart" Hashtag Engine<br>
+Another feature I shipped in v2.4.0 is the Smart Hashtag System.</p>
+
+<p>When using AI (like Claude or Gemini) to generate posts, they often spit out generic, cringy hashtags. I wanted DotShare to generate tags based on actual workspace data.</p>
+
+<p>Instead of guessing the project name from random NPM keywords (which sometimes resulted in #lint or #test), I wrote a context builder that extracts the exact workspace folder name and sanitizes it:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Inside HashtagService.ts</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">getProjectHashtags</span><span class="p">(</span><span class="nx">context</span><span class="p">:</span> <span class="nx">HashtagContext</span><span class="p">):</span> <span class="kr">string</span><span class="p">[]</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">tags</span><span class="p">:</span> <span class="kr">string</span><span class="p">[]</span> <span class="o">=</span> <span class="p">[];</span>
+
+    <span class="c1">// 1. Get the actual project name from the VS Code workspace</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">projectName</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Sanitize: Remove spaces and special chars for a clean hashtag</span>
+        <span class="kd">const</span> <span class="nx">cleanName</span> <span class="o">=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">projectName</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">[^</span><span class="sr">a-zA-Z0-9</span><span class="se">]</span><span class="sr">/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">);</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">cleanName</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+            <span class="c1">// Capitalize the first letter (e.g., dotshare -&gt; #Dotshare)</span>
+            <span class="kd">const</span> <span class="nx">capitalizedName</span> <span class="o">=</span> <span class="nx">cleanName</span><span class="p">.</span><span class="nf">charAt</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="nf">toUpperCase</span><span class="p">()</span> <span class="o">+</span> <span class="nx">cleanName</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+            <span class="nx">tags</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="s2">`#</span><span class="p">${</span><span class="nx">capitalizedName</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 2. Add supplementary tags from package.json/Cargo.toml</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">keywords</span> <span class="o">&amp;&amp;</span> <span class="nx">context</span><span class="p">.</span><span class="nx">keywords</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">validKeywords</span> <span class="o">=</span> <span class="nx">context</span><span class="p">.</span><span class="nx">keywords</span>
+            <span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nx">k</span> <span class="o">=&gt;</span> <span class="nx">k</span><span class="p">.</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="o">&amp;&amp;</span> <span class="nx">k</span><span class="p">.</span><span class="nx">length</span> <span class="o">&lt;</span> <span class="mi">15</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">);</span> <span class="c1">// Keep it clean, max 2 keywords</span>
+
+        <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">keyword</span> <span class="k">of</span> <span class="nx">validKeywords</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">cleanKeyword</span> <span class="o">=</span> <span class="nx">keyword</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">[^</span><span class="sr">a-zA-Z0-9</span><span class="se">]</span><span class="sr">/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">);</span>
+            <span class="nx">tags</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="s2">`#</span><span class="p">${</span><span class="nx">cleanKeyword</span><span class="p">.</span><span class="nf">charAt</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="nf">toUpperCase</span><span class="p">()</span> <span class="o">+</span> <span class="nx">cleanKeyword</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">1</span><span class="p">)}</span><span class="s2">`</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">tags</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Note: We completely disable this engine when posting to Reddit, because Reddit communities hate hashtags! (It's the small UX details that matter).</p>
+
+<p>🎬 See it in Action (40 Seconds)<br>
+You can see the 1-Click OAuth flow and the AI post generation working seamlessly together here:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/RtZ0GVDQRok" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>Try it out!<br>
+If you are a developer who builds in public, shares snippets, or just wants to log your journey without leaving your editor, I built this for you.</p>
+
+<p>We just crossed 470+ active users, and I would love for you to try it out and critique the code/architecture!</p>
+
+<p><strong><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">Download DotShare from the VS Code Marketplace</a></strong></p>
+
+<p>Let me know what you think of the URI Handler approach in the comments! 👇</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-1-click-oauth-flow-for-vs-code-to-stop-copying-api-keys-257i" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 1
+    · <a href="https://dev.to/freerave/i-built-a-1-click-oauth-flow-for-vs-code-to-stop-copying-api-keys-257i#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

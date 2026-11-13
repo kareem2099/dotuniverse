@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>8 backends, one engine, and the SVG bug that started it all — FreeRave</title>
+<meta name="description" content="How DotMorph turns Pillow, librsvg, poppler, Ghostscript, ImageMagick, ffmpeg, LibreOffice and pandoc...">
+<link rel="canonical" href="https://dev.to/freerave/8-backends-one-engine-and-the-svg-bug-that-started-it-all-3ooo">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/8-backends-one-engine-and-the-svg-bug-that-started-it-all-3ooo">
+<meta property="og:title" content="8 backends, one engine, and the SVG bug that started it all — FreeRave">
+<meta property="og:description" content="How DotMorph turns Pillow, librsvg, poppler, Ghostscript, ImageMagick, ffmpeg, LibreOffice and pandoc...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fvtirdqv8samwpn7ga6do.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fvtirdqv8samwpn7ga6do.png" alt="">
+  <h1 class="post-title">8 backends, one engine, and the SVG bug that started it all</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-30T14:28:36Z">30 October 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#linux</span><span class="post-tag">#opensource</span><span class="post-tag">#architecture</span></div>
+  </div>
+  <article class="post-body">
+<p>How DotMorph turns Pillow, librsvg, poppler, Ghostscript, ImageMagick, ffmpeg, LibreOffice and pandoc into one conversion engine, and why its SVG rendering moved from ImageMagick to librsvg over ctypes.</p>
+
+
+<hr>
+
+<p>In <a href="https://dev.to/freerave/i-built-a-radial-menu-that-converts-any-file-on-linux-4c4m">part 1</a> I introduced DotMorph, a radial-menu file converter for Linux. This post is about the part you don't see: the engine that decides <em>how</em> a file gets converted, and the bug that made me rewrite it.</p>
+
+<h2>
+  <a name="it-started-with-a-broken-png" href="#it-started-with-a-broken-png">
+  </a>
+  It started with a broken PNG
+</h2>
+
+<p>The first version of DotMorph sent most image work to ImageMagick. Then I converted an SVG logo to PNG and got this (left):</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fuhkrz50tgorjth5eevl7.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fuhkrz50tgorjth5eevl7.png" alt="The same SVG rendered by ImageMagick's MSVG renderer (gradients, dashes, clip-path and text broken) and by librsvg (correct)" loading="lazy" width="799" height="373"></a></p>
+
+<p>Same file, two renderers. ImageMagick's built-in SVG renderer (MSVG) dropped the gradients, the dashed stroke and the clip-path, spread <code>letter-spacing</code> across the whole word and stacked a <code>&lt;tspan&gt;</code> on top of its line. On the logo that started this, I measured the damage against Chromium's rendering of the same file: a <strong>mean pixel difference of 8.09</strong>.</p>
+
+<p>The fix was obvious once I said it out loud: every GNOME desktop already ships the renderer GNOME itself uses, <strong>librsvg</strong>. After switching, the difference against Chromium dropped to <strong>0.43</strong>.</p>
+
+<p>But "just call a different tool for SVG" exposed the real problem: the app was a pile of <code>if extension == ...</code> branches. Adding a renderer meant touching everything. So I rebuilt the engine around one idea.</p>
+
+<h2>
+  <a name="backends-declare-the-registry-decides" href="#backends-declare-the-registry-decides">
+  </a>
+  Backends declare, the registry decides
+</h2>
+
+<p>Every converter is a <code>Backend</code>. It doesn't get called by name; it <em>declares</em> what it needs and what it can do:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">Requirement</span><span class="p">:</span>
+    <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># executable on PATH, "py:module" (Python package) or "lib:name" (shared library)
+</span>    <span class="n">packages</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nf">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>  <span class="c1"># package manager -&gt; package
+</span>    <span class="n">purpose</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="sh">""</span>
+
+    <span class="k">def</span> <span class="nf">present</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">tool</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">py:</span><span class="sh">"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">importlib</span><span class="p">.</span><span class="n">util</span><span class="p">.</span><span class="nf">find_spec</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">tool</span><span class="p">[</span><span class="mi">3</span><span class="p">:])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">tool</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">lib:</span><span class="sh">"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">util</span><span class="p">.</span><span class="nf">find_library</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">tool</span><span class="p">[</span><span class="mi">4</span><span class="p">:])</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="n">shutil</span><span class="p">.</span><span class="nf">which</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">tool</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A backend lists its requirements (<code>ffmpeg</code>, <code>py:PIL</code>, <code>lib:rsvg-2</code>…) and returns the pairs it can handle right now, as <code>{source format: {targets}}</code>. The registry builds the live table from whatever is installed at this moment:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@lru_cache</span><span class="p">(</span><span class="n">maxsize</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">_table</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Backend</span><span class="p">]]:</span>
+    <span class="n">table</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Backend</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">backend</span> <span class="ow">in</span> <span class="nf">backends</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">pairs</span> <span class="o">=</span> <span class="n">backend</span><span class="p">.</span><span class="nf">pairs</span><span class="p">()</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>  <span class="c1"># a broken tool must never take the whole app down
+</span>            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">src</span><span class="p">,</span> <span class="n">actions</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">.</span><span class="nf">items</span><span class="p">():</span>
+            <span class="n">slot</span> <span class="o">=</span> <span class="n">table</span><span class="p">.</span><span class="nf">setdefault</span><span class="p">(</span><span class="n">src</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">for</span> <span class="n">action</span> <span class="ow">in</span> <span class="n">actions</span><span class="p">:</span>
+                <span class="n">slot</span><span class="p">.</span><span class="nf">setdefault</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">backend</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">table</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three things fall out of this for free:</p>
+
+<ul>
+<li>
+<strong>Priority is just order.</strong> Backends are registered best-first (Pillow, poppler, Ghostscript, librsvg, ImageMagick, ffmpeg, LibreOffice, pandoc), and <code>setdefault</code> means the first one that can do a conversion owns it. SVG → PNG goes to librsvg; ImageMagick still handles PSD, XCF, HEIC and JPEG XL.</li>
+<li>
+<strong>The menu never lies.</strong> The wheel shows <code>actions_for(format)</code>, so a conversion only appears if a backend can do it on <em>this</em> machine.</li>
+<li>
+<strong>Missing tools become advice.</strong> Each requirement knows its package name per package manager, so <code>dotmorph doctor</code> and the error messages can say <code>sudo dnf install poppler-utils</code> instead of "command not found". <code>formats --missing</code> even tells you how many conversions installing a tool would unlock.</li>
+</ul>
+
+<p>On my machine that table holds 440+ conversions across 53 formats. On a minimal install it might be 60, and that's fine.</p>
+
+<h2>
+  <a name="one-conversion-start-to-finish" href="#one-conversion-start-to-finish">
+  </a>
+  One conversion, start to finish
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgryiehtdpj6zvbcs2xa4.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgryiehtdpj6zvbcs2xa4.png" alt="The five steps of a conversion: detect, plan, workdir, run, finalize" loading="lazy" width="800" height="286"></a></p>
+
+<p>Whether it comes from the wheel, the CLI, a file-manager quick action or a watched folder, every conversion goes through the same path.</p>
+
+<h3>
+  <a name="safe-output" href="#safe-output">
+  </a>
+  Safe output
+</h3>
+
+<p>The rule: <strong>you never see a half-written file, and nothing gets overwritten.</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">workdir</span><span class="p">(</span><span class="n">out</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">Path</span><span class="p">]:</span>
+    <span class="sh">"""</span><span class="s">Hidden scratch dir inside the output dir: same filesystem, so the final move is a
+    rename, big videos don</span><span class="sh">'</span><span class="s">t fill a tmpfs /tmp, and half-written files never show up.</span><span class="sh">"""</span>
+    <span class="k">with</span> <span class="n">tempfile</span><span class="p">.</span><span class="nc">TemporaryDirectory</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="sh">"</span><span class="s">.dotmorph-</span><span class="sh">"</span><span class="p">,</span> <span class="nb">dir</span><span class="o">=</span><span class="n">out</span><span class="p">)</span> <span class="k">as</span> <span class="n">tmp</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="nc">Path</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">finalize</span><span class="p">(</span><span class="n">tmp</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dest</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">overwrite</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Move a finished temp file to its final name. The name is picked under a lock so
+    parallel jobs never claim the same </span><span class="sh">'</span><span class="s">name (1).ext</span><span class="sh">'</span><span class="s">.</span><span class="sh">"""</span>
+    <span class="k">with</span> <span class="n">_finalize_lock</span><span class="p">:</span>
+        <span class="n">final</span> <span class="o">=</span> <span class="nf">unique</span><span class="p">(</span><span class="n">dest</span><span class="p">,</span> <span class="n">overwrite</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="p">.</span><span class="nf">move</span><span class="p">(</span><span class="nf">str</span><span class="p">(</span><span class="n">tmp</span><span class="p">),</span> <span class="n">final</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">final</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The scratch folder lives <em>next to the output</em>, not in <code>/tmp</code>. That keeps the final move a cheap rename on the same filesystem, and a 4 GB video doesn't fill a RAM-backed <code>/tmp</code>. Batches run in parallel, so picking <code>photo (1).jpg</code> happens under a lock. Otherwise two jobs can both decide that name is free.</p>
+
+<h3>
+  <a name="cancel-that-actually-cancels" href="#cancel-that-actually-cancels">
+  </a>
+  Cancel that actually cancels
+</h3>
+
+<p>Clicking the centre of the wheel cancels. That sounds trivial until the tool you're running has children: LibreOffice spawns helpers, and ffmpeg flushes its encoder for seconds after SIGTERM. Every tool starts in its own session (<code>start_new_session=True</code>), and cancel kills the whole process group:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_kill_group</span><span class="p">(</span><span class="n">proc</span><span class="p">:</span> <span class="n">subprocess</span><span class="p">.</span><span class="n">Popen</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="c1"># Partial output is thrown away anyway, so don't wait long for a graceful exit
+</span>    <span class="c1"># (ffmpeg flushing its encoder on SIGTERM can take seconds).
+</span>    <span class="k">for</span> <span class="n">sig</span><span class="p">,</span> <span class="n">grace</span> <span class="ow">in</span> <span class="p">((</span><span class="n">signal</span><span class="p">.</span><span class="n">SIGTERM</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">),</span> <span class="p">(</span><span class="n">signal</span><span class="p">.</span><span class="n">SIGKILL</span><span class="p">,</span> <span class="mi">2</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="p">.</span><span class="nf">killpg</span><span class="p">(</span><span class="n">proc</span><span class="p">.</span><span class="n">pid</span><span class="p">,</span> <span class="n">sig</span><span class="p">)</span>
+        <span class="nf">except </span><span class="p">(</span><span class="nb">ProcessLookupError</span><span class="p">,</span> <span class="nb">PermissionError</span><span class="p">):</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">proc</span><span class="p">.</span><span class="nf">wait</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">grace</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">except</span> <span class="n">subprocess</span><span class="p">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
+            <span class="k">continue</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Cancel went from about 2 seconds to about 0.5.</p>
+
+<h3>
+  <a name="honest-progress" href="#honest-progress">
+  </a>
+  Honest progress
+</h3>
+
+<p>ffmpeg reports progress with <code>-progress pipe:1</code>, and poppler gets one tick per rendered page. Batches count files. Some jobs can't report anything, and one of them taught me to stop faking it. Making a GIF runs a palette pass that reads the whole video <em>before</em> writing a single frame, so the bar sat at 0% the entire time. Now, when a tool can't report progress, the wheel shows <strong>elapsed seconds</strong> instead of a fake percentage.</p>
+
+<h3>
+  <a name="small-things-that-matter" href="#small-things-that-matter">
+  </a>
+  Small things that matter
+</h3>
+
+<ul>
+<li>
+<strong>Stream copy first.</strong> MOV → MP4 with the same codec is a remux: seconds instead of minutes, and lossless. If the container refuses the codec, it falls back to a transcode.</li>
+<li>
+<strong>Encoders are probed</strong>, not assumed: libx264 → openh264 → mpeg4, VP9 → VP8. Distros ship very different ffmpeg builds.</li>
+<li>
+<strong><code>compress</code> never makes things bigger.</strong> If the "compressed" file is larger, you get the original back.</li>
+<li>
+<strong>LibreOffice gets a private profile</strong>, so a conversion works while you have LibreOffice open, and those jobs are serialised automatically.</li>
+</ul>
+
+<h2>
+  <a name="back-to-svg-librsvg-without-a-new-dependency" href="#back-to-svg-librsvg-without-a-new-dependency">
+  </a>
+  Back to SVG: librsvg without a new dependency
+</h2>
+
+<p>I didn't want to add a Python binding (and its build headaches) just for SVG. librsvg and cairo are already on practically every Linux desktop, so DotMorph calls them directly with <code>ctypes</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">_Libs</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fallback</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ctypes</span><span class="p">.</span><span class="n">CDLL</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ctypes</span><span class="p">.</span><span class="nc">CDLL</span><span class="p">(</span><span class="n">ctypes</span><span class="p">.</span><span class="n">util</span><span class="p">.</span><span class="nf">find_library</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">or</span> <span class="n">fallback</span><span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="n">rsvg</span> <span class="o">=</span> <span class="nf">load</span><span class="p">(</span><span class="sh">"</span><span class="s">rsvg-2</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">librsvg-2.so.2</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">cairo</span> <span class="o">=</span> <span class="nf">load</span><span class="p">(</span><span class="sh">"</span><span class="s">cairo</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">libcairo.so.2</span><span class="sh">"</span><span class="p">)</span>
+        <span class="bp">...</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">rsvg</span>
+        <span class="n">r</span><span class="p">.</span><span class="n">rsvg_handle_new_from_file</span><span class="p">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">vp</span>
+        <span class="n">r</span><span class="p">.</span><span class="n">rsvg_handle_new_from_file</span><span class="p">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">ctypes</span><span class="p">.</span><span class="n">c_char_p</span><span class="p">,</span> <span class="n">perr</span><span class="p">]</span>
+        <span class="n">r</span><span class="p">.</span><span class="n">rsvg_handle_render_document</span><span class="p">.</span><span class="n">restype</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="n">r</span><span class="p">.</span><span class="n">rsvg_handle_render_document</span><span class="p">.</span><span class="n">argtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">vp</span><span class="p">,</span> <span class="n">vp</span><span class="p">,</span> <span class="n">ctypes</span><span class="p">.</span><span class="nc">POINTER</span><span class="p">(</span><span class="n">_Rect</span><span class="p">),</span> <span class="n">perr</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Declaring <code>restype</code> and <code>argtypes</code> for every function isn't optional. Without them ctypes assumes <code>int</code>, and on 64-bit a pointer gets silently truncated. That gives you crashes that only show up sometimes.</p>
+
+<p>Two bonuses came with it:</p>
+
+<ul>
+<li>
+<strong>Vector PDF.</strong> Rendering onto a cairo <em>PDF surface</em> instead of an image surface gives a real vector PDF. Text stays selectable text.</li>
+<li>
+<strong>The right size.</strong> The old path rendered SVGs 1.56× larger than their declared size, because it reused the 150 dpi default meant for PDF pages (150 / 96 = 1.56). SVG now has its own default of 96 dpi, so a 480×300 SVG becomes a 480×300 PNG. <code>--dpi 192</code> gives you 2×.</li>
+</ul>
+
+<p>And the backend's requirement is simply <code>lib:rsvg-2</code>. If it's missing, ImageMagick quietly takes over SVG again, because it's next in line in the registry.</p>
+
+<h2>
+  <a name="what-id-tell-myself-at-the-start" href="#what-id-tell-myself-at-the-start">
+  </a>
+  What I'd tell myself at the start
+</h2>
+
+<ol>
+<li>
+<strong>Make capabilities data, not code paths.</strong> Once backends declared what they do, the menu, the CLI, <code>doctor</code>, the shell completions and the docs all came from the same table.</li>
+<li>
+<strong>Compare against a reference.</strong> A screenshot showed the SVG bug; a number (8.09 → 0.43 against Chromium) proved the fix and keeps "looks fine to me" out of the discussion.</li>
+<li>
+<strong>Don't fake progress.</strong> An honest timer beats a frozen percentage.</li>
+</ol>
+
+<p>In <a href="https://dev.to/freerave/making-a-file-converter-feel-alive-with-qml-5gl6">part 3</a> we go to the other side: the QML wheel, GPU-drawn ring sectors, particles, and how a daemon makes it open in 0.1 s.</p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotMorph" target="_blank" rel="noopener noreferrer">kareem2099/DotMorph</a>
+</li>
+<li>
+<strong>Project page:</strong> <a href="https://dotsuite.dev/en/product/dotmorph" target="_blank" rel="noopener noreferrer">dotsuite.dev/en/product/dotmorph</a>
+</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/8-backends-one-engine-and-the-svg-bug-that-started-it-all-3ooo" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/8-backends-one-engine-and-the-svg-bug-that-started-it-all-3ooo#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

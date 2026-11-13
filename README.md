@@ -82,6 +82,7 @@ This portfolio website includes:
 - **git push nightmare** ([`game.html`](game.html)) — Terminal game: fix a leaked `.env.bak` before the bill hits $5,000
 - **Growth Challenge Tracker** — Visual progress bars for November 2026 follower goals
 - **VS Code Extension Stats** — Download counts from VS Marketplace & Open VSX
+- **Blog** ([`/blog/`](https://freerave.dev/blog/)) — Every dev.to article mirrored as a static page, with the canonical link pointing back to dev.to; refreshed daily by `scripts/sync-blog.mjs`
 - **AMA Section** — Ask Me Anything with topic categorization
 - **Collaboration CTA** — Open for collaboration section
 - **Scroll Reveal Animations** — IntersectionObserver-driven fade-up effects

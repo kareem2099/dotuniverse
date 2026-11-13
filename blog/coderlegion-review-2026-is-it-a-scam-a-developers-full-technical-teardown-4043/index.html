@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>CoderLegion Review 2026: Is It a Scam? A Developer's Full Technical Teardown — FreeRave</title>
+<meta name="description" content="CoderLegion charges $10/month premium while running hidden ads, faking their founding date,...">
+<link rel="canonical" href="https://dev.to/freerave/coderlegion-review-2026-is-it-a-scam-a-developers-full-technical-teardown-4043">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/coderlegion-review-2026-is-it-a-scam-a-developers-full-technical-teardown-4043">
+<meta property="og:title" content="CoderLegion Review 2026: Is It a Scam? A Developer's Full Technical Teardown — FreeRave">
+<meta property="og:description" content="CoderLegion charges $10/month premium while running hidden ads, faking their founding date,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyt4k7grgcdlhhfg35mwz.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyt4k7grgcdlhhfg35mwz.png" alt="">
+  <h1 class="post-title">CoderLegion Review 2026: Is It a Scam? A Developer's Full Technical Teardown</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-03T17:21:32Z">3 May 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#cybersecurity</span><span class="post-tag">#webdev</span><span class="post-tag">#security</span><span class="post-tag">#osint</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="coderlegion-charges-10month-premium-while-running-hidden-ads-faking-their-founding-date-inflating-user-counts-by-70-and-sending-bulk-emails-with-mail-merge-errors-full-technical-proof-every-claim-verified-against-public-record" href="#coderlegion-charges-10month-premium-while-running-hidden-ads-faking-their-founding-date-inflating-user-counts-by-70-and-sending-bulk-emails-with-mail-merge-errors-full-technical-proof-every-claim-verified-against-public-record">
+  </a>
+  CoderLegion charges $10/month premium while running hidden ads, faking their founding date, inflating user counts by 70%, and sending bulk emails with mail merge errors. Full technical proof. Every claim verified against public record.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR:</strong> CoderLegion charges $10/month for "premium" access to ~37 active writers on a free open-source script running on $5 shared hosting. They claim no ads (Google AdSense is in the source code). They claim to exist since 2020 (domain registered 2023). They claim 4,065 users (pagination math says ~1,200). Both their domains are blocked from renewal by GoDaddy. After this analysis was completed, the site went down — and a bulk outreach email arrived addressed to someone named "Rockman." There is no Peter Jones.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="why-this-article-exists" href="#why-this-article-exists">
+  </a>
+  Why This Article Exists
+</h2>
+
+<p>I joined CoderLegion as a content creator.</p>
+
+<p>Within days, I reached <strong>#2 on the monthly leaderboard</strong>. Not because the platform is competitive. Because barely anyone posts.</p>
+
+<p>Then the founder — Mehadi Hasan — slid into my DMs with an offer:</p>
+
+<blockquote>
+<p><em>"I'm building out some features to help developers like you get more visibility and grow faster on the platform. I'd love to give you Premium free for a month and get your feedback on whether it actually helps. No pressure at all."</em></p>
+</blockquote>
+
+<p>I'm a developer. I look at what things are actually built on before I make decisions.</p>
+
+<p>What I found is documented below. Every line of it is publicly verifiable.</p>
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fu2om6cb9zs26yfit3ydh.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fu2om6cb9zs26yfit3ydh.png" alt="The founder personally DMing users to sell Premium" loading="lazy" width="800" height="423"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="claim-1-weve-been-around-since-2020" href="#claim-1-weve-been-around-since-2020">
+  </a>
+  Claim #1: "We've Been Around Since 2020"
+</h2>
+
+<p>Every page on CoderLegion contains this in its schema markup:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"dateCreated"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2020"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"publisher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Coder Legion"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Public record:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois coderlegion.com
+
+Creation Date: 2023-07-21T16:50:42Z
+Updated Date:  2026-04-14T05:35:38Z
+Registrar:     GoDaddy.com, LLC
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The domain was registered July 21, 2023.</strong></p>
+
+<p>Their predecessor — the original platform they rebranded from:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois kodlogs.net
+
+Creation Date: 2021-05-08T04:28:37Z
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>kodlogs.net</code> was registered May 2021. The platform they're claiming as their 2020 origin didn't exist until 2021 — and the current domain didn't exist until 2023.</p>
+
+<p>Note also: the WHOIS record was <strong>updated April 14, 2026</strong> — three days after a technical analysis of the platform was published publicly.</p>
+
+<p>Domain records don't update themselves.</p>
+
+<p><strong>Verdict: The "Since 2020" claim is false by any public measure.</strong></p>
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw1lprhl6c7bx62gptn9i.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw1lprhl6c7bx62gptn9i.png" alt="Every page claims 2020. WHOIS says July 2023." loading="lazy" width="800" height="71"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="claim-2-we-dont-run-ads" href="#claim-2-we-dont-run-ads">
+  </a>
+  Claim #2: "We Don't Run Ads"
+</h2>
+
+<p>Their About page states:</p>
+
+<blockquote>
+<p><em>"The platform is completely free to use. We don't run ads or charge authors."</em></p>
+</blockquote>
+
+<p>Their HTML source code — press Ctrl+U on any page — states:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;script </span><span class="na">async</span> 
+  <span class="na">src=</span><span class="s">"//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;/script&gt;</span>
+
+<span class="nt">&lt;ins</span> <span class="na">class=</span><span class="s">"adsbygoogle"</span>
+  <span class="na">data-ad-client=</span><span class="s">"pub-1763140298030248"</span>
+  <span class="na">data-ad-slot=</span><span class="s">""</span>
+  <span class="na">data-ad-format=</span><span class="s">"horizontal"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;/ins&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Google AdSense Publisher ID: <code>ca-pub-1763140298030248</code></strong></p>
+
+<p>This is not a placeholder. This is an active, configured AdSense implementation earning revenue from every page view.</p>
+
+<p>The ads appear in the sidebar. At the bottom of posts. And — in a detail worth sitting with — on the <strong>Delete Profile</strong> page.</p>
+
+<p>When a user is in the process of permanently deleting their account, CoderLegion serves them a Google ad.</p>
+
+<p>During our analysis, a third-party survey ad also appeared:<br>
+<strong>MetroOpinion: "$5 مقابل إجابات قصيرة"</strong></p>
+
+<p>Multiple ad networks. On a platform that claims to run no ads.</p>
+
+<p><strong>Verdict: They run ads. The source code is the proof. The About page is not.</strong></p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2p326hk6z50rzlg86bzb.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2p326hk6z50rzlg86bzb.png" alt="An ad served while deleting your account. " loading="lazy" width="800" height="425"></a></p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Folxyia0hgbs2rlgbli89.webp" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Folxyia0hgbs2rlgbli89.webp" alt="A second ad network. On the same " loading="lazy" width="462" height="1000"></a></p>
+
+<hr>
+<h2>
+  <a name="claim-3-connect-with-4065-amazing-developers" href="#claim-3-connect-with-4065-amazing-developers">
+  </a>
+  Claim #3: "Connect with 4,065 Amazing Developers"
+</h2>
+
+<p>Every visitor sees this in the login modal.</p>
+
+<p>The users page has pagination. Pagination has math:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Last page accessible: /users?start=1170
+Items per page: 30
+Pages: 40
+
+40 × 30 = 1,200 users
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The modal claims <strong>4,065</strong>.<br>
+The database-driven pagination reveals <strong>~1,200</strong>.</p>
+
+<p>A 70% inflation in the number displayed to potential new users.</p>
+
+<p><strong>Verdict: The user count is not accurate. The math is public.</strong></p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqjruhr7xoiuxjce8q8w3.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqjruhr7xoiuxjce8q8w3.png" alt="4,065 in the modal. ~1,200 in the database. You can verify this yourself" loading="lazy" width="800" height="423"></a></p>
+
+<hr>
+<h2>
+  <a name="what-theyre-actually-running" href="#what-theyre-actually-running">
+  </a>
+  What They're Actually Running
+</h2>
+
+<p>The source code makes the tech stack visible to anyone:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight conf"><code><span class="n">Path</span>: /<span class="n">qa</span>-<span class="n">theme</span>/<span class="n">CoderLegion</span>/
+<span class="n">Path</span>: /<span class="n">qa</span>-<span class="n">plugin</span>/<span class="n">q2a</span>-<span class="n">badges</span>-<span class="n">master</span>/
+<span class="n">Path</span>: /<span class="n">qa</span>-<span class="n">content</span>/<span class="n">jquery</span>-<span class="m">3</span>.<span class="m">3</span>.<span class="m">1</span>.<span class="n">min</span>.<span class="n">js</span>
+<span class="n">Cookie</span>: <span class="n">qa_key</span>      ← <span class="n">Question2Answer</span> <span class="n">session</span> <span class="n">token</span>
+<span class="n">Cookie</span>: <span class="n">PHPSESSID</span>   ← <span class="n">PHP</span> <span class="n">backend</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>CoderLegion runs on Question2Answer (Q2A)</strong> — a free, open-source PHP script available at question2answer.org.</p>
+
+<p>The server:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>curl <span class="nt">-I</span> https://coderlegion.com
+server: LiteSpeed
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>LiteSpeed shared hosting. Market rate: <strong>$3–5/month.</strong></p>
+
+<p>The CoderLegion Premium plan: <strong>$10/month.</strong></p>
+
+<p>Premium promises:</p>
+
+<ul>
+<li>"10x More Visibility"</li>
+<li>"Profile Boost"</li>
+<li>"Boosted Replies"</li>
+</ul>
+
+<p>On a platform with <strong>~37 active writers per month</strong> and <strong>~1,200 total registered users.</strong></p>
+
+<p>You do the math.</p>
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdwx6c372tm87oiesjv4l.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdwx6c372tm87oiesjv4l.png" alt="$10/month. Free Q2A script. Shared hosting. ~37 active writers" loading="lazy" width="800" height="421"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-domain-status-this-part-matters" href="#the-domain-status-this-part-matters">
+  </a>
+  The Domain Status: This Part Matters
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois coderlegion.com
+
+Domain Status: clientRenewProhibited ⚠️
+Domain Status: clientDeleteProhibited
+Domain Status: clientTransferProhibited
+Domain Status: clientUpdateProhibited
+Registry Expiry Date: 2026-07-21
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois kodlogs.net
+
+Domain Status: clientRenewProhibited ⚠️
+Registry Expiry Date: 2026-05-08
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>clientRenewProhibited</code> means <strong>GoDaddy has blocked the domain owner from renewing their domain.</strong></p>
+
+<p>This status is applied for reasons including outstanding payment issues, account holds, or compliance disputes.</p>
+
+<p><strong>Both domains carry this flag.</strong></p>
+
+<p><code>kodlogs.net</code> — the predecessor platform — expired within days of this analysis being conducted.</p>
+
+<p><code>coderlegion.com</code> expires <strong>July 21, 2026.</strong></p>
+
+<p>If you have published content on CoderLegion:</p>
+
+<p><strong>Export it. Now. Before July.</strong></p>
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7q6fws4x1nqil27blxmo.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7q6fws4x1nqil27blxmo.png" alt="GoDaddy has blocked renewal on both domains. coderlegion.com expires July 21" loading="lazy" width="800" height="893"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-security-infrastructure" href="#the-security-infrastructure">
+  </a>
+  The Security Infrastructure
+</h2>
+
+<p>Any developer who looks at what's actually running on the server behind a platform that collects payment information will find services with no business being publicly accessible.</p>
+
+<p>The database — port 3306, MariaDB — is observable from the public internet.</p>
+
+<p>I'll leave it at that.</p>
+
+<p>If you're a developer, you know exactly what that means for user payment data.</p>
+
+<p>If you're not: a properly secured server keeps its database accessible only to itself. Not to the public internet.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>How it should be:
+Database → localhost only ✅
+
+What a developer paying attention might notice:
+Database → publicly observable 🌍
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The information is verifiable by anyone with standard tooling.</p>
+
+<p><strong>If you have entered payment information on CoderLegion, you should be aware of this.</strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-authentication" href="#the-authentication">
+  </a>
+  The Authentication
+</h2>
+
+<p>The "Forgot Password" flow does not send a verification email.</p>
+
+<p>It accepts a new password directly — without confirming ownership of the account through email verification.</p>
+
+<p>The "Delete Account" page accepts any non-empty string in the password field. It does not validate against your actual account password.</p>
+
+<p>Both were discovered during normal usage of my own account.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-picture" href="#the-full-picture">
+  </a>
+  The Full Picture
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌─────────────────────────────────────────────┐
+│         CoderLegion: Claimed vs. Real        │
+├─────────────────────┬───────────────────────┤
+│ Founded             │ 2020 → 2023 actual     │
+│ Users               │ 4,065 → ~1,200 actual  │
+│ Active writers/mo   │ Unstated → ~37 actual  │
+│ Ads                 │ "None" → AdSense active │
+│ Platform            │ Custom → Free Q2A script│
+│ Hosting cost        │ Unstated → ~$5/month    │
+│ Premium price       │ $10/month               │
+│ Domain renewal      │ clientRenewProhibited ⚠️│
+│ Predecessor domain  │ kodlogs.net → expired   │
+│ DB security         │ Unstated → publicly     │
+│                     │ observable              │
+└─────────────────────┴───────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="there-is-no-peter-jones" href="#there-is-no-peter-jones">
+  </a>
+  "There Is No Peter Jones"
+</h2>
+
+<p>Before this analysis, I received an email from<br>
+<strong>Peter Jones</strong> <code>&lt;peter.jones@legioncoder.com&gt;</code>:</p>
+
+<blockquote>
+<p><em>"Your recent post 'You Don't Need Chaos Monkey' on Hashnode really caught my attention... I'd love to feature you as a guest author on CoderLegion.com."</em></p>
+</blockquote>
+
+<p>The email addressed me as <strong>"Rockman."</strong></p>
+
+<p>My name is FreeRave.</p>
+
+<p>Others across the internet have reported receiving identical outreach emails — same wording, different sender names: "Ross," "Peter Jones," and others. All from <code>@legioncoder.com</code> addresses. All with the same template. Some with different names in the greeting.</p>
+
+<p>This is a bulk outreach operation with mail merge errors.</p>
+
+<p>There is no Peter Jones.<br>
+There is no editorial team reading your Hashnode posts.<br>
+There is a template, a mailing list, and occasionally the wrong name in the salutation.</p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fzukdhecj7pi63rjcawdo.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fzukdhecj7pi63rjcawdo.png" alt="Hi Rockman." name="" loading="lazy" width="800" height="400"></a></p>
+
+<hr>
+<h2>
+  <a name="update-may-3-2026-the-site-went-down" href="#update-may-3-2026-the-site-went-down">
+  </a>
+  UPDATE — May 3, 2026: The Site Went Down
+</h2>
+
+<p>Shortly after this analysis was completed:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>ERR_CONNECTION_TIMED_OUT
+coderlegion.com took too long to respond.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7kbd2a2zxyfm87lkkiox.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7kbd2a2zxyfm87lkkiox.png" alt="Browser ERR_CONNECTION_TIMED_OUT May 3, 2026. Desktop access blocked" loading="lazy" width="800" height="421"></a></p>
+
+
+<hr>
+
+<p>The site remained accessible from mobile networks — confirming a <strong>targeted IP block</strong>, not a server failure.</p>
+
+<p>Mobile access continued showing ads, including the MetroOpinion survey ad.</p>
+
+<p>And then — while blocked — I received the weekly CoderLegion newsletter:</p>
+
+<blockquote>
+<p><em>"Hi FreeRave, Your profile is ready to grow!"</em><br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Account status:  Deleted ✅
+IP status:       Blocked ✅
+Newsletter:      Still arriving 📧
+Points:          835 — gone
+Email list:      Apparently permanent
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn26sr3jn617k4ug02xkn.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn26sr3jn617k4ug02xkn.png" alt="Account deleted. IP banned. Newsletter delivered. " loading="lazy" width="799" height="422"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="what-you-should-do-right-now" href="#what-you-should-do-right-now">
+  </a>
+  What You Should Do Right Now
+</h2>
+
+<p><strong>Free account:</strong><br>
+Export all your content immediately. Go to your posts and copy everything. The domain situation makes July continuity uncertain.</p>
+
+<p><strong>Premium account:</strong><br>
+You paid $10/month for increased visibility among ~37 active writers on a platform with uncertain domain continuity. If you believe the service was misrepresented, contact your card provider.</p>
+
+<p><strong>Considering joining:</strong><br>
+You now have the information. The decision is yours.</p>
+
+<hr>
+<h2>
+  <a name="how-any-developer-can-verify-this" href="#how-any-developer-can-verify-this">
+  </a>
+  How Any Developer Can Verify This
+</h2>
+
+<p>Every finding here came from publicly available information:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Domain age, status, and expiry</span>
+<span class="nv">$ </span>whois coderlegion.com
+<span class="nv">$ </span>whois kodlogs.net
+
+<span class="c"># Server software</span>
+<span class="nv">$ </span>curl <span class="nt">-I</span> https://coderlegion.com
+
+<span class="c"># Source code — press Ctrl+U in any browser</span>
+<span class="c"># Search for: adsbygoogle, qa-theme, dateCreated</span>
+
+<span class="c"># User count math</span>
+<span class="c"># Visit /users, find the last page number</span>
+<span class="c"># Multiply by 30</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Before paying for any platform, spend 10 minutes on these checks.</p>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>Building a developer community from scratch is genuinely hard.<br>
+One person doing it alone deserves credit for trying.</p>
+
+<p>But none of that justifies:</p>
+
+<ul>
+<li>Claiming a founding date 3 years before the domain existed</li>
+<li>Running Google AdSense while explicitly stating you don't run ads</li>
+<li>Displaying user counts 70% higher than the database supports</li>
+<li>Charging $10/month for access to ~37 active writers</li>
+<li>Operating with both domains blocked from renewal</li>
+<li>Running bulk outreach campaigns with mail merge errors</li>
+<li>Blocking IPs rather than responding to documented findings</li>
+</ul>
+
+<p>Developers deserve accurate information about the platforms they invest their time, content, and money in.</p>
+
+<p>This article exists because they weren't getting it.</p>
+
+
+<hr>
+
+<p><em>All findings are based exclusively on public record data: WHOIS lookups, HTML source code, HTTP headers, pagination mathematics, and normal account usage. No unauthorized access was performed or implied.</em></p>
+
+
+<hr>
+
+<p><em>Have you received an email from "Peter Jones"? What name did they use? Share below.</em></p>
+
+
+<hr>
+
+<p><strong>Related:</strong></p>
+
+<ul>
+<li><a href="https://dev.to/freerave/exposed-the-youdao-ads-influencer-marketing-scam-technical-analysis-red-flags-5cag">EXPOSED: The Youdao Ads Influencer Marketing Scam</a></li>
+<li><a href="https://dev.to/freerave/part-2-i-published-a-scam-expose-netease-sent-a-takedown-request-then-they-rewrote-their-entire-hip">PART 2: I Published a Scam Expose. NetEase Sent a Takedown Request. Then They Rewrote Their Entire Operation.</a></li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/coderlegion-review-2026-is-it-a-scam-a-developers-full-technical-teardown-4043" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 4
+    · <a href="https://dev.to/freerave/coderlegion-review-2026-is-it-a-scam-a-developers-full-technical-teardown-4043#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

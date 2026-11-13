@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I built a Linux app that hides faces, license plates and GPS from your photos — FreeRave</title>
+<meta name="description" content="DotScramble: blur, pixelate or black-bar faces, plates and text, and strip the EXIF/GPS...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-linux-app-that-hides-faces-license-plates-and-gps-from-your-photos-3h97">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-linux-app-that-hides-faces-license-plates-and-gps-from-your-photos-3h97">
+<meta property="og:title" content="I built a Linux app that hides faces, license plates and GPS from your photos — FreeRave">
+<meta property="og:description" content="DotScramble: blur, pixelate or black-bar faces, plates and text, and strip the EXIF/GPS...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fab6tgjg5fasxvq976902.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fab6tgjg5fasxvq976902.png" alt="">
+  <h1 class="post-title">I built a Linux app that hides faces, license plates and GPS from your photos</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-28T12:28:51Z">28 October 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#privacy</span><span class="post-tag">#opensource</span><span class="post-tag">#showdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="dotscramble-blur-pixelate-or-blackbar-faces-plates-and-text-and-strip-the-exifgps-hidden-in-the-file-before-you-share-a-photo-local-open-source-linux" href="#dotscramble-blur-pixelate-or-blackbar-faces-plates-and-text-and-strip-the-exifgps-hidden-in-the-file-before-you-share-a-photo-local-open-source-linux">
+  </a>
+  DotScramble: blur, pixelate or black-bar faces, plates and text, and strip the EXIF/GPS hidden in the file, before you share a photo. Local, open source, Linux.
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fq5ltxy40mkhyzv9olljm.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fq5ltxy40mkhyzv9olljm.gif" alt="DotScramble comparing a group photo before and after: the divider sweeps across and the four faces are pixelated" loading="lazy" width="720" height="720"></a></p>
+
+<p>Open a photo. Pick what to hide. Compare. Save.</p>
+
+<p>That is <strong>DotScramble</strong>, a photo privacy studio for Linux. It blurs, pixelates or black-bars <strong>faces, eyes, license plates and text</strong>, and on save it strips or replaces the <strong>EXIF and GPS data</strong> hidden in the file. Everything runs on your machine. It's open source (Apache 2.0) and part of <a href="https://dotsuite.dev/en" target="_blank" rel="noopener noreferrer">DotSuite</a>, my collection of developer tools.</p>
+
+<h2>
+  <a name="why" href="#why">
+  </a>
+  Why?
+</h2>
+
+<p>A photo you're about to post usually shows more than you meant to:</p>
+
+<ul>
+<li>the faces of people who never agreed to be online,</li>
+<li>a car's number plate, a name on a badge, an address on a parcel,</li>
+<li>and, invisible in the picture itself, the <strong>exact GPS location</strong>, the phone model and the time it was taken.</li>
+</ul>
+
+<p>The usual options on Linux are a full image editor (select every face by hand, then remember the metadata is still there) or an online "blur faces" site, which means uploading the very photo you're trying to protect. I wanted one small app that does the whole job locally, shows you exactly what it's about to hide, and is honest when it can't.</p>
+
+<h2>
+  <a name="what-it-hides-and-how" href="#what-it-hides-and-how">
+  </a>
+  What it hides, and how
+</h2>
+
+<p><strong>What:</strong> faces, eyes, full bodies, license plates, any text it can read (OCR), <strong>one specific word</strong> (a name, a phone number), regions you draw by hand, or the whole image.</p>
+
+<p><strong>How:</strong> seven effects (blur, pixelation, black bar, gradient, mosaic, frosted glass, oil paint) with strength, block size and opacity controls.</p>
+
+<p>Two things make it feel safe to use:</p>
+
+<ul>
+<li>
+<strong>Detect preview.</strong> Before anything changes, every region it found is outlined. Click one to skip it, so with several people in a photo you protect exactly the ones you choose. The status bar says <em>"3 of 4 regions will be hidden"</em>.</li>
+<li>
+<strong>Compare.</strong> A before / after split view with a draggable divider (that's the GIF at the top).</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fkf6rrz6cg6tkonmgs2yq.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fkf6rrz6cg6tkonmgs2yq.gif" alt="Detect outlines the faces, Pixelation is picked, Apply hides them" loading="lazy" width="600" height="600"></a></p>
+
+<p>It also refuses to pretend. If detection can't run (say, OpenCV's cascade files are missing), you get an error, never a "done" with the face still visible.</p>
+
+<h2>
+  <a name="the-metadata-you-cant-see" href="#the-metadata-you-cant-see">
+  </a>
+  The metadata you can't see
+</h2>
+
+<p>Every photo from a phone carries EXIF data: GPS coordinates, camera make and model, timestamps, sometimes a device fingerprint. DotScramble handles it on save:</p>
+
+<ul>
+<li>
+<strong>Keep</strong> it,</li>
+<li>
+<strong>Strip</strong> GPS, camera and device tags,</li>
+<li>or replace them with believable <strong>decoys</strong> (three presets, or set each field yourself).</li>
+</ul>
+
+<p>Before the file is written, a report lists every field that will be kept, removed or replaced, so there are no surprises.</p>
+
+<h2>
+  <a name="ai-evasion" href="#ai-evasion">
+  </a>
+  AI Evasion
+</h2>
+
+<p>A blurred face is unreadable to people, but face <em>detectors</em> can often still find it, and a face software can find can be indexed and matched. <strong>AI Evasion</strong> adds a small, optimised pattern of noise to the face region (a black-box SPSA optimisation against the detector) until the detector no longer finds a face there.</p>
+
+<ul>
+<li>
+<strong>Hybrid</strong> blurs the face for people <em>and</em> hides it from the detector.</li>
+<li>
+<strong>Invisible</strong> leaves the face looking the same, and only fools the detector.</li>
+<li>It takes about 30–90 seconds per face on the CPU, and it reports the result honestly: complete, partial (with the evasion rate) or failed.</li>
+</ul>
+
+<p>To be clear about the limits: the pattern is tuned against the detector DotScramble itself uses (MediaPipe). It is <strong>not</strong> a guarantee against every face recognition system, so treat it as an extra layer on top of a visible effect, not a replacement.</p>
+
+<h2>
+  <a name="also-in-the-box" href="#also-in-the-box">
+  </a>
+  Also in the box
+</h2>
+
+<ul>
+<li>
+<strong>Batch processing</strong> for whole folders, with a per-file error report.</li>
+<li>
+<strong>Zoom and pan</strong>, live preview, presets, undo and redo.</li>
+<li>
+<strong>7 languages</strong>: English, العربية, فارسی, Español, Русский, Deutsch and Türkçe, with right-to-left layouts and correct plural forms in every one of them.</li>
+<li>
+<strong>16 themes</strong>; every dialog follows the one you pick.</li>
+<li>
+<strong>Signed updates</strong>: the built-in updater checks the checksum <em>and</em> the GPG signature before installing anything.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ft2bfpc9mebwa9qje46jp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ft2bfpc9mebwa9qje46jp.png" alt="DotScramble in Arabic, right to left, on the light theme" loading="lazy" width="" height=""></a></p>
+
+<h2>
+  <a name="free-and-pro" href="#free-and-pro">
+  </a>
+  Free and Pro
+</h2>
+
+<p>Everything you need to hide faces is free: all seven effects, Detect preview, Compare, zoom, face and eye detection (OpenCV Haar cascades), manual regions and batches of three images.</p>
+
+<p>The optional <strong>Pro</strong> plan (DotScramble Max on <a href="https://dotsuite.dev/en/product/dotscramble" target="_blank" rel="noopener noreferrer">dotsuite.dev</a>) adds AI face ovals and eye bars (MediaPipe), full bodies, license plates, text and single-word detection, AI Evasion, the metadata tools and unlimited batches.</p>
+
+<h2>
+  <a name="install" href="#install">
+  </a>
+  Install
+</h2>
+
+<p>Grab one of these from the <a href="https://github.com/kareem2099/DotScramble/releases/latest" target="_blank" rel="noopener noreferrer">releases page</a>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># AppImage: any distribution, no install</span>
+<span class="nb">chmod</span> +x DotScramble-Linux-x86_64.AppImage <span class="o">&amp;&amp;</span> ./DotScramble-Linux-x86_64.AppImage
+
+<span class="c"># Debian, Ubuntu, Kali, Mint</span>
+<span class="nb">sudo </span>apt <span class="nb">install</span> ./DotScramble-Linux-x86_64.deb
+
+<span class="c"># Arch, Manjaro</span>
+<span class="nb">sudo </span>pacman <span class="nt">-U</span> DotScramble-Linux-x86_64.pkg.tar.zst
+
+<span class="c"># optional, for the text and word modes</span>
+<span class="nb">sudo </span>apt <span class="nb">install </span>tesseract-ocr
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>There's also a portable <code>.tar.gz</code>, and it runs from source with Python 3.10+. Every release ships <code>SHA256SUMS</code> and a detached GPG signature for each package, so you can check what you downloaded:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">sha256sum</span> <span class="nt">-c</span> SHA256SUMS <span class="nt">--ignore-missing</span>
+gpg <span class="nt">--import</span> DotScramble-signing-key.asc
+gpg <span class="nt">--verify</span> DotScramble-Linux-x86_64.AppImage.asc DotScramble-Linux-x86_64.AppImage
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>DotScramble is also on <a href="https://www.appimagehub.com/p/2362477/" target="_blank" rel="noopener noreferrer">AppImageHub</a> and <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>. The AppImage carries update information, so AppImageUpdate and Gear Lever can update it too.</p>
+
+<h2>
+  <a name="what-goes-online" href="#what-goes-online">
+  </a>
+  What goes online
+</h2>
+
+<p>Your photos never leave your computer. The app only connects to GitHub (to check for updates and the supported-version policy), to dotsuite.dev (to activate or re-check Pro), and, the first time you use a Pro AI feature and only if you agree, to Google's storage to download the MediaPipe face model (about 8 MB).</p>
+
+<h2>
+  <a name="honest-limitations" href="#honest-limitations">
+  </a>
+  Honest limitations
+</h2>
+
+<ul>
+<li>
+<strong>Linux x86_64 only</strong>, and the packages need <strong>glibc 2.35+</strong> (Ubuntu 22.04, Debian 12, Fedora 36 and newer). Older systems can run it from source. No Windows or macOS builds yet.</li>
+<li>The text and word modes need <strong>Tesseract</strong> installed.</li>
+<li>
+<strong>AI Evasion is slow</strong> (30–90 s per face on the CPU) and is tested against one detector, not all of them.</li>
+<li>Save AI-evaded images as <strong>PNG</strong>: JPEG compression can weaken the pattern.</li>
+</ul>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try it
+</h2>
+
+<p>If you try it, I'd love to know what you hide most, and what's missing.</p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">kareem2099/DotScramble</a>
+</li>
+<li>
+<strong>Project page:</strong> <a href="https://dotsuite.dev/en/product/dotscramble" target="_blank" rel="noopener noreferrer">dotsuite.dev/en/product/dotscramble</a>
+</li>
+<li>
+<strong>Also on:</strong> <a href="https://www.appimagehub.com/p/2362477/" target="_blank" rel="noopener noreferrer">AppImageHub</a> · <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>
+</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-linux-app-that-hides-faces-license-plates-and-gps-from-your-photos-3h97" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-linux-app-that-hides-faces-license-plates-and-gps-from-your-photos-3h97#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

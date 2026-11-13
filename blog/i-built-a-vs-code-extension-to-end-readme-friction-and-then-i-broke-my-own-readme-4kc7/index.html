@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a VS Code Extension to End &quot;README Friction&quot; (And then I broke my own README) 🤦‍♂️ — FreeRave</title>
+<meta name="description" content="Building open-source projects is 90% coding and 10% trying to figure out why your README images look...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-vs-code-extension-to-end-readme-friction-and-then-i-broke-my-own-readme-4kc7">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-vs-code-extension-to-end-readme-friction-and-then-i-broke-my-own-readme-4kc7">
+<meta property="og:title" content="I Built a VS Code Extension to End &quot;README Friction&quot; (And then I broke my own README) 🤦‍♂️ — FreeRave">
+<meta property="og:description" content="Building open-source projects is 90% coding and 10% trying to figure out why your README images look...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmtnztu99tn5w1j6lela6.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">I Built a VS Code Extension to End &quot;README Friction&quot; (And then I broke my own README) 🤦‍♂️</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-24T11:00:00Z">24 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span><span class="post-tag">#markdown</span></div>
+  </div>
+  <article class="post-body">
+<p>Building open-source projects is 90% coding and 10% trying to figure out why your README images look broken on the VS Code Marketplace.</p>
+
+<p>After getting frustrated with the "Push and Pray" workflow—where you push to GitHub just to see if your Markdown rendered correctly—I decided to build DotReadme.<br>
+  <iframe src="https://www.youtube.com/embed/YbnjoABOSCw" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>The Problem: The "Carpenter's Door" Irony 🚪<br>
+Yesterday, while preparing for the v1.0.0 launch, I fell into the very trap my extension was designed to fix. I used relative paths for my images (media/logo.png). They looked great in my local preview, but once published to Open VSX, everything was broken.</p>
+
+<p>It was a classic "Carpenter's door is always broken" moment. I ended up using my own tool to fix my own documentation.</p>
+
+<p>What is DotReadme? 🛠️<br>
+DotReadme is a specialized environment for crafting documentation. It lives inside VS Code and provides:</p>
+
+<p>🎭 Multi-Platform Simulator: See exactly how your README will look on GitHub, VS Code Marketplace, or Open VSX without leaving your editor.</p>
+
+<p>📊 Live Quality Audit: An automated scoring system (A+ to F) that checks for essential sections like Installation, Usage, and License.</p>
+
+<p>🔗 Smart Path Fixer: The feature I should have used—it converts relative image paths to absolute GitHub raw URLs in one click.</p>
+
+<p>🛡️ Badge Inserter: Instantly add shields.io badges with automatic repository detection.</p>
+
+<p>How I Built It 💻<br>
+I built this using TypeScript and esbuild, leveraging the VS Code Webview API. One of the biggest challenges was creating a high-performance live preview. I implemented a Debounce logic (500ms) to ensure that the simulator doesn't lag while the user is typing fast.</p>
+
+<p>Open Source &amp; DotSuite<br>
+This is the first stable release of the DotSuite ecosystem. I’m a 28-year-old developer (working from Kali Linux 🐉) and I believe documentation shouldn't be a chore.</p>
+
+<p>I’d love to hear your thoughts! What’s your biggest "README fail" story? Let’s talk in the comments!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-vs-code-extension-to-end-readme-friction-and-then-i-broke-my-own-readme-4kc7" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 1
+    · <a href="https://dev.to/freerave/i-built-a-vs-code-extension-to-end-readme-friction-and-then-i-broke-my-own-readme-4kc7#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

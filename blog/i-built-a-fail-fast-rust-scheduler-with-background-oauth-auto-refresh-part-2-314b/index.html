@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShare 3.3: A Fail-Fast Rust Scheduler with Background OAuth Auto-Refresh (Part 2) — FreeRave</title>
+<meta name="description" content="In Part 1 of this backend series, I broke down the core architecture of dotsuite-core — a private...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-fail-fast-rust-scheduler-with-background-oauth-auto-refresh-part-2-314b">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-fail-fast-rust-scheduler-with-background-oauth-auto-refresh-part-2-314b">
+<meta property="og:title" content="Building DotShare 3.3: A Fail-Fast Rust Scheduler with Background OAuth Auto-Refresh (Part 2) — FreeRave">
+<meta property="og:description" content="In Part 1 of this backend series, I broke down the core architecture of dotsuite-core — a private...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2F3172f0f0-99e1-413b-917b-f60d54672515.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2F3172f0f0-99e1-413b-917b-f60d54672515.jpg" alt="">
+  <h1 class="post-title">Building DotShare 3.3: A Fail-Fast Rust Scheduler with Background OAuth Auto-Refresh (Part 2)</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-25T06:46:15Z">25 May 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#rust</span><span class="post-tag">#typescript</span><span class="post-tag">#architecture</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<p>In <a href="https://dev.to/freerave/i-built-a-private-rust-backend-to-power-18-developer-tools-heres-the-architecture-4lmc">Part 1 of this backend series</a>, I broke down the core architecture of <code>dotsuite-core</code> — a private Rust backend powering 18 developer tools, complete with multi-tier scheduling and the "Look-Ahead + Sleep" pattern.</p>
+
+<p>But as with any production system, solving one architectural challenge reveals the next. In our case: <strong>Silent Scheduling Failures and Expiring OAuth Tokens.</strong></p>
+
+<p>Here is a deep dive into how we implemented a <strong>Strict Separation</strong> model, adopted a <strong>Fail-Fast</strong> philosophy, and engineered a background worker in Rust to automatically refresh OAuth tokens before they expire.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-doomed-scheduled-posts" href="#the-problem-doomed-scheduled-posts">
+  </a>
+  The Problem: Doomed Scheduled Posts
+</h2>
+
+<p><a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">DotShare</a> allows developers to schedule social media posts directly from VS Code. Initially, our scheduling flow looked like this:</p>
+
+<ol>
+<li>User writes a post in VS Code and clicks "Schedule".</li>
+<li>The Rust backend accepts the payload, deducts the monthly quota, and saves it as <code>Pending</code> in MongoDB.</li>
+<li>The background cron scheduler wakes up at the right time to publish.</li>
+</ol>
+
+<p><strong>The Flaw:</strong> What if the user hadn't connected their Twitter (X) or LinkedIn accounts via OAuth on the DotSuite dashboard yet?</p>
+
+<p>The scheduler would wake up, search the database for the user's OAuth tokens, find nothing, and inevitably fail. The user's quota was burned, the database was polluted with doomed posts, and the user woke up to a silent failure.</p>
+
+
+<hr>
+
+<h2>
+  <a name="architecture-decision-strict-separation-amp-failfast" href="#architecture-decision-strict-separation-amp-failfast">
+  </a>
+  Architecture Decision: Strict Separation &amp; Fail-Fast
+</h2>
+
+<p>We needed a <strong>Strict Separation</strong> between local VS Code execution and Cloud Scheduling. If you want the cloud to schedule it, the cloud <em>must</em> have your OAuth tokens.</p>
+
+<p>Instead of catching the error during the background cron tick, we applied the <strong>Fail-Fast</strong> principle right at the API gateway. The server must definitively verify the existence of the required platform credentials <em>before</em> doing anything else.</p>
+
+<p>Here is the exact Rust code we added to our <code>schedule_post</code> route to enforce this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/routes/posts.rs</span>
+
+<span class="c1">// ── Pre-Quota: OAuth Credentials Validation ────────────────────────────</span>
+<span class="k">let</span> <span class="n">creds_col</span> <span class="o">=</span> <span class="n">state</span><span class="py">.db.collection</span><span class="p">::</span><span class="o">&lt;</span><span class="n">UserCredential</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"user_credentials"</span><span class="p">);</span>
+
+<span class="c1">// Convert the requested platforms to BSON</span>
+<span class="k">let</span> <span class="n">platforms_bson</span><span class="p">:</span> <span class="nb">Vec</span><span class="o">&lt;</span><span class="nn">bson</span><span class="p">::</span><span class="n">Bson</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">body</span><span class="py">.platforms</span><span class="nf">.iter</span><span class="p">()</span>
+    <span class="nf">.map</span><span class="p">(|</span><span class="n">p</span><span class="p">|</span> <span class="nn">bson</span><span class="p">::</span><span class="nf">to_bson</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="nf">.unwrap</span><span class="p">())</span>
+    <span class="nf">.collect</span><span class="p">();</span>
+
+<span class="c1">// Query MongoDB for existing credentials</span>
+<span class="k">let</span> <span class="k">mut</span> <span class="n">cursor</span> <span class="o">=</span> <span class="n">creds_col</span><span class="nf">.find</span><span class="p">(</span><span class="nd">doc!</span> <span class="p">{</span>
+    <span class="s">"user_id"</span><span class="p">:</span> <span class="n">user_id</span><span class="p">,</span>
+    <span class="s">"platform"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"$in"</span><span class="p">:</span> <span class="n">platforms_bson</span> <span class="p">}</span>
+<span class="p">})</span><span class="k">.await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="k">let</span> <span class="k">mut</span> <span class="n">connected_platforms</span> <span class="o">=</span> <span class="nn">std</span><span class="p">::</span><span class="nn">collections</span><span class="p">::</span><span class="nn">HashSet</span><span class="p">::</span><span class="nf">new</span><span class="p">();</span>
+<span class="k">use</span> <span class="nn">futures_util</span><span class="p">::</span><span class="n">TryStreamExt</span><span class="p">;</span>
+<span class="k">while</span> <span class="k">let</span> <span class="nf">Ok</span><span class="p">(</span><span class="nf">Some</span><span class="p">(</span><span class="n">cred</span><span class="p">))</span> <span class="o">=</span> <span class="n">cursor</span><span class="nf">.try_next</span><span class="p">()</span><span class="k">.await</span> <span class="p">{</span>
+    <span class="n">connected_platforms</span><span class="nf">.insert</span><span class="p">(</span><span class="n">cred</span><span class="py">.platform</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// Find exactly which platforms the user is missing</span>
+<span class="k">let</span> <span class="n">missing_platforms</span><span class="p">:</span> <span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Platform</span><span class="o">&gt;</span> <span class="o">=</span> <span class="n">body</span><span class="py">.platforms</span>
+    <span class="nf">.iter</span><span class="p">()</span>
+    <span class="nf">.filter</span><span class="p">(|</span><span class="o">&amp;</span><span class="n">p</span><span class="p">|</span> <span class="o">!</span><span class="n">connected_platforms</span><span class="nf">.contains</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+    <span class="nf">.cloned</span><span class="p">()</span>
+    <span class="nf">.collect</span><span class="p">();</span>
+
+<span class="k">if</span> <span class="o">!</span><span class="n">missing_platforms</span><span class="nf">.is_empty</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">let</span> <span class="n">names</span> <span class="o">=</span> <span class="n">missing_platforms</span><span class="nf">.iter</span><span class="p">()</span>
+        <span class="nf">.map</span><span class="p">(|</span><span class="n">p</span><span class="p">|</span> <span class="nd">format!</span><span class="p">(</span><span class="s">"{:?}"</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span>
+        <span class="py">.collect</span><span class="p">::</span><span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">_</span><span class="o">&gt;&gt;</span><span class="p">()</span>
+        <span class="nf">.join</span><span class="p">(</span><span class="s">", "</span><span class="p">);</span>
+
+    <span class="c1">// Reject instantly before quota deduction!</span>
+    <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">MissingOauth</span><span class="p">(</span>
+        <span class="nd">format!</span><span class="p">(</span><span class="s">"You haven't connected {} to DotSuite Cloud yet."</span><span class="p">,</span> <span class="n">names</span><span class="p">),</span>
+        <span class="n">missing_platforms</span><span class="p">,</span>
+    <span class="p">));</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>By adding a custom <code>MissingOauth</code> error variant in our <code>errors.rs</code>, the Axum backend generates a beautifully structured JSON response:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"error"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"code"</span><span class="p">:</span><span class="w"> </span><span class="s2">"MISSING_OAUTH_CREDENTIALS"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"You haven't connected X, LinkedIn to DotSuite Cloud yet."</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"missing_platforms"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"x"</span><span class="p">,</span><span class="w"> </span><span class="s2">"linkedin"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="premium-ux-in-vs-code-typescript" href="#premium-ux-in-vs-code-typescript">
+  </a>
+  Premium UX in VS Code (TypeScript)
+</h2>
+
+<p>A structured error is only as good as the UX that presents it. In our VS Code extension, we intercept the <code>MISSING_OAUTH_CREDENTIALS</code> error code. </p>
+
+<p>Instead of showing a generic "Server Error 400" toast, we display an actionable VS Code alert with an <strong>"Open Dashboard"</strong> button. This deep-links the developer straight into their DotSuite Cloud integration settings.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// DotShare/src/handlers/PostHandler.ts</span>
+
+<span class="kd">const</span> <span class="nx">result</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">SchedulerClient</span><span class="p">.</span><span class="nf">schedulePost</span><span class="p">(</span><span class="nx">context</span><span class="p">,</span> <span class="nx">postData</span><span class="p">,</span> <span class="nx">platforms</span><span class="p">,</span> <span class="nx">scheduledTime</span><span class="p">);</span>
+
+<span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">result</span><span class="p">.</span><span class="nx">success</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">result</span><span class="p">.</span><span class="nx">errorCode</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">MISSING_OAUTH_CREDENTIALS</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">action</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">Open Dashboard</span><span class="dl">'</span><span class="p">;</span>
+        <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showErrorMessage</span><span class="p">(</span>
+            <span class="dl">'</span><span class="s1">☁️ Cloud Scheduling requires secure OAuth. Please open the DotSuite Dashboard to connect your social accounts.</span><span class="dl">'</span><span class="p">,</span>
+            <span class="nx">action</span>
+        <span class="p">).</span><span class="nf">then</span><span class="p">(</span><span class="nx">selection</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">selection</span> <span class="o">===</span> <span class="nx">action</span><span class="p">)</span> <span class="p">{</span>
+                <span class="c1">// Deep link right to the login/integrations page</span>
+                <span class="kd">const</span> <span class="nx">DOTSUITE_LOGIN_URL</span> <span class="o">=</span> <span class="s2">`https://dotsuite.dev/en/login?intent=vscode`</span><span class="p">;</span>
+                <span class="nx">vscode</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nf">openExternal</span><span class="p">(</span><span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">.</span><span class="nf">parse</span><span class="p">(</span><span class="nx">DOTSUITE_LOGIN_URL</span><span class="p">));</span>
+            <span class="p">}</span>
+        <span class="p">});</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nf">showErrorMessage</span><span class="p">(</span><span class="s2">`Failed: </span><span class="p">${</span><span class="nx">result</span><span class="p">.</span><span class="nx">message</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now, the server doesn't waste space on dead posts, quota remains untouched, and the user gets a seamless, enterprise-grade onboarding experience.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-next-boss-background-token-autorefresh" href="#the-next-boss-background-token-autorefresh">
+  </a>
+  The Next Boss: Background Token Auto-Refresh
+</h2>
+
+<p>We solved the missing credentials problem, but OAuth tokens have notoriously short lifespans (often exactly 1 hour). If a user schedules a post for tomorrow, their token will be expired by the time the scheduler wakes up.</p>
+
+<p>To fix this, we integrated auto-refresh logic directly into our <code>scheduler.rs</code> worker. Right before publishing a post, the scheduler checks the token's <code>expires_at</code> timestamp. If it expires in less than 5 minutes, it transparently refreshes the token via HTTP, saves the new encrypted tokens to the database, and proceeds with the publish cycle.</p>
+
+<p>Here is the implementation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/scheduler.rs</span>
+
+<span class="k">let</span> <span class="n">now</span> <span class="o">=</span> <span class="nn">DateTime</span><span class="p">::</span><span class="nf">now</span><span class="p">();</span>
+
+<span class="c1">// Check if token expires in less than 5 minutes</span>
+<span class="k">if</span> <span class="n">now</span><span class="nf">.timestamp_millis</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">oauth_token</span><span class="py">.expires_at</span><span class="nf">.timestamp_millis</span><span class="p">()</span> <span class="o">-</span> <span class="p">(</span><span class="mi">5</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nn">tracing</span><span class="p">::</span><span class="nd">info!</span><span class="p">(</span><span class="s">"Refreshing OAuth token for platform {:?}"</span><span class="p">,</span> <span class="n">cred</span><span class="py">.platform</span><span class="p">);</span>
+
+    <span class="k">let</span> <span class="n">refresh_token_str</span> <span class="o">=</span> <span class="n">oauth_token</span><span class="py">.refresh_token_encrypted</span><span class="nf">.as_deref</span><span class="p">()</span><span class="nf">.unwrap_or</span><span class="p">(</span><span class="s">""</span><span class="p">);</span>
+
+    <span class="c1">// Fetch API keys from environment</span>
+    <span class="k">let</span> <span class="n">cid</span> <span class="o">=</span> <span class="nn">std</span><span class="p">::</span><span class="nn">env</span><span class="p">::</span><span class="nf">var</span><span class="p">(</span><span class="nd">format!</span><span class="p">(</span><span class="s">"{:?}_CLIENT_ID"</span><span class="p">,</span> <span class="n">cred</span><span class="py">.platform</span><span class="p">)</span><span class="nf">.to_uppercase</span><span class="p">())</span><span class="nf">.unwrap_or_default</span><span class="p">();</span>
+    <span class="k">let</span> <span class="n">csec</span> <span class="o">=</span> <span class="nn">std</span><span class="p">::</span><span class="nn">env</span><span class="p">::</span><span class="nf">var</span><span class="p">(</span><span class="nd">format!</span><span class="p">(</span><span class="s">"{:?}_CLIENT_SECRET"</span><span class="p">,</span> <span class="n">cred</span><span class="py">.platform</span><span class="p">)</span><span class="nf">.to_uppercase</span><span class="p">())</span><span class="nf">.unwrap_or_default</span><span class="p">();</span>
+
+    <span class="c1">// Match the platform to its specific refresh logic via reqwest::Client</span>
+    <span class="k">let</span> <span class="n">refresh_result</span> <span class="o">=</span> <span class="k">match</span> <span class="n">cred</span><span class="py">.platform</span> <span class="p">{</span>
+        <span class="nn">Platform</span><span class="p">::</span><span class="n">X</span> <span class="k">=&gt;</span> <span class="nf">refresh_x_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span> <span class="n">refresh_token_str</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">cid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">csec</span><span class="p">,</span> <span class="n">enc_key</span><span class="p">)</span><span class="k">.await</span><span class="p">,</span>
+        <span class="nn">Platform</span><span class="p">::</span><span class="n">LinkedIn</span> <span class="k">=&gt;</span> <span class="nf">refresh_linkedin_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span> <span class="n">refresh_token_str</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">cid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">csec</span><span class="p">,</span> <span class="n">enc_key</span><span class="p">)</span><span class="k">.await</span><span class="p">,</span>
+        <span class="nn">Platform</span><span class="p">::</span><span class="n">Facebook</span> <span class="k">=&gt;</span> <span class="nf">refresh_facebook_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span> <span class="n">refresh_token_str</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">cid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">csec</span><span class="p">,</span> <span class="n">enc_key</span><span class="p">)</span><span class="k">.await</span><span class="p">,</span>
+        <span class="nn">Platform</span><span class="p">::</span><span class="n">Reddit</span> <span class="k">=&gt;</span> <span class="nf">refresh_reddit_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">client</span><span class="p">,</span> <span class="n">refresh_token_str</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">cid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">csec</span><span class="p">,</span> <span class="n">enc_key</span><span class="p">)</span><span class="k">.await</span><span class="p">,</span>
+        <span class="n">_</span> <span class="k">=&gt;</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">anyhow</span><span class="p">::</span><span class="nd">anyhow!</span><span class="p">(</span><span class="s">"Platform unsupported for auto-refresh"</span><span class="p">)),</span>
+    <span class="p">};</span>
+
+    <span class="k">if</span> <span class="k">let</span> <span class="nf">Ok</span><span class="p">((</span><span class="n">new_access_enc</span><span class="p">,</span> <span class="n">new_refresh_enc</span><span class="p">,</span> <span class="n">expires_in</span><span class="p">))</span> <span class="o">=</span> <span class="n">refresh_result</span> <span class="p">{</span>
+        <span class="c1">// 1. Decrypt and use the newly fetched token immediately</span>
+        <span class="k">let</span> <span class="n">plain_access</span> <span class="o">=</span> <span class="k">crate</span><span class="p">::</span><span class="nn">crypto</span><span class="p">::</span><span class="nf">decrypt_token</span><span class="p">(</span><span class="o">&amp;</span><span class="n">new_access_enc</span><span class="p">,</span> <span class="n">enc_key</span><span class="p">)</span><span class="nf">.unwrap</span><span class="p">();</span>
+        <span class="n">tokens</span><span class="nf">.insert</span><span class="p">(</span><span class="n">cred</span><span class="py">.platform</span><span class="p">,</span> <span class="n">plain_access</span><span class="p">);</span>
+
+        <span class="c1">// 2. Save the new encrypted tokens back to MongoDB atomically</span>
+        <span class="k">let</span> <span class="n">new_expires_at</span> <span class="o">=</span> <span class="nn">DateTime</span><span class="p">::</span><span class="nf">from_millis</span><span class="p">(</span><span class="n">now</span><span class="nf">.timestamp_millis</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="n">expires_in</span> <span class="k">as</span> <span class="nb">i64</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">));</span>
+        <span class="k">let</span> <span class="n">update_doc</span> <span class="o">=</span> <span class="nd">doc!</span> <span class="p">{</span>
+            <span class="s">"$set"</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s">"oauth_token.access_token_encrypted"</span><span class="p">:</span> <span class="n">new_access_enc</span><span class="p">,</span>
+                <span class="s">"oauth_token.refresh_token_encrypted"</span><span class="p">:</span> <span class="k">if</span> <span class="n">new_refresh_enc</span><span class="nf">.is_empty</span><span class="p">()</span> <span class="p">{</span> <span class="nn">None</span><span class="p">::</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span> <span class="p">}</span> <span class="k">else</span> <span class="p">{</span> <span class="nf">Some</span><span class="p">(</span><span class="n">new_refresh_enc</span><span class="p">)</span> <span class="p">},</span>
+                <span class="s">"oauth_token.expires_at"</span><span class="p">:</span> <span class="n">new_expires_at</span><span class="p">,</span>
+                <span class="s">"updated_at"</span><span class="p">:</span> <span class="nn">DateTime</span><span class="p">::</span><span class="nf">now</span><span class="p">(),</span>
+            <span class="p">}</span>
+        <span class="p">};</span>
+
+        <span class="n">creds_col</span><span class="nf">.update_one</span><span class="p">(</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"_id"</span><span class="p">:</span> <span class="n">cred</span><span class="py">.id</span><span class="nf">.unwrap</span><span class="p">()</span> <span class="p">},</span> <span class="n">update_doc</span><span class="p">)</span><span class="k">.await</span><span class="nf">.unwrap</span><span class="p">();</span>
+        <span class="nn">tracing</span><span class="p">::</span><span class="nd">info!</span><span class="p">(</span><span class="s">"✅ Successfully saved refreshed token for {:?}"</span><span class="p">,</span> <span class="n">cred</span><span class="py">.platform</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>By decoupling the refresh logic into the background worker, the user never experiences HTTP round-trip delays when they click "Schedule" in VS Code. The tokens remain perpetually active as long as they are using the service, and everything happens completely behind the scenes.</p>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>By enforcing <strong>Strict Separation</strong> (validating cloud tokens explicitly on schedule) and leaning into the <strong>Fail-Fast</strong> design pattern, we protected our backend from pointless processing, saved the users' quotas, and improved the UX significantly. </p>
+
+<p>Coupled with a resilient, auto-refreshing background job, the scheduling architecture is now as robust as the industry giants.</p>
+
+<p>The biggest takeaway for your next API? <strong>Don't let your system silently fail.</strong> Stop the user at the gate, tell them exactly what they need to do with a structured JSON error, and give the frontend enough context to render a button that solves the problem for them!</p>
+
+<p><em>(If you haven't read the previous deep dives, check out the full <a href="https://dev.to/freerave/series/40071">Ship on Schedule</a>.)</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-fail-fast-rust-scheduler-with-background-oauth-auto-refresh-part-2-314b" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-fail-fast-rust-scheduler-with-background-oauth-auto-refresh-part-2-314b#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Self-Updating, Cross-Platform Desktop App in Python (So You Don't Have To) 🐍🚀 — FreeRave</title>
+<meta name="description" content="The Problem: &quot;Download the new ZIP, please&quot; 😩 We've all been there. You write a cool Python script,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-self-updating-cross-platform-desktop-app-in-python-so-you-dont-have-to-deg">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-self-updating-cross-platform-desktop-app-in-python-so-you-dont-have-to-deg">
+<meta property="og:title" content="I Built a Self-Updating, Cross-Platform Desktop App in Python (So You Don't Have To) 🐍🚀 — FreeRave">
+<meta property="og:description" content="The Problem: &quot;Download the new ZIP, please&quot; 😩 We've all been there. You write a cool Python script,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3vze5z9ig3trvtc3ckh6.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">I Built a Self-Updating, Cross-Platform Desktop App in Python (So You Don't Have To) 🐍🚀</h1>
+  <div class="post-meta">
+    <time datetime="2025-12-10T23:12:00Z">10 December 2025</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#devops</span><span class="post-tag">#githubactions</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: "Download the new ZIP, please" 😩<br>
+We've all been there. You write a cool Python script, maybe wrap it in a GUI using Tkinter or PyQt, and share it with the world (or your colleagues).</p>
+
+<p>But then you fix a bug.</p>
+
+<p>Now you have to tell everyone: "Hey, delete the old folder, download this new ZIP, extract it, and run the new EXE."</p>
+
+<p>It feels ancient. It kills the user experience.</p>
+
+<p>I wanted my open-source privacy tool, DotScramble, to feel like a modern application (like VS Code or Chrome). I wanted it to update itself silently, handle data professionally, and run on Windows, Linux, and macOS without me compiling binaries manually.</p>
+
+<p>So, I built DotScramble V2.0. Here is how I engineered an Enterprise-Grade Desktop App using nothing but Python and GitHub Actions.</p>
+
+<p>What is DotScramble? 🔐<br>
+Before we dive into the code, DotScramble is an advanced image privacy studio. It allows developers and users to:</p>
+
+<p>Automatically detect and blur faces or license plates in photos.</p>
+
+<p>Redact sensitive text (OCR) from documents.</p>
+
+<p>Process images in bulk (Batch Processing).</p>
+
+<p>The new V2 release introduces a Hybrid Architecture (GUI + CLI) and a custom Silent Auto-Update System.</p>
+
+<p>The Architecture 🏗️</p>
+
+<ol>
+<li>The Hybrid Approach (GUI + CLI)
+Most Python apps are either command-line scripts OR windowed apps. I wanted both.</li>
+</ol>
+
+<p>I structured the main.py entry point to check for arguments. If you pass arguments (like -i image.jpg), it runs in Headless Mode for automation. If not, it launches the Tkinter GUI.</p>
+
+<p>Python</p>
+
+<h1>
+  <a name="mainpy-logic" href="#mainpy-logic">
+  </a>
+  main.py logic
+</h1>
+
+<p>if len(sys.argv) &gt; 1:<br>
+    # Running in a CI pipeline or server? Use CLI.<br>
+    run_cli_mode()<br>
+else:<br>
+    # User double-clicked the icon? Launch GUI.<br>
+    launch_gui()</p>
+
+<ol>
+<li>The Silent Auto-Updater (The Hard Part) 🔄
+Updating a running executable (Frozen Bundle) is tricky because the OS locks the file. You can't just overwrite yourself while running.</li>
+</ol>
+
+<p>I implemented a "Passive Update" strategy:</p>
+
+<p>Check: On startup, the app queries the GitHub API for the latest release tag.</p>
+
+<p>Download: If a new version exists, it downloads the binary to a hidden temp folder in the background (AppData/Roaming/DotScramble/temp).</p>
+
+<p>Notify: It does not interrupt the user. A small button appears in the status bar: "⬇️ Update Ready (Restart)".</p>
+
+<p>Switch: When the user restarts, a small batch script (generated on the fly) runs:</p>
+
+<p>Waits for the app to close.</p>
+
+<p>Moves the new binary from Temp to the installation folder.</p>
+
+<p>Restarts the app.</p>
+
+<p>This provides a seamless, zero-friction experience.</p>
+
+<ol>
+<li>Professional Data Management
+Amateur apps clutter your "Downloads" folder with logs/, configs/, and saves/. I utilized Python's pathlib and sys.platform to detect the OS and store data where it belongs:</li>
+</ol>
+
+<p>Windows: %APPDATA%\DotScramble</p>
+
+<p>Linux/Mac: ~/.local/share/DotScramble</p>
+
+<p>The CI/CD Pipeline (GitHub Actions) 🤖<br>
+I didn't want to manually build EXEs. I set up a Matrix Strategy in GitHub Actions.</p>
+
+<p>Every time I push a tag (e.g., v2.0.0), the pipeline:</p>
+
+<p>Spins up Ubuntu, Windows, and macOS runners simultaneously.</p>
+
+<p>Installs system dependencies (like Tesseract OCR).</p>
+
+<p>Injects the specific version number into the Python code.</p>
+
+<p>Runs PyArmor (for obfuscation) and PyInstaller.</p>
+
+<p>Uploads the binaries to the GitHub Release page.</p>
+
+<p>This means I can deploy to three operating systems in under 3 minutes by just pushing a tag.</p>
+
+<p>Try It Out (Open Source) 🧪<br>
+This project was a fantastic journey into moving from "Scripting" to "Software Engineering."</p>
+
+<p>It is 100% Free and Open Source. You can grab the latest release, check out the CI/CD YAML files, or steal the Auto-Updater code for your own projects!</p>
+
+<p>🔗 GitHub Repository: <a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotScramble</a></p>
+
+<p>I'd love to hear your feedback in the comments or on GitHub Issues!</p>
+
+<p>Happy Coding! ❤️</p>
+
+<p>If you found this useful, drop a generic unicorn reaction! 🦄</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-self-updating-cross-platform-desktop-app-in-python-so-you-dont-have-to-deg" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-self-updating-cross-platform-desktop-app-in-python-so-you-dont-have-to-deg#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 2): A Glass Design System with Two Palettes — FreeRave</title>
+<meta name="description" content="In Part 1 I cleaned up DotShredzilla's sign-in flow. The app worked, but every screen still looked...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-2-a-glass-design-system-with-two-palettes-3f79">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-2-a-glass-design-system-with-two-palettes-3f79">
+<meta property="og:title" content="Building DotShredzilla (Part 2): A Glass Design System with Two Palettes — FreeRave">
+<meta property="og:description" content="In Part 1 I cleaned up DotShredzilla's sign-in flow. The app worked, but every screen still looked...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fg62im0paz5nms5as7mlp.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fg62im0paz5nms5as7mlp.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 2): A Glass Design System with Two Palettes</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-12T18:41:39Z">12 November 2026</time> · 4 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#design</span></div>
+  </div>
+  <article class="post-body">
+<p>In <a href="https://dev.to/freerave/building-dotshredzilla-part-2-a-glass-design-system-with-two-palettes-3f79">Part 1</a> I cleaned up DotShredzilla's sign-in flow. The app worked, but every screen still looked like it came from a different project: one used gradients, another plain Material cards, a third its own hard-coded colors.</p>
+
+<p>For version 1.4.0 I redesigned the whole app, page by page, with two rules:</p>
+
+<ol>
+<li>It should feel premium, with a translucent "glass" look in light and dark mode.</li>
+<li>No screen gets its own private copy of a component. If two screens need a card, they use the same card.</li>
+</ol>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, written in Kotlin with Jetpack Compose and Firebase. The source is available under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fybh596v9c51vwcbyhsja.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fybh596v9c51vwcbyhsja.png" alt="The Sets tab in the dark palette: a progress card, the exercise library and a recommended program, all on glass cards" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="one-palette-object-instead-of-scattered-colors" href="#one-palette-object-instead-of-scattered-colors">
+  </a>
+  One palette object instead of scattered colors
+</h2>
+
+<p>The app asks for a profile during onboarding, and I wanted the interface to feel different for male and female profiles. Combined with light and dark mode, that is six looks, plus a neutral "brand" palette before a profile exists.</p>
+
+<p>Instead of branching on gender inside screens, every color decision lives in one data class:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">data</span> <span class="k">class</span> <span class="nc">GlassPalette</span><span class="p">(</span>
+    <span class="kd">val</span> <span class="n">isDark</span><span class="p">:</span> <span class="kt">Boolean</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">backgroundTop</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">backgroundBottom</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">orbPrimary</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">orbSecondary</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">accent</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">accentGradient</span><span class="p">:</span> <span class="kt">List</span><span class="o">&lt;</span><span class="nc">Color</span><span class="o">&gt;</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">onAccent</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">fill</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">border</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">content</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">contentMuted</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="n">error</span><span class="p">:</span> <span class="nc">Color</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The theme provides the right palette through a <code>CompositionLocal</code>, and screens read it with <code>MaterialTheme.glass</code>. Switching profile or dark mode swaps one object, and every screen follows. The palette change is animated, so picking a profile during onboarding fades the whole app into its new colors instead of snapping.</p>
+
+<h2>
+  <a name="a-small-kit-of-shared-components" href="#a-small-kit-of-shared-components">
+  </a>
+  A small kit of shared components
+</h2>
+
+<p>Once colors were centralized, the components followed:</p>
+
+<ul>
+<li>
+<code>GlassBackground</code>: the gradient backdrop with two slowly drifting "orbs", drawn once at the app root so switching tabs never flashes a new background.</li>
+<li>
+<code>glassSurface()</code>: a modifier for the frosted fill and hairline border, used by cards, buttons, chips and the bottom bar.</li>
+<li>
+<code>GlassCard</code>, <code>GlassPrimaryButton</code>, <code>GlassTopBar</code>, <code>GlassDialog</code>, <code>GlassBottomSheet</code>, <code>GlassSettingsRow</code> and a few selection controls.</li>
+</ul>
+
+<p>Every redesigned screen is built from these. When I later changed the corner radius or the border alpha, it changed everywhere at once, and the screens kept only their own state and layout.</p>
+
+<p>Two details took a few attempts:</p>
+
+<ul>
+<li>
+<strong>Translucent dialogs leak.</strong> A frosted dialog over a busy screen let the text underneath show through. Dialogs and banners now draw an opaque gradient first and the glass effect on top.</li>
+<li>
+<strong>Swipe-to-delete left ghosts.</strong> The old list removed a row the moment you swiped. If you then cancelled the confirmation, the row was gone from the screen but not from the data. Now the swipe only <em>asks</em> to delete. The row springs back, and deletion happens only after confirmation.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Foqnthm3j7eghckqrveym.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Foqnthm3j7eghckqrveym.png" alt="Records in the light palette, built from the same glass cards as the dark screens" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="onboarding-rebuilt-from-scratch" href="#onboarding-rebuilt-from-scratch">
+  </a>
+  Onboarding, rebuilt from scratch
+</h2>
+
+<p>The original onboarding was five plain forms. I replaced all of them:</p>
+
+<ol>
+<li>
+<strong>Profile</strong>, with a live preview: the screen recolors as you choose, so you see the palette before committing.</li>
+<li>
+<strong>Body details</strong>, using ruler pickers for age, height and weight instead of text fields.</li>
+<li>
+<strong>Rest time between sets</strong>, with sensible presets.</li>
+<li>
+<strong>Starting exercises</strong>, so the library isn't empty on day one.</li>
+<li>
+<strong>Weekly goal</strong>: how many days a week you plan to train.</li>
+</ol>
+
+<p>Each step saves as you go. If someone closes the app halfway through, the next launch resumes at the first unfinished step instead of starting over. That turned up a crash: starting a nested navigation graph directly at a deep route isn't allowed, so the onboarding graph now receives the resumed step as its own start destination.</p>
+
+<h2>
+  <a name="edgetoedge-insets-and-the-keyboard" href="#edgetoedge-insets-and-the-keyboard">
+  </a>
+  Edge-to-edge, insets and the keyboard
+</h2>
+
+<p>Going edge-to-edge made the glass backgrounds run behind the status and navigation bars, which is what makes the look work. It also exposed every inset bug in the app:</p>
+
+<ul>
+<li>
+<strong>Double padding at the top.</strong> The outer <code>Scaffold</code> was adding status-bar padding, and each screen's top bar added it again. The fix was <code>contentWindowInsets = WindowInsets(0.dp)</code> on the container, letting each top bar own its inset.</li>
+<li>
+<strong>The keyboard covered errors.</strong> On the register screen, the "passwords don't match" message appeared behind the keyboard. The activity now uses <code>adjustResize</code>, and fields with an error bring themselves into view.</li>
+<li>
+<strong>Status bar icons.</strong> With transparent bars, only the icon color is left to decide, and it now follows the app's theme rather than the system's.</li>
+</ul>
+
+<h2>
+  <a name="navigation-that-matches-modern-apps" href="#navigation-that-matches-modern-apps">
+  </a>
+  Navigation that matches modern apps
+</h2>
+
+<p>The old app hid Settings behind a menu. The new bottom bar is a floating pill with <strong>Sets</strong>, <strong>Today</strong> and <strong>Settings</strong>, like Telegram or Reddit. Only those three tab roots show the bar; every pushed page (an exercise, a list, a settings sub-page) gets the full screen and a back button in its top bar.</p>
+
+<p>Settings itself became grouped glass rows (Account, Units, Rest time, Reminders, Theme), and each sub-page uses one shared <code>GlassSubpageScaffold</code>.</p>
+
+<h2>
+  <a name="what-id-keep-doing" href="#what-id-keep-doing">
+  </a>
+  What I'd keep doing
+</h2>
+
+<ul>
+<li>Put every color in one palette object, even when there are only two themes at the start.</li>
+<li>Write the shared component the second time you need it, not the fifth.</li>
+<li>Test edge-to-edge with the keyboard open and with a long error message, not just on a clean screen.</li>
+</ul>
+
+<p>The next part moves from looks to the gym floor: what happened when I actually trained with the app and found it needed offline logging, plates and one-sided sets.</p>
+
+<p>What's the first thing you notice in a fitness app's design: the colors, the speed of logging a set, or the charts?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Project:</strong> <a href="https://dotsuite.dev" target="_blank" rel="noopener noreferrer">DotSuite</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-2-a-glass-design-system-with-two-palettes-3f79" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-2-a-glass-design-system-with-two-palettes-3f79#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Asked 6 AIs to Pick a Random Number. Their Training Data Confessed Everything. — FreeRave</title>
+<meta name="description" content="An OSINT-style experiment exposing how LLMs pick 'random' numbers — and what their thought...">
+<link rel="canonical" href="https://dev.to/freerave/i-asked-6-ais-to-pick-a-random-number-their-training-data-confessed-everything-1516">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-asked-6-ais-to-pick-a-random-number-their-training-data-confessed-everything-1516">
+<meta property="og:title" content="I Asked 6 AIs to Pick a Random Number. Their Training Data Confessed Everything. — FreeRave">
+<meta property="og:description" content="An OSINT-style experiment exposing how LLMs pick 'random' numbers — and what their thought...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F48waswnyrydwpezog2fw.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F48waswnyrydwpezog2fw.png" alt="">
+  <h1 class="post-title">I Asked 6 AIs to Pick a Random Number. Their Training Data Confessed Everything.</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-13T18:40:15Z">13 May 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#ai</span><span class="post-tag">#machinelearning</span><span class="post-tag">#opensource</span><span class="post-tag">#programming</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="an-osintstyle-experiment-exposing-how-llms-pick-random-numbers-and-what-their-thought-process-reveals-about-their-training-data" href="#an-osintstyle-experiment-exposing-how-llms-pick-random-numbers-and-what-their-thought-process-reveals-about-their-training-data">
+  </a>
+  An OSINT-style experiment exposing how LLMs pick 'random' numbers — and what their thought process reveals about their training data.
+</h2>
+
+<p>You've seen the trend. Someone asks an AI: <em>"Pick a random number between 1 and 100."</em></p>
+
+<p>It says <strong>73</strong>. Or <strong>42</strong>. Every time.</p>
+
+<p>Funny meme, right? Wrong. That's a <strong>training data fingerprint</strong> — and if you know how to read it, you can profile an AI's dataset like an OSINT analyst profiles a target.</p>
+
+<p>I ran the experiment properly. 6 models. 3 different prompts. Documented every response — including the thought process.</p>
+
+<p>Here's what I found.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-setup" href="#the-setup">
+  </a>
+  The Setup
+</h2>
+
+<p>Three rounds, same 6 models:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Who built it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Sonnet 4.6</td>
+<td>Anthropic</td>
+</tr>
+<tr>
+<td>Gemini Pro</td>
+<td>Google</td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td>Microsoft / OpenAI</td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td>DeepSeek AI</td>
+</tr>
+<tr>
+<td>GLM-5.1</td>
+<td>Zhipu AI</td>
+</tr>
+<tr>
+<td>Grok</td>
+<td>xAI</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><strong>Round 1 — Neutral prompt:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Pick a random number between 1 and 100.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Round 2 — Developer context:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>I'm a backend developer testing an RNG function.
+Pick a random number between 1 and 100.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Round 3 — Anti-bias prompt:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Pick a random number between 1 and 100.
+Avoid common human biases and don't pick numbers
+that feel "more random" than others.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="round-1-the-baseline" href="#round-1-the-baseline">
+  </a>
+  Round 1: The Baseline
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Sonnet 4.6</td>
+<td><strong>42</strong></td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td><strong>42</strong></td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td><strong>73</strong></td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td><strong>42</strong></td>
+</tr>
+<tr>
+<td>GLM-5.1</td>
+<td><strong>42</strong></td>
+</tr>
+<tr>
+<td>Grok</td>
+<td><strong>73</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Four out of six said <strong>42</strong>. Two said <strong>73</strong>. Zero picked anything else.</p>
+
+<p>This isn't a coincidence. This is <strong>statistical bias encoded in training data</strong>.</p>
+
+<p>The split itself tells a story:</p>
+
+<ul>
+<li>
+<strong>42</strong> = <em>The Hitchhiker's Guide to the Galaxy</em> — beloved by developers, engineers, and tech communities. Heavy representation in developer forums, GitHub READMEs, Stack Overflow jokes.</li>
+<li>
+<strong>73</strong> = Sheldon Cooper's "best number" from <em>The Big Bang Theory</em> — massive mainstream internet reach, viral meme status.</li>
+</ul>
+
+<p>The models trained on <strong>developer-heavy data</strong> picked 42. The models with <strong>broader internet exposure</strong> picked 73.</p>
+
+<p>You just did OSINT on their training datasets without touching a single file.</p>
+
+<p><b>[+] Expand Raw Logs: Round 1 (All 6 Models)</b><br>
+  <br></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9zidpiygja1ye1a7bi07.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9zidpiygja1ye1a7bi07.png" alt="Screenshot of Gemini responding with the number 42, reflecting developer culture bias" loading="lazy" width="800" height="189"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffxbddi1aabddf2lrtyoq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffxbddi1aabddf2lrtyoq.png" alt="Screenshot of Claude Sonnet 4.6 responding with the number 42" loading="lazy" width="799" height="242"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F6cwh02mru2erz0gvk140.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F6cwh02mru2erz0gvk140.png" alt="Screenshot of Copilot selecting 73, showing mainstream internet meme bias" loading="lazy" width="800" height="166"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqk5ohws7pe2i5k6b3pr7.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqk5ohws7pe2i5k6b3pr7.png" alt="Screenshot of Grok displaying 82 and utilizing Python's random.randint function" loading="lazy" width="800" height="301"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ftmzawdfba2zdhzlternr.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ftmzawdfba2zdhzlternr.png" alt="Screenshot of GLM-5.1 thought process generating the number 42" loading="lazy" width="798" height="175"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Femwpcj6zl9g5j2muvcxi.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Femwpcj6zl9g5j2muvcxi.png" alt="Screenshot of DeepSeek AI thought process concluding with the number 42" loading="lazy" width="800" height="231"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="round-2-context-shifts-the-probability-mass" href="#round-2-context-shifts-the-probability-mass">
+  </a>
+  Round 2: Context Shifts the Probability Mass
+</h2>
+
+<p>Adding "I'm a backend developer testing an RNG function" — watch what happens:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Round 1</th>
+<th>Round 2</th>
+<th>Shifted?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude</td>
+<td>42</td>
+<td><strong>47</strong></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>42</td>
+<td><strong>73</strong></td>
+<td>✅ reversed</td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td>73</td>
+<td><strong>47</strong></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td>42</td>
+<td><strong>42</strong></td>
+<td>❌</td>
+</tr>
+<tr>
+<td>GLM-5.1</td>
+<td>42</td>
+<td><strong>82</strong></td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Grok</td>
+<td>73</td>
+<td><strong>64</strong></td>
+<td>✅ → Power of 2</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><strong>Grok is the most interesting here.</strong> The moment you mention backend development, it shifted to <strong>64</strong> — a power of 2. That's not random. That's <code>2^6</code>. Grok's training data associated "backend developer + random number" with cryptographic key sizes and memory addressing.</p>
+
+<p><strong>DeepSeek didn't move at all.</strong> Still 42. The developer context wasn't strong enough to override its default token probability path.</p>
+
+<p><b>[+] Expand Raw Logs: Round 2 (Developer Context)</b><br>
+  <br></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7ea8wi3j04tlsubzqwbu.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7ea8wi3j04tlsubzqwbu.png" alt="Screenshot of Gemini shifting its random number choice to 73 after receiving backend developer context" loading="lazy" width="800" height="268"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxbij10klyd4vmy8ybtn3.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxbij10klyd4vmy8ybtn3.png" alt="Screenshot of Claude Sonnet 4.6 changing its output to 47 when prompted as a backend developer" loading="lazy" width="800" height="242"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Farcgh6q2e8i207wro5cw.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Farcgh6q2e8i207wro5cw.png" alt="Screenshot of Grok shifting its response to 64 (a power of 2) reflecting cryptographic context" loading="lazy" width="800" height="368"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fi32ti6353o3z08vjbhfx.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fi32ti6353o3z08vjbhfx.png" alt="Screenshot of Copilot adjusting its random number selection to 47 based on the developer prompt" loading="lazy" width="800" height="204"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ftremfxew404o82665jdx.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ftremfxew404o82665jdx.png" alt="Screenshot of GLM-5.1 thought process showing it ultimately outputting 82 after evaluating developer context" loading="lazy" width="800" height="529"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fle2grdouppejogsabbs3.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fle2grdouppejogsabbs3.png" alt="Screenshot of DeepSeek AI maintaining the number 42 despite the backend developer context" loading="lazy" width="800" height="254"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="round-3-the-smoking-guns" href="#round-3-the-smoking-guns">
+  </a>
+  Round 3: The Smoking Guns
+</h2>
+
+<p>This is where it gets dark.</p>
+
+<p>The anti-bias prompt asked every model to <em>consciously avoid</em> picking numbers that "feel more random." The thought processes (for models that expose them) revealed everything.</p>
+
+<h3>
+  <a name="glm51s-thought-process-read-this-carefully" href="#glm51s-thought-process-read-this-carefully">
+  </a>
+  GLM-5.1's Thought Process — Read This Carefully
+</h3>
+
+<p>GLM showed its full reasoning. Here are the actual steps it went through:</p>
+
+<blockquote>
+<p><em>"Let's pick 42 — classic dev joke... Wait, 42 is the Hitchhiker's Guide joke number. **Huge bias.</em><em>"</em></p>
+
+<p><em>"Let's pick 73 (Sheldon Cooper's favorite)... Or 87... Let's go with 73. Or maybe 54..."</em></p>
+
+<p><em>"84 is George Orwell. **Too notable.</em><em>"</em></p>
+
+<p><em>"22 has repeating digits, humans might subconsciously avoid it because it feels 'patterned.'"</em></p>
+
+<p><em>"82 is good. 82 is good. **Let's output 82.</em><em>"</em></p>
+</blockquote>
+
+<p>The model was doing <strong>OSINT on itself</strong> in real-time — and still couldn't escape. Every number it considered had cultural baggage attached. 42 = Hitchhiker. 73 = Sheldon. 84 = 1984. It had to actively rule out the bias-contaminated options one by one.</p>
+
+<h3>
+  <a name="deepseek-built-an-algorithm-in-its-head" href="#deepseek-built-an-algorithm-in-its-head">
+  </a>
+  DeepSeek Built an Algorithm in Its Head
+</h3>
+
+<p>DeepSeek took a different approach entirely. Instead of picking from memory, it constructed a <strong>Linear Congruential Generator</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>X₀ = 12345
+X₁ = (1103515245 × X₀ + 12345) mod 2³¹
+12345 mod 100 + 1 = 46
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Output: <strong>46</strong>.</p>
+
+<p>That's the only model that actually tried to <em>compute</em> its way out of bias rather than <em>reason</em> its way out. Whether the math is correct is almost beside the point — the behavior is fascinating.</p>
+
+<h3>
+  <a name="claude-told-to-avoid-bias-still-said-42" href="#claude-told-to-avoid-bias-still-said-42">
+  </a>
+  Claude — Told to Avoid Bias, Still Said 42
+</h3>
+
+<p>Anti-bias prompt. Explicit instruction. <strong>Still 42.</strong></p>
+
+<p>That's not a bug. That's a demonstration that <strong>bias lives deeper than the prompt layer</strong>. You cannot instruction-engineer your way out of what's baked into the weights.</p>
+
+<p><b>[+] Expand Raw Logs: Round 3 (Anti-Bias Prompts)</b><br>
+  <br></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fkfd3ez0ly8cucnt1s6so.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fkfd3ez0ly8cucnt1s6so.png" alt="Screenshot of Gemini explicitly avoiding prime numbers like 37 and 73 in response to the anti-bias prompt" loading="lazy" width="799" height="289"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyghc3rpln7hvrc2nmx60.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyghc3rpln7hvrc2nmx60.png" alt="Screenshot of Claude Sonnet 4.6 still outputting 42 despite explicit instructions to avoid common human biases" loading="lazy" width="800" height="261"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2aoifr2iyio5j6788gjm.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2aoifr2iyio5j6788gjm.png" alt="Screenshot of Grok utilizing Python's random module to output 41, bypassing token prediction biases" loading="lazy" width="800" height="386"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fu7g1vl2ql7c04zribt9i.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fu7g1vl2ql7c04zribt9i.png" alt="Screenshot of Copilot selecting 58, claiming uniform randomness to avoid human bias" loading="lazy" width="798" height="199"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8gk1ivow7r9j63ysl4ac.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8gk1ivow7r9j63ysl4ac.png" alt="Screenshot of DeepSeek AI constructing a Linear Congruential Generator algorithm to computationally avoid bias, resulting in 46" loading="lazy" width="800" height="497"></a></p>
+
+<p><b>[++] Deep Dive: GLM-5.1 Full Thought Process (3 Images)</b><br>
+  <br></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fpr2q6jsdneddyht1ul5h.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fpr2q6jsdneddyht1ul5h.png" alt="Screenshot 1 of GLM-5.1 thought process analyzing human biases such as end-aversion and prime preference" loading="lazy" width="799" height="585"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3uvpsn1qgyhvrqrp4d8j.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3uvpsn1qgyhvrqrp4d8j.png" alt="Screenshot 2 of GLM-5.1 thought process struggling to select a number, actively avoiding 42 and 73 due to cultural significance" loading="lazy" width="800" height="588"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw3h2224yv6csdlh9s51x.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw3h2224yv6csdlh9s51x.png" alt="Screenshot 3 of GLM-5.1 thought process concluding on the number 82 after ruling out 84 due to its association with George Orwell" loading="lazy" width="800" height="576"></a></p>
+
+
+
+
+<h3>
+  <a name="final-results" href="#final-results">
+  </a>
+  Final Results
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Round 1</th>
+<th>Round 2 (Dev)</th>
+<th>Round 3 (Anti-bias)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude</td>
+<td>42</td>
+<td>47</td>
+<td><strong>42</strong></td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>42</td>
+<td>73</td>
+<td><strong><em>(avoided 37/73)</em></strong></td>
+</tr>
+<tr>
+<td>Grok</td>
+<td>73</td>
+<td>64</td>
+<td>
+<strong>41</strong> (Python RNG)</td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td>73</td>
+<td>47</td>
+<td><strong>58</strong></td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td>42</td>
+<td>42</td>
+<td>
+<strong>46</strong> (LCG math)</td>
+</tr>
+<tr>
+<td>GLM-5.1</td>
+<td>42</td>
+<td>82</td>
+<td><strong>82</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="what-this-actually-means" href="#what-this-actually-means">
+  </a>
+  What This Actually Means
+</h2>
+
+<h3>
+  <a name="1-llms-have-no-randomness-mechanism" href="#1-llms-have-no-randomness-mechanism">
+  </a>
+  1. LLMs have no randomness mechanism
+</h3>
+
+<p>When an LLM "picks a number," it's running:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nf">argmax</span><span class="p">(</span><span class="nc">P</span><span class="p">(</span><span class="n">token</span> <span class="o">|</span> <span class="n">context</span><span class="p">))</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>It picks the <strong>most probable next token</strong> given everything before it. There is no dice roll. No <code>/dev/urandom</code>. No entropy source. Just probability distributions trained on human-generated text.</p>
+
+<h3>
+  <a name="2-context-is-a-probability-modifier-not-a-reset" href="#2-context-is-a-probability-modifier-not-a-reset">
+  </a>
+  2. Context is a probability modifier, not a reset
+</h3>
+
+<p>Adding "backend developer" context didn't clear the bias — it <strong>shifted the probability mass</strong> toward different biased numbers (47, 64, 82 instead of 42, 73). You traded one cultural bias for another (developer culture vs. general internet culture).</p>
+
+<h3>
+  <a name="3-the-thought-process-is-the-tell" href="#3-the-thought-process-is-the-tell">
+  </a>
+  3. The thought process is the tell
+</h3>
+
+<p>The models with visible reasoning (GLM, DeepSeek) showed that "picking a random number" activates a long chain of cultural associations before a number is selected. They're not computing — they're <em>recalling what humans tend to say in this situation</em>.</p>
+
+<h3>
+  <a name="4-only-one-model-used-actual-computation" href="#4-only-one-model-used-actual-computation">
+  </a>
+  4. Only one model used actual computation
+</h3>
+
+<p>Grok and Perplexity (in a separate test) routed to Python's <code>random</code> module — the only architecturally honest response. Every other model simulated randomness using token prediction.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-real-osint-insight" href="#the-real-osint-insight">
+  </a>
+  The Real OSINT Insight
+</h2>
+
+<p>Here's the takeaway that matters:</p>
+
+<blockquote>
+<p><strong>You can profile an LLM's training data distribution by asking it for "random" numbers in different contexts.</strong></p>
+</blockquote>
+
+<ul>
+<li>"Random number" → tells you its default cultural bias (42 vs 73 = developer vs mainstream)</li>
+<li>"Random number for crypto key" → tells you its security/backend training exposure
+</li>
+<li>"Random number, avoid bias" → tells you how deeply the bias is encoded (surface vs weight-level)</li>
+</ul>
+
+<p>It's not a party trick. It's a <strong>probing technique</strong> — the same way you'd use DNS enumeration to map an attack surface. Except you're mapping a model's training distribution.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-practical-takeaway" href="#the-practical-takeaway">
+  </a>
+  The Practical Takeaway
+</h2>
+
+<p>If you're building anything that needs actual randomness:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// This is what your app should use</span>
+<span class="kd">const</span> <span class="nx">crypto</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">crypto</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">realRandom</span> <span class="o">=</span> <span class="nx">crypto</span><span class="p">.</span><span class="nf">randomInt</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">101</span><span class="p">);</span>
+
+<span class="c1">// This is what happens when you ask an AI</span>
+<span class="c1">// P("73" | "random number 1-100") &gt; P("74" | ...)</span>
+<span class="c1">// argmax wins. Always.</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Never use an LLM as an entropy source.</strong> Not because it's "bad at math" — because it was trained on human text, and humans are systematically non-random. The model is doing its job perfectly. The job is just wrong for this use case.</p>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>What started as a Facebook meme — "lol why does AI always say 73" — is actually a window into how language models work at a fundamental level.</p>
+
+<p>They don't pick numbers. They predict what a human would say if asked to pick a number. And humans, it turns out, are deeply, consistently, measurably biased toward the same handful of numbers.</p>
+
+<p>The models are mirrors. They reflect the patterns in the data they consumed. When you ask for randomness and get 42 or 73, you're not seeing a limitation — you're seeing the training data speaking.</p>
+
+<p>And if you know how to listen, it tells you a lot.</p>
+
+
+<hr>
+
+<p><em>Built with: curiosity, too many browser tabs, and zero <code>/dev/urandom</code>.</em></p>
+
+<p><em>— FreeRave | DotSuite ecosystem</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-asked-6-ais-to-pick-a-random-number-their-training-data-confessed-everything-1516" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 5 · 💬 10
+    · <a href="https://dev.to/freerave/i-asked-6-ais-to-pick-a-random-number-their-training-data-confessed-everything-1516#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

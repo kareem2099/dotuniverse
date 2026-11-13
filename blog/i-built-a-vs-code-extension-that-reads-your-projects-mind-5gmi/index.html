@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I built a VS Code extension that reads your project's mind — FreeRave</title>
+<meta name="description" content="The Problem: &quot;Context Switching Fatigue&quot; 😫 We've all been there. You are working on a React frontend,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-vs-code-extension-that-reads-your-projects-mind-5gmi">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-vs-code-extension-that-reads-your-projects-mind-5gmi">
+<meta property="og:title" content="I built a VS Code extension that reads your project's mind — FreeRave">
+<meta property="og:description" content="The Problem: &quot;Context Switching Fatigue&quot; 😫 We've all been there. You are working on a React frontend,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F76znz823a65tgf3tn2im.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">I built a VS Code extension that reads your project's mind</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-14T11:00:00Z">14 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#productivity</span><span class="post-tag">#opensource</span><span class="post-tag">#dotcommand</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: "Context Switching Fatigue" 😫<br>
+We've all been there. You are working on a React frontend, and your muscle memory is set to npm run dev. Then you switch to a Python backend service, and suddenly you find yourself typing npm start into a terminal that expects source venv/bin/activate.</p>
+
+<p>Or worse, you need to install a specific package, and you have to:</p>
+
+<p>Go to NPM.</p>
+
+<p>Search for the package name (is it react-router or react-router-dom?).</p>
+
+<p>Copy it.</p>
+
+<p>Paste it into the terminal.</p>
+
+<p>It’s a small friction, but it adds up. I wanted to fix that.</p>
+
+<p>Introducing DotCommand v1.4.0 🚀<br>
+I just released a major update to my open-source extension, DotCommand. It transforms from a simple command runner into an Intelligent Development Assistant.</p>
+
+<p>Instead of giving you a static list of commands, it now scans your workspace to understand exactly what you are working on.</p>
+
+<p>🎥 See it in action (20s)<br>
+  <iframe src="https://www.youtube.com/embed/3qWND2YBEa8" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>🧠 How "Smart Context" Works<br>
+The new engine uses a weighted scoring system to analyze your project structure:</p>
+
+<p>File Detection: It looks for indicators like package.json, Dockerfile, go.mod, requirements.txt.</p>
+
+<p>Content Parsing: It doesn't just check if a file exists; it parses it.</p>
+
+<p>If it sees "react" in your dependencies, it boosts React-related commands.</p>
+
+<p>If it sees docker-compose.yml, it prioritizes Docker commands.</p>
+
+<p>Dynamic Variables: This is my favorite part. As shown in the demo, it parses your package.json dependencies in real-time and feeds them into command templates.</p>
+
+<p>✨ Key Features<br>
+Zero Config: You don't need to set up anything. Open a folder, and it works.</p>
+
+<p>Framework Support: Currently supports React, Vue, Angular, Node.js, Python, Go, Rust, and Docker.</p>
+
+<p>Native UI: I decided to stick to VS Code's native Quick Pick API. No jarring webviews or custom windows—it feels built-in.</p>
+
+<p>🛠️ Tech Stack<br>
+Language: TypeScript</p>
+
+<p>Architecture: Clean Architecture with strict separation of concerns (Context Detectors vs. Command Runners).</p>
+
+<p>Performance: Caching mechanisms to ensure the "Smart Scan" doesn't slow down your editor startup.</p>
+
+<p>🔗 Try it out!<br>
+I built this tool to scratch my own itch, and I'm sharing it with the community for free.</p>
+
+<p>📥 Install from Marketplace: DotCommand on VS Code Marketplace</p>
+
+<p>⭐ Star on GitHub: kareem2099/dotcommand</p>
+
+<p>I'm actively looking for feedback! If you find a framework that isn't supported yet, let me know in the comments or open an issue on GitHub.</p>
+
+<p>Happy Coding! 🚀</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-vs-code-extension-that-reads-your-projects-mind-5gmi" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-vs-code-extension-that-reads-your-projects-mind-5gmi#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

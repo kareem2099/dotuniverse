@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I might have gone overboard. I built a custom LLM for my .env extension... and now I just shipped a massive UI overhaul for it. — FreeRave</title>
+<meta name="description" content="Hey everyone,      So, I have this project, dotenvy.  It started as a simple tool because I was tired...">
+<link rel="canonical" href="https://dev.to/freerave/i-might-have-gone-overboard-i-built-a-custom-llm-for-my-env-extension-and-now-i-just-shipped-a-15o0">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-might-have-gone-overboard-i-built-a-custom-llm-for-my-env-extension-and-now-i-just-shipped-a-15o0">
+<meta property="og:title" content="I might have gone overboard. I built a custom LLM for my .env extension... and now I just shipped a massive UI overhaul for it. — FreeRave">
+<meta property="og:description" content="Hey everyone,      So, I have this project, dotenvy.  It started as a simple tool because I was tired...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ftqv7q3to1qzl0ra7yb1u.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">I might have gone overboard. I built a custom LLM for my .env extension... and now I just shipped a massive UI overhaul for it.</h1>
+  <div class="post-meta">
+    <time datetime="2025-11-08T19:30:12Z">8 November 2025</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#freerave</span><span class="post-tag">#llm</span><span class="post-tag">#envfile</span></div>
+  </div>
+  <article class="post-body">
+<p>Hey everyone,</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1pusb0s48chhavn522t6.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1pusb0s48chhavn522t6.png" alt=" " loading="lazy" width="407" height="916"></a><br>
+<a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F0hua580t3s3oxim18j6x.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F0hua580t3s3oxim18j6x.png" alt=" " loading="lazy" width="407" height="916"></a><br>
+<a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F44s0ihft5p1qvblp1nou.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F44s0ihft5p1qvblp1nou.png" alt=" " loading="lazy" width="378" height="966"></a><br>
+<a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fecztdfbsstgumofvolml.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fecztdfbsstgumofvolml.png" alt=" " loading="lazy" width="378" height="966"></a><br>
+So, I have this project, dotenvy.</p>
+
+<p>It started as a simple tool because I was tired of manually swapping .env files and terrified of accidentally committing a secret. The first version (1.0.0) was fine—it had a switcher, a diff view, and some basic pre-commit hooks.</p>
+
+<p>...But then I got obsessed with the secret-detection part.</p>
+
+<p>I felt like the standard regex/entropy checks just weren't good enough. So... I kind of lost my mind. I decided to build my own custom Large Language Model (LLM) for it. From scratch.</p>
+
+<p>It's a 4-layer transformer model built in Python, served via FastAPI, with 14-dimensional feature extraction. It gives sub-100ms, real-time AI secret detection that's way more accurate than just checking for "high entropy."</p>
+
+<p>The problem? The tool became insanely powerful, but the UI was a complete mess. It was just a long, confusing list of features.</p>
+
+<p>So, today, I'm shipping v1.1.0. This update is 100% focused on making all that power actually usable.</p>
+
+<p>🎨 All-New Tabbed Interface: I threw out the old UI. It’s now organized into clean tabs: Overview, Environments, History, &amp; Settings.</p>
+
+<p>🌳 History Tree View: You can now see all your environment changes in a clean, collapsible tree. (This is the first step to a full Git-like rollback system).</p>
+
+<p>🏷️ Smart Groups: It now intelligently groups your .env files (local, dev, staging, prod) instead of just dumping them in a flat list.</p>
+
+<p>I'm a solo dev building this entire thing (the TypeScript extension, the Python AI backend, the ML model) all by myself, and it's all open-source.</p>
+
+<p>I would honestly just love to know what you think. Is the new UI actually better? Is the custom LLM feature total overkill, or is it something you'd actually use?</p>
+
+<p>You can grab it here:</p>
+
+<p>Marketplace: <br>
+<a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy</a></p>
+
+<p>GitHub (and the LLM code): <br>
+<a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/dotenvy</a></p>
+
+<p>P.S. I've got GitHub Sponsors enabled on the repo. I'm pouring thousands of hours into these tools (this, DotCommand, Break Bully...) trying to make it a real living. If this tool saves your company from one secret leak, maybe throw me a coffee? 😉</p>
+
+<p>Thanks for checking it out!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-might-have-gone-overboard-i-built-a-custom-llm-for-my-env-extension-and-now-i-just-shipped-a-15o0" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/i-might-have-gone-overboard-i-built-a-custom-llm-for-my-env-extension-and-now-i-just-shipped-a-15o0#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

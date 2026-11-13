@@ -329,6 +329,8 @@
     margin-bottom: 12px;
   }
   .tool-name { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; color: #fff; }
+  .tool-name.post-card-title { font-size: 15px; line-height: 1.35; }
+  .blog-more { margin: -32px 0 64px; }
   .tool-name .prefix { color: var(--accent); }
   .tool-name .suffix { color: #fff; }
 

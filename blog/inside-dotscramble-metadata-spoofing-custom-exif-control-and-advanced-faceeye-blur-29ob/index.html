@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Inside DotScramble: Metadata Spoofing, Custom EXIF Control, and Advanced Face/Eye Blur — FreeRave</title>
+<meta name="description" content="A deep dive into how DotScramble protects your privacy — from injecting plausible-but-fake...">
+<link rel="canonical" href="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob">
+<meta property="og:title" content="Inside DotScramble: Metadata Spoofing, Custom EXIF Control, and Advanced Face/Eye Blur — FreeRave">
+<meta property="og:description" content="A deep dive into how DotScramble protects your privacy — from injecting plausible-but-fake...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fou8k2robyy1s5j1iwh8m.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fou8k2robyy1s5j1iwh8m.png" alt="">
+  <h1 class="post-title">Inside DotScramble: Metadata Spoofing, Custom EXIF Control, and Advanced Face/Eye Blur</h1>
+  <div class="post-meta">
+    <time datetime="2026-06-23T13:32:46Z">23 June 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#privacy</span><span class="post-tag">#opencv</span><span class="post-tag">#imageprocessing</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-dive-into-how-dotscramble-protects-your-privacy-from-injecting-plausiblebutfake-exif-metadata-to-detecting-and-blurring-faces-and-eyes-with-opencv-haar-cascades" href="#a-deep-dive-into-how-dotscramble-protects-your-privacy-from-injecting-plausiblebutfake-exif-metadata-to-detecting-and-blurring-faces-and-eyes-with-opencv-haar-cascades">
+  </a>
+  A deep dive into how DotScramble protects your privacy — from injecting plausible-but-fake EXIF metadata to detecting and blurring faces and eyes with OpenCV Haar Cascades.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR</strong> — DotScramble is an open-source desktop app that protects image privacy through two main pillars: <strong>metadata obfuscation</strong> (stripping or spoofing EXIF data so your camera, GPS, and timestamp can't be traced back to you) and <strong>visual redaction</strong> (automatically detecting and blurring faces, eyes, license plates, and text). This post digs into the code behind both systems.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="why-metadata-is-the-hidden-threat" href="#why-metadata-is-the-hidden-threat">
+  </a>
+  Why Metadata Is the Hidden Threat
+</h2>
+
+<p>When you take a photo, the file doesn't just contain pixels. Hidden inside is a block of <strong>EXIF metadata</strong> that silently stores:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Example Value</th>
+<th>Risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GPS Latitude/Longitude</code></td>
+<td><code>30.0444° N, 31.2357° E</code></td>
+<td>Reveals your exact location</td>
+</tr>
+<tr>
+<td><code>Camera Make/Model</code></td>
+<td><code>Apple iPhone 15 Pro</code></td>
+<td>Fingerprints your device</td>
+</tr>
+<tr>
+<td><code>DateTimeOriginal</code></td>
+<td><code>2026:06:21 14:32:11</code></td>
+<td>Timestamps your movements</td>
+</tr>
+<tr>
+<td><code>Software</code></td>
+<td><code>iOS 17.5</code></td>
+<td>Exposes OS/platform</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Most people strip this metadata before sharing photos — but <strong>stripping alone can look suspicious</strong>. A completely blank EXIF block on a modern smartphone image is a red flag to any tracking algorithm. DotScramble takes a different approach: instead of silent stripping, it <strong>injects plausible-but-fake disinformation</strong>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="part-1-the-metadata-spoofing-engine" href="#part-1-the-metadata-spoofing-engine">
+  </a>
+  Part 1: The Metadata Spoofing Engine
+</h2>
+
+<p>The core of the system lives in <a href="https://github.com/kareem2099/DotScramble/blob/main/core/metadata_spoofer.py" target="_blank" rel="noopener noreferrer"><code>core/metadata_spoofer.py</code></a>.</p>
+
+<h3>
+  <a name="the-camera-database-intentionally-vintage" href="#the-camera-database-intentionally-vintage">
+  </a>
+  The Camera Database — Intentionally Vintage
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">FAKE_CAMERAS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Nokia</span><span class="sh">"</span><span class="p">,</span>     <span class="sh">"</span><span class="s">3310</span><span class="sh">"</span><span class="p">,</span>              <span class="sh">"</span><span class="s">Nokia Imaging 1.0</span><span class="sh">"</span><span class="p">),</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Motorola</span><span class="sh">"</span><span class="p">,</span>  <span class="sh">"</span><span class="s">RAZR V3</span><span class="sh">"</span><span class="p">,</span>           <span class="sh">"</span><span class="s">Motorola Camera 1.2</span><span class="sh">"</span><span class="p">),</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Samsung</span><span class="sh">"</span><span class="p">,</span>   <span class="sh">"</span><span class="s">SCH-U340</span><span class="sh">"</span><span class="p">,</span>          <span class="sh">"</span><span class="s">Samsung Digimax 2.1</span><span class="sh">"</span><span class="p">),</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Casio</span><span class="sh">"</span><span class="p">,</span>     <span class="sh">"</span><span class="s">QV-10A</span><span class="sh">"</span><span class="p">,</span>            <span class="sh">"</span><span class="s">Casio Digital Camera</span><span class="sh">"</span><span class="p">),</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Polaroid</span><span class="sh">"</span><span class="p">,</span>  <span class="sh">"</span><span class="s">PDC 640</span><span class="sh">"</span><span class="p">,</span>           <span class="sh">"</span><span class="s">Polaroid Software 1.1</span><span class="sh">"</span><span class="p">),</span>
+    <span class="p">(</span><span class="sh">"</span><span class="s">Kodak</span><span class="sh">"</span><span class="p">,</span>     <span class="sh">"</span><span class="s">DC40</span><span class="sh">"</span><span class="p">,</span>              <span class="sh">"</span><span class="s">Kodak EasyShare 3.0</span><span class="sh">"</span><span class="p">),</span>
+    <span class="c1"># ... and more
+</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The list is intentionally filled with <strong>vintage and implausible devices</strong> — a Nokia 3310 doesn't have a camera at all, which is exactly the point. Trackers fingerprint devices by cross-referencing camera model with image resolution, color profile, and noise patterns. Injecting a Nokia 3310 signature into a modern 12MP photo creates an <strong>irreconcilable contradiction</strong> that defeats fingerprinting.</p>
+
+<h3>
+  <a name="gps-presets-middle-of-nowhere" href="#gps-presets-middle-of-nowhere">
+  </a>
+  GPS Presets — Middle of Nowhere
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">GPS_PRESETS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sh">"</span><span class="s">pacific</span><span class="sh">"</span><span class="p">:</span>    <span class="p">(</span>   <span class="mf">4.2234</span><span class="p">,</span>  <span class="o">-</span><span class="mf">157.4521</span><span class="p">),</span>  <span class="c1"># Middle of Pacific Ocean
+</span>    <span class="sh">"</span><span class="s">antarctica</span><span class="sh">"</span><span class="p">:</span> <span class="p">(</span> <span class="o">-</span><span class="mf">89.3312</span><span class="p">,</span>    <span class="mf">12.0000</span><span class="p">),</span>  <span class="c1"># Antarctica
+</span>    <span class="sh">"</span><span class="s">arctic</span><span class="sh">"</span><span class="p">:</span>     <span class="p">(</span>  <span class="mf">89.1122</span><span class="p">,</span>  <span class="o">-</span><span class="mf">178.4343</span><span class="p">),</span>  <span class="c1"># Arctic Ocean
+</span>    <span class="sh">"</span><span class="s">sahara</span><span class="sh">"</span><span class="p">:</span>     <span class="p">(</span>  <span class="mf">23.4122</span><span class="p">,</span>    <span class="mf">10.9988</span><span class="p">),</span>  <span class="c1"># Remote Sahara (no cell towers)
+</span>    <span class="sh">"</span><span class="s">amazon</span><span class="sh">"</span><span class="p">:</span>     <span class="p">(</span>  <span class="o">-</span><span class="mf">5.3421</span><span class="p">,</span>   <span class="o">-</span><span class="mf">63.2231</span><span class="p">),</span>  <span class="c1"># Deep Amazon basin
+</span><span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>These aren't random — each preset was chosen because it's a location with <strong>no plausible human population or cell infrastructure</strong>, making it impossible to cross-reference the fake GPS against telecom tower data.</p>
+
+<p>A small <code>jitter</code> is added to each preset on every run so the same preset never produces the exact same coordinates twice:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_pick_gps</span><span class="p">(</span><span class="n">preset</span><span class="p">,</span> <span class="n">custom</span><span class="p">,</span> <span class="n">jitter</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="n">GPS_PRESETS</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">preset</span><span class="p">,</span> <span class="n">GPS_PRESETS</span><span class="p">[</span><span class="sh">"</span><span class="s">pacific</span><span class="sh">"</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">jitter</span><span class="p">:</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">coords</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">random</span><span class="p">.</span><span class="nf">uniform</span><span class="p">(</span><span class="o">-</span><span class="mf">0.08</span><span class="p">,</span> <span class="mf">0.08</span><span class="p">)</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">coords</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">random</span><span class="p">.</span><span class="nf">uniform</span><span class="p">(</span><span class="o">-</span><span class="mf">0.08</span><span class="p">,</span> <span class="mf">0.08</span><span class="p">)</span>
+        <span class="nf">return </span><span class="p">(</span><span class="nf">round</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="nf">round</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">coords</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="converting-gps-to-exif-rationals" href="#converting-gps-to-exif-rationals">
+  </a>
+  Converting GPS to EXIF Rationals
+</h3>
+
+<p>EXIF GPS doesn't store decimal degrees directly — it uses a DMS (Degrees, Minutes, Seconds) format with rational numbers (numerator/denominator pairs). Here's how DotScramble handles the conversion:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_dms_rational</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="p">...]:</span>
+    <span class="sh">"""</span><span class="s">Convert decimal degrees → (deg, min, sec) as EXIF rational tuples.</span><span class="sh">"""</span>
+    <span class="n">abs_v</span> <span class="o">=</span> <span class="nf">abs</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">deg</span>   <span class="o">=</span> <span class="nf">int</span><span class="p">(</span><span class="n">abs_v</span><span class="p">)</span>
+    <span class="n">m_f</span>   <span class="o">=</span> <span class="p">(</span><span class="n">abs_v</span> <span class="o">-</span> <span class="n">deg</span><span class="p">)</span> <span class="o">*</span> <span class="mi">60</span>
+    <span class="n">mins</span>  <span class="o">=</span> <span class="nf">int</span><span class="p">(</span><span class="n">m_f</span><span class="p">)</span>
+    <span class="n">secs</span>  <span class="o">=</span> <span class="nf">round</span><span class="p">((</span><span class="n">m_f</span> <span class="o">-</span> <span class="n">mins</span><span class="p">)</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">10_000</span><span class="p">)</span>
+    <span class="nf">return </span><span class="p">((</span><span class="n">deg</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">mins</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="n">secs</span><span class="p">,</span> <span class="mi">10_000</span><span class="p">))</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The result gets packaged into a full GPS IFD:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_build_gps_ifd</span><span class="p">(</span><span class="n">lat</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">lon</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSLatitudeRef</span><span class="p">:</span>  <span class="sa">b</span><span class="sh">"</span><span class="s">S</span><span class="sh">"</span> <span class="k">if</span> <span class="n">lat</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="sa">b</span><span class="sh">"</span><span class="s">N</span><span class="sh">"</span><span class="p">,</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSLatitude</span><span class="p">:</span>     <span class="nf">_dms_rational</span><span class="p">(</span><span class="n">lat</span><span class="p">),</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSLongitudeRef</span><span class="p">:</span> <span class="sa">b</span><span class="sh">"</span><span class="s">W</span><span class="sh">"</span> <span class="k">if</span> <span class="n">lon</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="sa">b</span><span class="sh">"</span><span class="s">E</span><span class="sh">"</span><span class="p">,</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSLongitude</span><span class="p">:</span>    <span class="nf">_dms_rational</span><span class="p">(</span><span class="n">lon</span><span class="p">),</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSAltitude</span><span class="p">:</span>     <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+        <span class="n">piexif</span><span class="p">.</span><span class="n">GPSIFD</span><span class="p">.</span><span class="n">GPSMapDatum</span><span class="p">:</span>     <span class="sa">b</span><span class="sh">"</span><span class="s">WGS-84</span><span class="sh">"</span><span class="p">,</span>
+    <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="spoof-profiles-opinionated-presets" href="#spoof-profiles-opinionated-presets">
+  </a>
+  Spoof Profiles — Opinionated Presets
+</h3>
+
+<p>Rather than exposing raw settings, DotScramble exposes three high-level <strong>profiles</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">PROFILES</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sh">"</span><span class="s">ghost</span><span class="sh">"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="c1"># Maximum obfuscation — Nokia 3310 in Antarctica, year 2000
+</span>        <span class="sh">"</span><span class="s">gps_preset</span><span class="sh">"</span><span class="p">:</span>         <span class="sh">"</span><span class="s">antarctica</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">camera</span><span class="sh">"</span><span class="p">:</span>             <span class="sh">"</span><span class="s">Nokia 3310</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">fake_datetime_mode</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">epoch</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">keep_copyright</span><span class="sh">"</span><span class="p">:</span>     <span class="bp">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="sh">"</span><span class="s">troll</span><span class="sh">"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="c1"># Plausibly wrong — recent vintage camera, random ocean
+</span>        <span class="sh">"</span><span class="s">gps_preset</span><span class="sh">"</span><span class="p">:</span>         <span class="sh">"</span><span class="s">pacific</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">camera</span><span class="sh">"</span><span class="p">:</span>             <span class="sh">"</span><span class="s">random</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">fake_datetime_mode</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">recent</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">keep_copyright</span><span class="sh">"</span><span class="p">:</span>     <span class="bp">False</span><span class="p">,</span>
+    <span class="p">},</span>
+    <span class="sh">"</span><span class="s">artist</span><span class="sh">"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="c1"># For photographers — strips location+device, preserves copyright
+</span>        <span class="sh">"</span><span class="s">gps_preset</span><span class="sh">"</span><span class="p">:</span>         <span class="sh">"</span><span class="s">atlantic</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">camera</span><span class="sh">"</span><span class="p">:</span>             <span class="sh">"</span><span class="s">random</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">fake_datetime_mode</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">random</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sh">"</span><span class="s">keep_copyright</span><span class="sh">"</span><span class="p">:</span>     <span class="bp">True</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Usage is dead simple from Python:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="kn">from</span> <span class="n">core.metadata_spoofer</span> <span class="kn">import</span> <span class="n">spoof</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="nf">spoof</span><span class="p">(</span><span class="sh">"</span><span class="s">photo.jpg</span><span class="sh">"</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="sh">"</span><span class="s">ghost</span><span class="sh">"</span><span class="p">)</span>
+<span class="nf">print</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+<span class="c1"># {
+#   "format": "JPEG",
+#   "camera": "Nokia 3310",
+#   "gps": {"lat": -89.2891, "lon": 12.0412},
+#   "datetime": "2000:01:01 00:00:00",
+#   ...
+# }
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Or from the CLI:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotscramble-spoof photo.jpg <span class="nt">--profile</span> ghost
+dotscramble-spoof photo.jpg <span class="nt">--gps-preset</span> pacific <span class="nt">--camera</span> <span class="s2">"Kodak DC40"</span>
+dotscramble-spoof photo.jpg <span class="nt">--gps-custom</span> 23.4 <span class="nt">-54</span>.2 <span class="nt">--keep-copyright</span>
+dotscramble-spoof photo.jpg <span class="nt">--dry-run</span> <span class="nt">--json</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="jpeg-vs-png-different-metadata-formats" href="#jpeg-vs-png-different-metadata-formats">
+  </a>
+  JPEG vs PNG — Different Metadata Formats
+</h3>
+
+<p>JPEG and PNG handle metadata completely differently:</p>
+
+<p><strong>JPEG</strong> uses binary EXIF chunks (IFD tables). DotScramble builds these using <code>piexif</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">exif_bytes</span> <span class="o">=</span> <span class="n">piexif</span><span class="p">.</span><span class="nf">dump</span><span class="p">({</span>
+    <span class="sh">"</span><span class="s">0th</span><span class="sh">"</span><span class="p">:</span>  <span class="n">zeroth_ifd</span><span class="p">,</span>   <span class="c1"># Camera make, model, software, datetime
+</span>    <span class="sh">"</span><span class="s">Exif</span><span class="sh">"</span><span class="p">:</span> <span class="n">exif_ifd</span><span class="p">,</span>     <span class="c1"># DateTimeOriginal, ISO, aperture, shutter
+</span>    <span class="sh">"</span><span class="s">GPS</span><span class="sh">"</span><span class="p">:</span>  <span class="n">gps_ifd</span><span class="p">,</span>      <span class="c1"># Lat/lon in DMS rational format
+</span><span class="p">})</span>
+<span class="n">img</span><span class="p">.</span><span class="nf">save</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="sh">"</span><span class="s">JPEG</span><span class="sh">"</span><span class="p">,</span> <span class="n">exif</span><span class="o">=</span><span class="n">exif_bytes</span><span class="p">,</span> <span class="n">quality</span><span class="o">=</span><span class="mi">95</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>PNG</strong> uses simple text chunks (key-value pairs). No GPS support in the standard:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">pnginfo</span> <span class="o">=</span> <span class="n">PngImagePlugin</span><span class="p">.</span><span class="nc">PngInfo</span><span class="p">()</span>
+<span class="n">pnginfo</span><span class="p">.</span><span class="nf">add_text</span><span class="p">(</span><span class="sh">"</span><span class="s">Software</span><span class="sh">"</span><span class="p">,</span>      <span class="n">software</span><span class="p">)</span>
+<span class="n">pnginfo</span><span class="p">.</span><span class="nf">add_text</span><span class="p">(</span><span class="sh">"</span><span class="s">Author</span><span class="sh">"</span><span class="p">,</span>        <span class="n">make</span><span class="p">)</span>
+<span class="n">pnginfo</span><span class="p">.</span><span class="nf">add_text</span><span class="p">(</span><span class="sh">"</span><span class="s">Creation Time</span><span class="sh">"</span><span class="p">,</span> <span class="n">png_dt</span><span class="p">)</span>
+<span class="n">pnginfo</span><span class="p">.</span><span class="nf">add_text</span><span class="p">(</span><span class="sh">"</span><span class="s">date:create</span><span class="sh">"</span><span class="p">,</span>   <span class="n">iso_dt</span><span class="p">)</span>
+<span class="n">pnginfo</span><span class="p">.</span><span class="nf">add_text</span><span class="p">(</span><span class="sh">"</span><span class="s">date:modify</span><span class="sh">"</span><span class="p">,</span>   <span class="n">iso_dt</span><span class="p">)</span>
+<span class="n">img</span><span class="p">.</span><span class="nf">save</span><span class="p">(</span><span class="n">output_path</span><span class="p">,</span> <span class="sh">"</span><span class="s">PNG</span><span class="sh">"</span><span class="p">,</span> <span class="n">pnginfo</span><span class="o">=</span><span class="n">pnginfo</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Design Note:</strong> PNG's text chunks are completely human-readable with any hex editor. DotScramble still populates them because many social platforms and reverse image search engines parse them. Injecting noise is better than leaving them empty.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="part-2-custom-metadata-control-perfield-exif-surgery" href="#part-2-custom-metadata-control-perfield-exif-surgery">
+  </a>
+  Part 2: Custom Metadata Control — Per-Field EXIF Surgery
+</h2>
+
+<p>The spoofing profiles are great for quick use, but power users need surgical control. That's what the <strong>Custom Metadata Dialog</strong> provides — a per-field control panel where every EXIF tag can independently be set to one of four actions:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>✅ Keep   — preserve the original value exactly
+🗑 Strip  — remove this field entirely  
+🎲 Spoof  — replace with a random plausible fake
+✏️ Custom — enter your own specific value
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-raw-spoofcustom-endraw-function" href="#the-raw-spoofcustom-endraw-function">
+  </a>
+  The <code>spoof_custom()</code> Function
+</h3>
+
+<p>This is the engine behind the dialog. It takes a <code>field_actions</code> dict and applies each action independently:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">spoof_custom</span><span class="p">(</span>
+    <span class="n">input_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">field_actions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Apply per-field EXIF actions to a JPEG or PNG.
+
+    field_actions keys: gps, make, model, software, datetime, copyright, exposure
+    Values: </span><span class="sh">"</span><span class="s">keep</span><span class="sh">"</span><span class="s"> | </span><span class="sh">"</span><span class="s">strip</span><span class="sh">"</span><span class="s"> | </span><span class="sh">"</span><span class="s">spoof</span><span class="sh">"</span><span class="s"> | {</span><span class="sh">"</span><span class="s">value</span><span class="sh">"</span><span class="s">: str}
+            (gps uses {</span><span class="sh">"</span><span class="s">lat</span><span class="sh">"</span><span class="s">: .., </span><span class="sh">"</span><span class="s">lon</span><span class="sh">"</span><span class="s">: ..} for custom)
+    </span><span class="sh">"""</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The resolver function handles all four action types elegantly:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_resolve_text</span><span class="p">(</span><span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">fake_fn</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="n">action</span> <span class="o">=</span> <span class="n">field_actions</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="sh">"</span><span class="s">keep</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="sh">"</span><span class="s">strip</span><span class="sh">"</span><span class="p">:</span>             <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="sh">"</span><span class="s">keep</span><span class="sh">"</span><span class="p">:</span>              <span class="k">return</span> <span class="n">current</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="sh">"</span><span class="s">spoof</span><span class="sh">"</span><span class="p">:</span>             <span class="k">return</span> <span class="nf">fake_fn</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nf">isinstance</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>      <span class="k">return</span> <span class="n">action</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">value</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">current</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+<span class="c1"># Applied per-field:
+</span><span class="n">r_make</span>     <span class="o">=</span> <span class="nf">_resolve_text</span><span class="p">(</span><span class="sh">"</span><span class="s">make</span><span class="sh">"</span><span class="p">,</span>     <span class="k">lambda</span><span class="p">:</span> <span class="n">make</span><span class="p">)</span>
+<span class="n">r_model</span>    <span class="o">=</span> <span class="nf">_resolve_text</span><span class="p">(</span><span class="sh">"</span><span class="s">model</span><span class="sh">"</span><span class="p">,</span>    <span class="k">lambda</span><span class="p">:</span> <span class="n">model</span><span class="p">)</span>
+<span class="n">r_software</span> <span class="o">=</span> <span class="nf">_resolve_text</span><span class="p">(</span><span class="sh">"</span><span class="s">software</span><span class="sh">"</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">software</span><span class="p">)</span>
+<span class="n">r_datetime</span> <span class="o">=</span> <span class="nf">_resolve_text</span><span class="p">(</span><span class="sh">"</span><span class="s">datetime</span><span class="sh">"</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="nf">_fake_timestamp</span><span class="p">(</span><span class="sh">"</span><span class="s">random</span><span class="sh">"</span><span class="p">))</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="reading-existing-exif-to-prefill-the-ui" href="#reading-existing-exif-to-prefill-the-ui">
+  </a>
+  Reading Existing EXIF to Pre-fill the UI
+</h3>
+
+<p>Before showing the dialog, DotScramble reads the current EXIF so the user can see what's actually in the file:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">read_exif_fields</span><span class="p">(</span><span class="n">image_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Read current EXIF and return structured dict for pre-filling the dialog.</span><span class="sh">"""</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="bp">None</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span>
+              <span class="p">(</span><span class="sh">"</span><span class="s">gps</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">make</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">model</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">software</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">datetime</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">copyright</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">exposure</span><span class="sh">"</span><span class="p">)}</span>
+
+    <span class="n">exif_dict</span> <span class="o">=</span> <span class="n">piexif</span><span class="p">.</span><span class="nf">load</span><span class="p">(</span><span class="n">image_path</span><span class="p">)</span>
+    <span class="n">zeroth</span> <span class="o">=</span> <span class="n">exif_dict</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">0th</span><span class="sh">"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">exif</span>   <span class="o">=</span> <span class="n">exif_dict</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">Exif</span><span class="sh">"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="n">gps</span>    <span class="o">=</span> <span class="n">exif_dict</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">GPS</span><span class="sh">"</span><span class="p">,</span> <span class="p">{})</span>
+
+    <span class="n">result</span><span class="p">[</span><span class="sh">"</span><span class="s">make</span><span class="sh">"</span><span class="p">]</span>     <span class="o">=</span> <span class="nf">_decode</span><span class="p">(</span><span class="n">zeroth</span><span class="p">,</span> <span class="n">piexif</span><span class="p">.</span><span class="n">ImageIFD</span><span class="p">.</span><span class="n">Make</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="sh">"</span><span class="s">model</span><span class="sh">"</span><span class="p">]</span>    <span class="o">=</span> <span class="nf">_decode</span><span class="p">(</span><span class="n">zeroth</span><span class="p">,</span> <span class="n">piexif</span><span class="p">.</span><span class="n">ImageIFD</span><span class="p">.</span><span class="n">Model</span><span class="p">)</span>
+    <span class="n">result</span><span class="p">[</span><span class="sh">"</span><span class="s">datetime</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="nf">_decode</span><span class="p">(</span><span class="n">zeroth</span><span class="p">,</span> <span class="n">piexif</span><span class="p">.</span><span class="n">ImageIFD</span><span class="p">.</span><span class="n">DateTime</span><span class="p">)</span>
+    <span class="c1"># ... GPS DMS → decimal conversion, exposure parsing, etc.
+</span>    <span class="k">return</span> <span class="n">result</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The GPS conversion from DMS rational back to decimal is the tricky part:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_dms_to_decimal</span><span class="p">(</span><span class="n">dms_tuple</span><span class="p">,</span> <span class="n">ref</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="nf">_rational</span><span class="p">(</span><span class="n">dms_tuple</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> <span class="mi">0</span>
+    <span class="n">m</span> <span class="o">=</span> <span class="nf">_rational</span><span class="p">(</span><span class="n">dms_tuple</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="ow">or</span> <span class="mi">0</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="nf">_rational</span><span class="p">(</span><span class="n">dms_tuple</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="ow">or</span> <span class="mi">0</span>
+    <span class="n">val</span> <span class="o">=</span> <span class="n">d</span> <span class="o">+</span> <span class="n">m</span> <span class="o">/</span> <span class="mi">60</span> <span class="o">+</span> <span class="n">s</span> <span class="o">/</span> <span class="mi">3600</span>
+    <span class="k">if</span> <span class="n">ref</span> <span class="ow">in</span> <span class="p">(</span><span class="sa">b</span><span class="sh">"</span><span class="s">S</span><span class="sh">"</span><span class="p">,</span> <span class="sa">b</span><span class="sh">"</span><span class="s">W</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="o">-</span><span class="n">val</span>
+    <span class="k">return</span> <span class="nf">round</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="preset-system-for-the-dialog" href="#preset-system-for-the-dialog">
+  </a>
+  Preset System for the Dialog
+</h3>
+
+<p>The Custom dialog also supports saving and loading named presets, backed by a JSON file:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Example saved preset
+</span><span class="p">{</span>
+    <span class="sh">"</span><span class="s">gps</span><span class="sh">"</span><span class="p">:</span>       <span class="sh">"</span><span class="s">strip</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">make</span><span class="sh">"</span><span class="p">:</span>      <span class="sh">"</span><span class="s">spoof</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">model</span><span class="sh">"</span><span class="p">:</span>     <span class="sh">"</span><span class="s">spoof</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">software</span><span class="sh">"</span><span class="p">:</span>  <span class="sh">"</span><span class="s">strip</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">datetime</span><span class="sh">"</span><span class="p">:</span>  <span class="p">{</span><span class="sh">"</span><span class="s">value</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">2023:01:01 12:00:00</span><span class="sh">"</span><span class="p">},</span>
+    <span class="sh">"</span><span class="s">copyright</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">keep</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">exposure</span><span class="sh">"</span><span class="p">:</span>  <span class="sh">"</span><span class="s">spoof</span><span class="sh">"</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Factory presets ship with the app (Ghost, Troll, Artist), and users can create their own. Factory presets are read-only and can't be deleted or overwritten.</p>
+
+
+<hr>
+
+<h2>
+  <a name="part-3-advanced-face-and-eye-blur" href="#part-3-advanced-face-and-eye-blur">
+  </a>
+  Part 3: Advanced Face and Eye Blur
+</h2>
+
+<p>The visual redaction engine lives in <a href="https://github.com/kareem2099/DotScramble/blob/main/core/image_processor.py" target="_blank" rel="noopener noreferrer"><code>core/image_processor.py</code></a>.</p>
+
+<h3>
+  <a name="the-detection-engine" href="#the-detection-engine">
+  </a>
+  The Detection Engine
+</h3>
+
+<p>DotScramble uses <strong>OpenCV's Haar Cascade classifiers</strong> — a classical machine learning approach that's fast, works offline, and has no cloud dependencies. The <code>DetectionEngine</code> class wraps the key classifiers:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">DetectionEngine</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Advanced detection algorithms</span><span class="sh">"""</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">detect_faces</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+        <span class="sh">"""</span><span class="s">Detect faces using Haar Cascade</span><span class="sh">"""</span>
+        <span class="n">face_cascade</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nc">CascadeClassifier</span><span class="p">(</span>
+            <span class="n">cv2</span><span class="p">.</span><span class="n">data</span><span class="p">.</span><span class="n">haarcascades</span> <span class="o">+</span> <span class="sh">'</span><span class="s">haarcascade_frontalface_default.xml</span><span class="sh">'</span>
+        <span class="p">)</span>
+        <span class="n">gray</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="p">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+        <span class="n">faces</span> <span class="o">=</span> <span class="n">face_cascade</span><span class="p">.</span><span class="nf">detectMultiScale</span><span class="p">(</span><span class="n">gray</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">minSize</span><span class="o">=</span><span class="p">(</span><span class="mi">30</span><span class="p">,</span> <span class="mi">30</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">faces</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">detect_eyes</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+        <span class="sh">"""</span><span class="s">Detect eyes using Haar Cascade</span><span class="sh">"""</span>
+        <span class="n">eye_cascade</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nc">CascadeClassifier</span><span class="p">(</span>
+            <span class="n">cv2</span><span class="p">.</span><span class="n">data</span><span class="p">.</span><span class="n">haarcascades</span> <span class="o">+</span> <span class="sh">'</span><span class="s">haarcascade_eye.xml</span><span class="sh">'</span>
+        <span class="p">)</span>
+        <span class="n">gray</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">cvtColor</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">cv2</span><span class="p">.</span><span class="n">COLOR_BGR2GRAY</span><span class="p">)</span>
+        <span class="n">eyes</span> <span class="o">=</span> <span class="n">eye_cascade</span><span class="p">.</span><span class="nf">detectMultiScale</span><span class="p">(</span><span class="n">gray</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="n">minSize</span><span class="o">=</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="mi">20</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">eyes</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The parameters that matter:</p>
+
+<ul>
+<li>
+<code>scaleFactor=1.1</code> — how much the image is scaled down per detection pass (1.1 = 10% reduction per pass, slower but more accurate)</li>
+<li>
+<code>minNeighbors=5</code> — how many overlapping detections a region needs before it's accepted (higher = fewer false positives)</li>
+<li>
+<code>minSize=(30, 30)</code> — minimum region size in pixels (filters out noise)</li>
+</ul>
+
+<h3>
+  <a name="applying-the-blur-the-raw-gaussianblur-endraw-method" href="#applying-the-blur-the-raw-gaussianblur-endraw-method">
+  </a>
+  Applying the Blur — The <code>gaussian_blur</code> Method
+</h3>
+
+<p>Once regions are detected, DotScramble applies effects. The <code>gaussian_blur</code> implementation has extensive validation to handle edge cases like faces at image borders:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">gaussian_blur</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">strength</span><span class="p">):</span>
+    <span class="sh">"""</span><span class="s">Apply Gaussian blur to region with validation</span><span class="sh">"""</span>
+    <span class="n">img_h</span><span class="p">,</span> <span class="n">img_w</span> <span class="o">=</span> <span class="n">image</span><span class="p">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="c1"># Clip region to image boundaries (handles faces at edges)
+</span>    <span class="n">x_end</span> <span class="o">=</span> <span class="nf">min</span><span class="p">(</span><span class="n">x</span> <span class="o">+</span> <span class="n">w</span><span class="p">,</span> <span class="n">img_w</span><span class="p">)</span>
+    <span class="n">y_end</span> <span class="o">=</span> <span class="nf">min</span><span class="p">(</span><span class="n">y</span> <span class="o">+</span> <span class="n">h</span><span class="p">,</span> <span class="n">img_h</span><span class="p">)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">x_end</span> <span class="o">-</span> <span class="n">x</span>
+    <span class="n">h</span> <span class="o">=</span> <span class="n">y_end</span> <span class="o">-</span> <span class="n">y</span>
+
+    <span class="c1"># Ensure minimum region size
+</span>    <span class="k">if</span> <span class="n">w</span> <span class="o">&lt;</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">h</span> <span class="o">&lt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="nc">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Region too small: </span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s">x</span><span class="si">{</span><span class="n">h</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="c1"># GaussianBlur requires odd kernel size
+</span>    <span class="k">if</span> <span class="n">strength</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">strength</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">strength</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="n">strength</span><span class="p">)</span>
+
+    <span class="n">region</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="n">y</span><span class="p">:</span><span class="n">y_end</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span><span class="n">x_end</span><span class="p">]</span>
+    <span class="n">blurred</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nc">GaussianBlur</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="p">(</span><span class="n">strength</span><span class="p">,</span> <span class="n">strength</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">blurred</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="beyond-blur-the-full-effect-suite" href="#beyond-blur-the-full-effect-suite">
+  </a>
+  Beyond Blur — The Full Effect Suite
+</h3>
+
+<p>Blur is just one option. DotScramble supports 7 different privacy effects that can be applied to any detected region:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Effect</th>
+<th>Method</th>
+<th>Best For</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🌫️ Gaussian Blur</td>
+<td><code>gaussian_blur()</code></td>
+<td>Professional, natural look</td>
+</tr>
+<tr>
+<td>🔲 Pixelation</td>
+<td><code>pixelate()</code></td>
+<td>Classic censoring style</td>
+</tr>
+<tr>
+<td>⬛ Black Bar</td>
+<td><code>black_bar()</code></td>
+<td>Strong, unambiguous redaction</td>
+</tr>
+<tr>
+<td>🎭 Gradient Fade</td>
+<td><code>gradient_fade()</code></td>
+<td>Artistic/subtle censoring</td>
+</tr>
+<tr>
+<td>🔳 Mosaic</td>
+<td><code>mosaic_effect()</code></td>
+<td>Decorative tile pattern</td>
+</tr>
+<tr>
+<td>❄️ Frosted Glass</td>
+<td><code>frosted_glass()</code></td>
+<td>Translucent glass aesthetic</td>
+</tr>
+<tr>
+<td>🎨 Oil Paint</td>
+<td><code>oil_paint()</code></td>
+<td>Artistic painting effect</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The pixelation effect is a neat double-resize trick — shrink down, then scale back up with nearest-neighbor interpolation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">pixelate</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">pixel_size</span><span class="p">):</span>
+    <span class="n">region</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="n">y</span><span class="p">:</span><span class="n">y_end</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span><span class="n">x_end</span><span class="p">]</span>
+    <span class="n">region_h</span><span class="p">,</span> <span class="n">region_w</span> <span class="o">=</span> <span class="n">region</span><span class="p">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">pixel_size</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">pixel_size</span><span class="p">)</span>
+
+    <span class="c1"># Shrink → enlarge = pixelation
+</span>    <span class="n">temp_h</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">region_h</span> <span class="o">//</span> <span class="n">pixel_size</span><span class="p">)</span>
+    <span class="n">temp_w</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">region_w</span> <span class="o">//</span> <span class="n">pixel_size</span><span class="p">)</span>
+    <span class="n">temp</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">resize</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="p">(</span><span class="n">temp_w</span><span class="p">,</span> <span class="n">temp_h</span><span class="p">),</span> <span class="n">interpolation</span><span class="o">=</span><span class="n">cv2</span><span class="p">.</span><span class="n">INTER_LINEAR</span><span class="p">)</span>
+    <span class="n">pixelated</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">resize</span><span class="p">(</span><span class="n">temp</span><span class="p">,</span> <span class="p">(</span><span class="n">region_w</span><span class="p">,</span> <span class="n">region_h</span><span class="p">),</span> <span class="n">interpolation</span><span class="o">=</span><span class="n">cv2</span><span class="p">.</span><span class="n">INTER_NEAREST</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pixelated</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The frosted glass effect combines PIL and OpenCV:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">frosted_glass</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">strength</span><span class="o">=</span><span class="mi">15</span><span class="p">):</span>
+    <span class="n">region</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="n">y</span><span class="p">:</span><span class="n">y_end</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span><span class="n">x_end</span><span class="p">]</span>
+
+    <span class="c1"># Convert to PIL for advanced filtering
+</span>    <span class="n">pil_region</span> <span class="o">=</span> <span class="n">Image</span><span class="p">.</span><span class="nf">fromarray</span><span class="p">(</span><span class="n">cv2</span><span class="p">.</span><span class="nf">cvtColor</span><span class="p">(</span><span class="n">region</span><span class="p">,</span> <span class="n">cv2</span><span class="p">.</span><span class="n">COLOR_BGR2RGB</span><span class="p">))</span>
+
+    <span class="n">blurred</span>  <span class="o">=</span> <span class="n">pil_region</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="n">ImageFilter</span><span class="p">.</span><span class="nc">GaussianBlur</span><span class="p">(</span><span class="n">strength</span><span class="p">))</span>
+    <span class="n">enhanced</span> <span class="o">=</span> <span class="n">ImageEnhance</span><span class="p">.</span><span class="nc">Brightness</span><span class="p">(</span><span class="n">blurred</span><span class="p">).</span><span class="nf">enhance</span><span class="p">(</span><span class="mf">1.1</span><span class="p">)</span>
+    <span class="n">final</span>    <span class="o">=</span> <span class="n">enhanced</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="n">ImageFilter</span><span class="p">.</span><span class="n">EDGE_ENHANCE</span><span class="p">)</span>
+
+    <span class="c1"># Back to OpenCV format
+</span>    <span class="k">return</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">cvtColor</span><span class="p">(</span><span class="n">np</span><span class="p">.</span><span class="nf">array</span><span class="p">(</span><span class="n">final</span><span class="p">),</span> <span class="n">cv2</span><span class="p">.</span><span class="n">COLOR_RGB2BGR</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="opacity-blending-partial-redaction" href="#opacity-blending-partial-redaction">
+  </a>
+  Opacity Blending — Partial Redaction
+</h3>
+
+<p>All effects support an opacity parameter that blends the processed region with the original:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">apply_opacity</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">processed</span><span class="p">,</span> <span class="n">opacity</span><span class="p">):</span>
+    <span class="sh">"""</span><span class="s">Blend processed region with original based on opacity</span><span class="sh">"""</span>
+    <span class="k">if</span> <span class="n">original</span><span class="p">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">processed</span><span class="p">.</span><span class="n">shape</span><span class="p">:</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">resize</span><span class="p">(</span><span class="n">processed</span><span class="p">,</span> <span class="p">(</span><span class="n">original</span><span class="p">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">original</span><span class="p">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">opacity</span> <span class="o">/</span> <span class="mf">100.0</span>
+    <span class="k">return</span> <span class="n">cv2</span><span class="p">.</span><span class="nf">addWeighted</span><span class="p">(</span><span class="n">processed</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">original</span><span class="p">,</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">alpha</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is useful for subtle watermark-style redaction (e.g., 50% opacity blur) vs. hard censoring (100%).</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-workflow" href="#the-full-workflow">
+  </a>
+  The Full Workflow
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>📁 Load Image
+    │
+    ▼
+🎯 Select Detection Mode
+    ├── Face Detection (Haar Cascade)
+    ├── Eye Detection (Haar Cascade)
+    ├── Full Body Detection
+    ├── License Plate (contour analysis)
+    ├── Text Detection (Tesseract OCR)
+    ├── Manual Selection (draw regions)
+    └── Full Image
+    │
+    ▼
+🎨 Choose Effect + Strength + Opacity
+    │
+    ▼
+🛡️  Apply Metadata Control
+    ├── Quick Profile (ghost / troll / artist)
+    └── Custom Per-Field (keep/strip/spoof/custom)
+    │
+    ▼
+💾 Save / Batch Export
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="why-haar-cascades-instead-of-deep-learning" href="#why-haar-cascades-instead-of-deep-learning">
+  </a>
+  Why Haar Cascades Instead of Deep Learning?
+</h2>
+
+<p>I get this question a lot. DotScramble intentionally chose Haar Cascades over modern deep learning detectors like YOLO or MediaPipe face mesh. The reasons:</p>
+
+<ol>
+<li>
+<strong>No cloud, no internet</strong> — Haar Cascades run entirely offline. Privacy tools should never phone home.</li>
+<li>
+<strong>Zero model download on first run</strong> — the XML classifiers are bundled with OpenCV. No 100MB model download.</li>
+<li>
+<strong>Fast on CPU</strong> — users don't need a GPU. The app runs fine on a 5-year-old laptop.</li>
+<li>
+<strong>Good enough for the use case</strong> — the goal is privacy, not 99.9% recall. If a face is missed, Manual Selection is always available as fallback.</li>
+</ol>
+
+<p>That said, AI-powered tracking (YOLOv8 or similar) is on the roadmap for v1.4.0 to improve detection of faces at angles, in poor lighting, or partially occluded.</p>
+
+
+<hr>
+
+<h2>
+  <a name="getting-started" href="#getting-started">
+  </a>
+  Getting Started
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Clone</span>
+git clone https://github.com/kareem2099/DotScramble.git
+<span class="nb">cd </span>DotScramble
+
+<span class="c"># Install dependencies</span>
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+<span class="c"># pip install opencv-python numpy Pillow pytesseract piexif PySide6</span>
+
+<span class="c"># Optional: Tesseract for text detection</span>
+<span class="nb">sudo </span>apt <span class="nb">install </span>tesseract-ocr
+
+<span class="c"># Run</span>
+python src/main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Or grab the standalone Linux executable — no Python required — from one of these:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🐙 GitHub Releases</td>
+<td><a href="https://github.com/kareem2099/DotScramble/releases/latest" target="_blank" rel="noopener noreferrer">Latest Release</a></td>
+</tr>
+<tr>
+<td>🖥️ OpenDesktop / Pling</td>
+<td><a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">opendesktop.org/p/2362477</a></td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>DotScramble's metadata system takes a "active disinformation" approach rather than passive stripping — the result is metadata that looks legitimate while being completely meaningless. Combined with the visual redaction engine, it provides a comprehensive privacy toolkit that works entirely offline.</p>
+
+<p>The code is Apache 2.0 licensed and open to contributions. If you're interested in adding AI tracking, GPU acceleration, or a web interface — pull requests are very welcome.</p>
+
+
+<hr>
+
+<p><strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotScramble</a><br><br>
+<strong>OpenDesktop:</strong> <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">opendesktop.org/p/2362477</a></p>
+
+<p><em>Made with ❤️ for privacy protection</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

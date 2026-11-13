@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Got Badges 1, 2, and 4 on DEV.to — Badge #3 Is Currently in Witness Protection — FreeRave</title>
+<meta name="description" content="I debug production systems for fun.  I've traced memory leaks at 2am. I've stared into the void of a...">
+<link rel="canonical" href="https://dev.to/freerave/i-got-badges-1-2-and-4-on-devto-badge-3-is-currently-in-witness-protection-he4">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-got-badges-1-2-and-4-on-devto-badge-3-is-currently-in-witness-protection-he4">
+<meta property="og:title" content="I Got Badges 1, 2, and 4 on DEV.to — Badge #3 Is Currently in Witness Protection — FreeRave">
+<meta property="og:description" content="I debug production systems for fun.  I've traced memory leaks at 2am. I've stared into the void of a...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fz2cv55tbkqid7cn0008n.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fz2cv55tbkqid7cn0008n.png" alt="">
+  <h1 class="post-title">I Got Badges 1, 2, and 4 on DEV.to — Badge #3 Is Currently in Witness Protection</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-12T10:23:45Z">12 April 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#watercooler</span><span class="post-tag">#meta</span><span class="post-tag">#discuss</span><span class="post-tag">#humor</span></div>
+  </div>
+  <article class="post-body">
+<p>I debug production systems for fun.</p>
+
+<p>I've traced memory leaks at 2am. I've stared into the void of a segfault and the void stared back. I once spent 6 hours chasing a bug that turned out to be a missing semicolon — and I <em>still</em> consider that a good day.</p>
+
+<p>Nothing prepared me for this.</p>
+
+<p>I opened my DEV.to profile expecting the warm dopamine hit of a clean badge row. Instead, I got:</p>
+
+<p><strong>🏆 1</strong><br>
+<strong>🏆 2</strong><br>
+<strong>👻 (??)</strong><br>
+<strong>🏆 4</strong></p>
+
+<p>I did what any reasonable developer does in a crisis. I refreshed the page.</p>
+
+<p>Still gone.</p>
+
+<p>I cleared the cache. Hard refreshed. Opened incognito. Checked on my phone. Filed a mental ticket titled <em>"skill issue or cosmic injustice?"</em> and assigned it P0.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-investigation-begins" href="#the-investigation-begins">
+  </a>
+  The Investigation Begins
+</h2>
+
+<p>My first theory: <strong>off-by-one error.</strong> Classic. DEV.to's badge system probably starts counting from 0 internally and someone forgot to add 1. Badge #3 is actually badge #2 in the database. This is someone's fault and I will find them.</p>
+
+<p>My second theory: <strong>race condition.</strong> I publish a lot. Maybe two badge triggers fired simultaneously, they fought over a mutex, one lost, and badge #3 died in the conflict. A silent casualty of concurrency.</p>
+
+<p>My third theory: <strong>the badge ghosted me.</strong> Sometimes people just leave. It's not about you.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-actual-answer-anticlimactic" href="#the-actual-answer-anticlimactic">
+  </a>
+  The Actual Answer (Anticlimactic)
+</h2>
+
+<p>DEV.to counts streaks by <strong>calendar weeks</strong>, not "7 consecutive days."</p>
+
+<p>That's it. That's the whole bug.</p>
+
+<p>I was publishing every day like a caffeinated open-source evangelist, but multiple articles landed in the same ISO calendar week. The system went: <em>"That's one week, bestie"</em> — and quietly skipped the streak badge with zero logs, zero warnings, and zero emotional support.</p>
+
+<p>No exception thrown.<br>
+No toast notification saying <em>"hey you might be doing this wrong."</em><br>
+Just a missing badge and a developer questioning his entire relationship with time.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-i-should-have-done" href="#what-i-should-have-done">
+  </a>
+  What I Should Have Done
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>1. Read the docs → man dev.to/badges
+2. Understand calendar week boundaries
+3. Publish accordingly
+4. Touch grass
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>I did none of these things.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-takeaway" href="#the-takeaway">
+  </a>
+  The Takeaway
+</h2>
+
+<p>Streak systems are just cron jobs with feelings.</p>
+
+<p>Calendar weeks are a social construct designed specifically to humble developers who think they're being productive.</p>
+
+<p>And badge #3? It's out there somewhere. Living its best life. Probably deployed on a competitor's platform.</p>
+
+<p>I'm fine.</p>
+
+<p><em>(I'm not fine.)</em></p>
+
+
+<hr>
+
+<p><em>Have you ever been gaslit by a gamification system? Drop it in the comments. We heal together. 🐛</em></p>
+
+<p><em>cc: <a class="mentioned-user" href="https://dev.to/ben">@ben</a> — I believe this qualifies as a P2 ticket. Not urgent. Just emotionally damaging.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-got-badges-1-2-and-4-on-devto-badge-3-is-currently-in-witness-protection-he4" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 1
+    · <a href="https://dev.to/freerave/i-got-badges-1-2-and-4-on-devto-badge-3-is-currently-in-witness-protection-he4#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

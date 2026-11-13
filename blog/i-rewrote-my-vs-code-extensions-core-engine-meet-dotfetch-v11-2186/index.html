@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Rewrote My VS Code Extension's Core Engine: Meet DotFetch v1.1 — FreeRave</title>
+<meta name="description" content="Testing APIs shouldn't mean leaving your editor. That's why I built DotFetch, a lightweight REST...">
+<link rel="canonical" href="https://dev.to/freerave/i-rewrote-my-vs-code-extensions-core-engine-meet-dotfetch-v11-2186">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-rewrote-my-vs-code-extensions-core-engine-meet-dotfetch-v11-2186">
+<meta property="og:title" content="I Rewrote My VS Code Extension's Core Engine: Meet DotFetch v1.1 — FreeRave">
+<meta property="og:description" content="Testing APIs shouldn't mean leaving your editor. That's why I built DotFetch, a lightweight REST...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7xuruqlkpk421u0vfen4.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7xuruqlkpk421u0vfen4.png" alt="">
+  <h1 class="post-title">I Rewrote My VS Code Extension's Core Engine: Meet DotFetch v1.1</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-15T11:24:00Z">15 February 2026</time> · 1 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span><span class="post-tag">#javascript</span></div>
+  </div>
+  <article class="post-body">
+<p>Testing APIs shouldn't mean leaving your editor. That's why I built <strong>DotFetch</strong>, a lightweight REST client for VS Code.</p>
+
+<p>But version 1.0 had a problem: the input engine was buggy. So, for v1.1.0, I decided to rewrite the core... completely. 😅</p>
+
+<h2>
+  <a name="see-it-in-action" href="#see-it-in-action">
+  </a>
+  See it in Action
+</h2>
+
+<p>  <iframe src="https://www.youtube.com/embed/DDh5MqW-ZtQ" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<h2>
+  <a name="the-challenge-raw-contenteditable-endraw-vs-stability" href="#the-challenge-raw-contenteditable-endraw-vs-stability">
+  </a>
+  The Challenge: <code>contenteditable</code> vs. Stability
+</h2>
+
+<p>In the previous version, I used <code>contenteditable</code> divs for the request body and headers to allow for syntax highlighting. It looked nice, but it was a nightmare for stability. Cursors would jump, data would get lost, and pasting large JSONs was risky.</p>
+
+<p>For <strong>DotFetch v1.1</strong>, I made a tough decision: <strong>Stability &gt; Aesthetics</strong>.</p>
+
+<p>I replaced the entire input system with a robust, custom-styled <code>Textarea</code> engine. The result?</p>
+
+<ul>
+<li>
+<strong>Zero Glitches:</strong> No more jumping cursors.</li>
+<li>
+<strong>Performance:</strong> Handles large JSON bodies instantly.</li>
+<li>
+<strong>Reliability:</strong> What you type is exactly what gets sent.</li>
+</ul>
+
+<h2>
+  <a name="enterprisegrade-security-csp" href="#enterprisegrade-security-csp">
+  </a>
+  Enterprise-Grade Security (CSP)
+</h2>
+
+<p>Security is often overlooked in extensions. In this update, I implemented a strict <strong>Content Security Policy (CSP)</strong> with nonce support.</p>
+
+<p>This means DotFetch is now safer to use in enterprise environments, preventing XSS attacks and ensuring that only authorized scripts can run within the webview.</p>
+
+<h2>
+  <a name="speed-amp-workflow" href="#speed-amp-workflow">
+  </a>
+  Speed &amp; Workflow
+</h2>
+
+<p>The goal of DotFetch is to keep you in the flow.</p>
+
+<ul>
+<li>
+<strong>Response Time:</strong> Optimized to parse and display responses in <strong>under 500ms</strong>.</li>
+<li>
+<strong>History:</strong> Accidentally closed a request? The new <strong>History tab</strong> saves your last 50 requests automatically.</li>
+<li>
+<strong>Shortcuts:</strong> <code>Ctrl+Enter</code> to run, <code>Esc</code> to cancel. Simple.</li>
+</ul>
+
+<h2>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  Try it Out
+</h2>
+
+<p>I spent 38 hours crushing 57 tasks to bring this update to life. I'd love for you to try it and let me know what you think!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-rewrote-my-vs-code-extensions-core-engine-meet-dotfetch-v11-2186" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 1
+    · <a href="https://dev.to/freerave/i-rewrote-my-vs-code-extensions-core-engine-meet-dotfetch-v11-2186#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

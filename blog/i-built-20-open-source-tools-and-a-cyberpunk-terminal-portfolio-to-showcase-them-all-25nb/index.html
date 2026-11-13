@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built 20+ Open-Source Tools and a Cyberpunk Terminal Portfolio to Showcase Them All — FreeRave</title>
+<meta name="description" content="How I created dotUniverse — an interactive terminal portfolio with 20+ open-source developer tools,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-20-open-source-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all-25nb">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-20-open-source-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all-25nb">
+<meta property="og:title" content="I Built 20+ Open-Source Tools and a Cyberpunk Terminal Portfolio to Showcase Them All — FreeRave">
+<meta property="og:description" content="How I created dotUniverse — an interactive terminal portfolio with 20+ open-source developer tools,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fikcawtm2jkvuy86hoaza.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fikcawtm2jkvuy86hoaza.png" alt="">
+  <h1 class="post-title">I Built 20+ Open-Source Tools and a Cyberpunk Terminal Portfolio to Showcase Them All</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-31T09:00:00Z">31 March 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#programming</span><span class="post-tag">#opensource</span><span class="post-tag">#javascript</span><span class="post-tag">#portfolio</span></div>
+  </div>
+  <article class="post-body">
+<p>How I created dotUniverse — an interactive terminal portfolio with 20+ open-source developer tools, VS Code extensions, Telegram bots, mobile apps, and hidden Easter eggs.</p>
+
+<h2>
+  <a name="i-built-20-opensource-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all" href="#i-built-20-opensource-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all">
+  </a>
+  I Built 20+ Open-Source Tools and a Cyberpunk Terminal Portfolio to Showcase Them All
+</h2>
+
+<blockquote>
+<p>"Every tool I've built — CLI utilities, VS Code extensions, web apps. All open-source. All with a purpose."</p>
+</blockquote>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk5gz9a9ekzf1kfhq94sn.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk5gz9a9ekzf1kfhq94sn.png" alt="dotUniverse Portfolio" loading="lazy" width="800" height="402"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-story" href="#the-story">
+  </a>
+  The Story
+</h2>
+
+<p>Over the past two years, I've been building open-source developer tools in my spare time. VS Code extensions, Telegram bots, CLI utilities, mobile apps — you name it. But I never had a proper way to showcase them all in one place.</p>
+
+<p>So I did what any developer would do: <strong>I built my own portfolio from scratch</strong> — no frameworks, no dependencies, just raw HTML, CSS, and JavaScript.</p>
+
+<p>The result? <strong>dotUniverse</strong> — a cyberpunk-themed interactive portfolio with a fully functional terminal emulator, hidden Easter eggs, and a showcase of 20+ open-source tools.</p>
+
+<p><strong>Live:</strong> <a href="https://kareem2099.github.io/dotuniverse/" target="_blank" rel="noopener noreferrer">https://kareem2099.github.io/dotuniverse/</a><br>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/dotuniverse" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/dotuniverse</a></p>
+
+<hr>
+<h2>
+  <a name="what-i-built-the-tools-ecosystem" href="#what-i-built-the-tools-ecosystem">
+  </a>
+  What I Built: The Tools Ecosystem
+</h2>
+
+<p>Let me walk you through the 20+ tools I've built, organized by category.</p>
+<h3>
+  <a name="vs-code-extensions-8-tools" href="#vs-code-extensions-8-tools">
+  </a>
+  VS Code Extensions (8 tools)
+</h3>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3swwqkmuxm153g5uyzpi.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3swwqkmuxm153g5uyzpi.png" alt="VS Code Extensions Section" loading="lazy" width="800" height="402"></a></p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+<th>Downloads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CodeTune</strong></td>
+<td>Islamic spiritual environment — Quran player, prayer times, focus mode</td>
+<td>828+</td>
+</tr>
+<tr>
+<td><strong>dotcommand</strong></td>
+<td>Intelligent command manager with ML-based suggestions</td>
+<td>826+</td>
+</tr>
+<tr>
+<td><strong>DotEnvy</strong></td>
+<td>Environment manager with Git branch auto-switching</td>
+<td>748+</td>
+</tr>
+<tr>
+<td><strong>DotShare</strong></td>
+<td>Share code journeys to 8 social platforms with AI content creation</td>
+<td>918+</td>
+</tr>
+<tr>
+<td><strong>DotFetch</strong></td>
+<td>Professional HTTP client with .env support</td>
+<td>646+</td>
+</tr>
+<tr>
+<td><strong>DotReadme</strong></td>
+<td>README optimizer with quality audit (A+-F score)</td>
+<td>447+</td>
+</tr>
+<tr>
+<td><strong>DotSense</strong></td>
+<td>AI-powered developer wellness — mood detection, burnout prevention</td>
+<td>97+</td>
+</tr>
+<tr>
+<td><strong>DotConvert</strong></td>
+<td>Data converter — Base64, XML↔JSON, CSV↔JSON</td>
+<td>Coming soon</td>
+</tr>
+</tbody>
+</table></div>
+<h3>
+  <a name="telegram-bots-3-tools" href="#telegram-bots-3-tools">
+  </a>
+  Telegram Bots (3 tools)
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DotDownloader</strong></td>
+<td>Multi-platform media downloader (Instagram, TikTok, YouTube, etc.)</td>
+</tr>
+<tr>
+<td><strong>DotFormate</strong></td>
+<td>File format conversion bot (PDF, DOCX, PPTX, images, OCR)</td>
+</tr>
+<tr>
+<td><strong>DotShare_Key</strong></td>
+<td>Secure OAuth toolkit with magic link authentication</td>
+</tr>
+</tbody>
+</table></div>
+<h3>
+  <a name="cli-tools-2-tools" href="#cli-tools-2-tools">
+  </a>
+  CLI Tools (2 tools)
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DotScramble</strong></td>
+<td>Image privacy studio — face/license plate detection, 8 blur effects</td>
+</tr>
+<tr>
+<td><strong>DotGhostBoard</strong></td>
+<td>Linux clipboard manager with AES-256 encryption</td>
+</tr>
+</tbody>
+</table></div>
+<h3>
+  <a name="mobile-apps-3-tools" href="#mobile-apps-3-tools">
+  </a>
+  Mobile Apps (3 tools)
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DotReminder</strong></td>
+<td>Android reminder app with AI assistant (Gemini)</td>
+</tr>
+<tr>
+<td><strong>DOTShredzilla</strong></td>
+<td>Workout tracking app — offline-first, Firebase-synced</td>
+</tr>
+<tr>
+<td><strong>DotBurn</strong></td>
+<td>Write &amp; burn ISOs to USB drives from your phone</td>
+</tr>
+</tbody>
+</table></div>
+
+<hr>
+<h2>
+  <a name="the-portfolio-feature-breakdown" href="#the-portfolio-feature-breakdown">
+  </a>
+  The Portfolio: Feature Breakdown
+</h2>
+
+<p>Here's what makes the dotUniverse portfolio special.</p>
+<h3>
+  <a name="1-cyberpunk-visual-design" href="#1-cyberpunk-visual-design">
+  </a>
+  1. Cyberpunk Visual Design
+</h3>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8kkyigtnmijuayz68hbt.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8kkyigtnmijuayz68hbt.png" alt="Design Screenshot" loading="lazy" width="800" height="402"></a></p>
+
+<p>The design uses a dark hacker aesthetic with three accent colors:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nd">:root</span> <span class="p">{</span>
+    <span class="py">--bg</span><span class="p">:</span> <span class="m">#060a0f</span><span class="p">;</span>
+    <span class="py">--surface</span><span class="p">:</span> <span class="m">#0d1520</span><span class="p">;</span>
+    <span class="py">--border</span><span class="p">:</span> <span class="m">#1a2d45</span><span class="p">;</span>
+    <span class="py">--accent</span><span class="p">:</span> <span class="m">#00e5ff</span><span class="p">;</span>      <span class="c">/* Cyan */</span>
+    <span class="py">--accent2</span><span class="p">:</span> <span class="m">#39ff14</span><span class="p">;</span>     <span class="c">/* Green */</span>
+    <span class="py">--accent3</span><span class="p">:</span> <span class="m">#ff6b35</span><span class="p">;</span>    <span class="c">/* Orange */</span>
+    <span class="py">--text</span><span class="p">:</span> <span class="m">#c8d8e8</span><span class="p">;</span>
+    <span class="py">--muted</span><span class="p">:</span> <span class="m">#4a6070</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Key visual features:</p>
+
+<ul>
+<li>
+<strong>Animated grid background</strong> — Moving cyan grid lines</li>
+<li>
+<strong>Scan line effect</strong> — Horizontal line sweeping down the page</li>
+<li>
+<strong>Particle system</strong> — 55 connected particles floating on a canvas</li>
+<li>
+<strong>Glitch text effect</strong> — Chromatic aberration on the title</li>
+<li>
+<strong>Neon pulse</strong> — Glowing text shadows on statistics</li>
+</ul>
+
+<h3>
+  <a name="2-interactive-terminal-emulator" href="#2-interactive-terminal-emulator">
+  </a>
+  2. Interactive Terminal Emulator
+</h3>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1wg5giurmqgu9kffq3hl.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1wg5giurmqgu9kffq3hl.png" alt="Terminal Screenshot" loading="lazy" width="800" height="402"></a></p>
+
+<p>This is the crown jewel of the portfolio. A fully functional terminal emulator with:</p>
+
+<ul>
+<li>
+<strong>20+ commands</strong> across categories (contact, system, fun, network)</li>
+<li>
+<strong>Tab completion</strong> with context-aware suggestions</li>
+<li>
+<strong>Command history</strong> (arrow up/down)</li>
+<li>
+<strong>Virtual file system</strong> with directories and files</li>
+<li>
+<strong>Live syntax highlighting</strong> for valid paths</li>
+</ul>
+
+<p>Here's how the command system works:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">COMMANDS</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="nf">help</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  Available commands:</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  contact  --name &lt;n&gt; --email &lt;e&gt; --msg &lt;message&gt;</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  whoami   // about FreeRave</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  neofetch // system info</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  ls       // list files</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  cat      &lt;file&gt; // read file</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  fortune  // random dev quote</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  coffee   // virtual coffee ☕</span><span class="dl">'</span><span class="p">);</span>
+    <span class="c1">// ... and more</span>
+  <span class="p">},</span>
+  <span class="nf">whoami</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  Kareem · FreeRave</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  role    Open-Source Developer</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  tools   VS Code · Python · Kotlin · CLI</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  projects 20+ shipped, all MIT licensed</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">},</span>
+  <span class="nf">coffee</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">       (</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">         )     (</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">      ___...(-------)-...___</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  .-""   )    (          ""-.</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  </span><span class="se">\\</span><span class="dl">'</span><span class="p">.</span><span class="nx">___</span><span class="o">/</span>         <span class="err">\\</span>         <span class="err">\\</span><span class="nx">___</span><span class="err">\\</span><span class="dl">''</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">   </span><span class="se">\\</span><span class="dl">'</span><span class="p">.</span><span class="nx">___</span>          <span class="nx">_</span>        <span class="nx">_</span><span class="p">.</span><span class="err">\\</span><span class="dl">''</span><span class="p">);</span>
+    <span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">      </span><span class="se">\\\'\\</span><span class="dl">'</span><span class="err">\\\</span><span class="dl">'</span><span class="s1">---------</span><span class="se">\\</span><span class="dl">'</span><span class="err">\\</span><span class="dl">'</span><span class="se">\\</span><span class="dl">'</span>  <span class="dl">'</span><span class="s1">);
+    addLine(</span><span class="dl">'</span>  <span class="err">☕</span> <span class="nx">Here</span><span class="err">\\</span><span class="dl">'</span><span class="s1">s your virtual coffee!</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="3-contextaware-tab-completion" href="#3-contextaware-tab-completion">
+  </a>
+  3. Context-Aware Tab Completion
+</h3>
+
+<p>The tab completion system is smart. It knows the difference between commands, directories, and files:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="nx">inputEl</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">keydown</span><span class="dl">'</span><span class="p">,</span> <span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">key</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">Tab</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">e</span><span class="p">.</span><span class="nf">preventDefault</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">input</span> <span class="o">=</span> <span class="nx">inputEl</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">lastPart</span> <span class="o">=</span> <span class="nx">input</span><span class="p">.</span><span class="nf">endsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1"> </span><span class="dl">'</span><span class="p">)</span> <span class="p">?</span> <span class="dl">''</span> <span class="p">:</span> <span class="nx">input</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sr">/</span><span class="se">\s</span><span class="sr">+/</span><span class="p">).</span><span class="nf">pop</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">parts</span> <span class="o">=</span> <span class="nx">input</span><span class="p">.</span><span class="nf">trim</span><span class="p">().</span><span class="nf">split</span><span class="p">(</span><span class="sr">/</span><span class="se">\s</span><span class="sr">+/</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">command</span> <span class="o">=</span> <span class="nx">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nf">toLowerCase</span><span class="p">();</span>
+
+    <span class="kd">let</span> <span class="nx">pool</span> <span class="o">=</span> <span class="p">[];</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">isCommand</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">pool</span> <span class="o">=</span> <span class="nb">Object</span><span class="p">.</span><span class="nf">keys</span><span class="p">(</span><span class="nx">COMMANDS</span><span class="p">).</span><span class="nf">map</span><span class="p">(</span><span class="nx">c</span> <span class="o">=&gt;</span> <span class="nx">c</span> <span class="o">+</span> <span class="dl">'</span><span class="s1"> </span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">([</span><span class="dl">'</span><span class="s1">cd</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">ls</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">cat</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">nano</span><span class="dl">'</span><span class="p">].</span><span class="nf">includes</span><span class="p">(</span><span class="nx">command</span><span class="p">))</span> <span class="p">{</span>
+      <span class="c1">// Only show directories for 'cd', files for 'cat'</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">command</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">cd</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">pool</span> <span class="o">=</span> <span class="nf">getDirectories</span><span class="p">(</span><span class="nx">targetDir</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">([</span><span class="dl">'</span><span class="s1">cat</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">nano</span><span class="dl">'</span><span class="p">].</span><span class="nf">includes</span><span class="p">(</span><span class="nx">command</span><span class="p">))</span> <span class="p">{</span>
+        <span class="nx">pool</span> <span class="o">=</span> <span class="nf">getFiles</span><span class="p">(</span><span class="nx">targetDir</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">pool</span> <span class="o">=</span> <span class="nf">getAll</span><span class="p">(</span><span class="nx">targetDir</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="nx">tabMatches</span> <span class="o">=</span> <span class="nx">pool</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nx">item</span> <span class="o">=&gt;</span> 
+      <span class="nx">item</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">().</span><span class="nf">startsWith</span><span class="p">(</span><span class="nx">searchPrefix</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">())</span>
+    <span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Firykk67ay089prmxnndu.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Firykk67ay089prmxnndu.png" alt="Tab Completion" loading="lazy" width="800" height="402"></a></p>
+
+<h3>
+  <a name="4-virtual-file-system" href="#4-virtual-file-system">
+  </a>
+  4. Virtual File System
+</h3>
+
+<p>The terminal has a virtual file system that persists during the session:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">fileSystem</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="dl">'</span><span class="s1">~</span><span class="dl">'</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">tools/</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">platforms/</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">challenges/</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">README.md</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">brain.exe</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">.env</span><span class="dl">'</span><span class="p">],</span>
+  <span class="dl">'</span><span class="s1">~/tools</span><span class="dl">'</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">DotGhostBoard</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">dotcommand</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">CodeTune</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">DotShare</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">DotFetch</span><span class="dl">'</span><span class="p">],</span>
+  <span class="dl">'</span><span class="s1">~/platforms</span><span class="dl">'</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">dev.to</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">linkedin</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">github</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">tiktok</span><span class="dl">'</span><span class="p">],</span>
+  <span class="dl">'</span><span class="s1">~/challenges</span><span class="dl">'</span><span class="p">:</span> <span class="p">[</span><span class="dl">'</span><span class="s1">april-2026.log</span><span class="dl">'</span><span class="p">]</span>
+<span class="p">};</span>
+
+<span class="kd">let</span> <span class="nx">fileData</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="dl">'</span><span class="s1">README.md</span><span class="dl">'</span><span class="p">:</span> <span class="dl">"</span><span class="s2"># FreeRave Portfolio v1.0.0</span><span class="se">\n\n</span><span class="s2">Welcome to the dotUniverse.</span><span class="dl">"</span><span class="p">,</span>
+  <span class="dl">'</span><span class="s1">todo.md</span><span class="dl">'</span><span class="p">:</span> <span class="dl">"</span><span class="s2">[✓] Reach 2k followers</span><span class="se">\n</span><span class="s2">[✓] Build dotUniverse</span><span class="se">\n</span><span class="s2">[ ] World Domination</span><span class="dl">"</span><span class="p">,</span>
+  <span class="dl">'</span><span class="s1">.env</span><span class="dl">'</span><span class="p">:</span> <span class="dl">"</span><span class="s2">PORT=3000</span><span class="se">\n</span><span class="s2">DB_URL=mongodb://localhost:27017/top_secret</span><span class="dl">"</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>You can navigate directories, read files, and even edit them with a nano editor simulation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>FreeRave@kali:~<span class="nv">$ </span><span class="nb">ls
+</span>tools/   platforms/   challenges/   README.md   brain.exe   .env
+
+FreeRave@kali:~<span class="nv">$ </span><span class="nb">cd </span>tools
+FreeRave@kali:~/tools<span class="nv">$ </span><span class="nb">ls
+</span>DotGhostBoard   dotcommand   CodeTune   DotShare   DotFetch   DotReadme
+
+FreeRave@kali:~/tools<span class="nv">$ </span><span class="nb">cat </span>CodeTune
+╔══════════════════════════════════════╗
+║  CodeTune                            ║
+╠══════════════════════════════════════╣
+║  Role: Islamic Dev Environment       ║
+║  Features:                           ║
+║  • Quran Player <span class="o">(</span>15+ Reciters<span class="o">)</span>       ║
+║  • Prayer Times Tracking             ║
+║  • Smart Focus Mode                  ║
+║  • Dhikr Counters                    ║
+╚══════════════════════════════════════╝
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="5-easter-eggs" href="#5-easter-eggs">
+  </a>
+  5. Easter Eggs 🥚
+</h3>
+
+<p>I hid several Easter eggs in the terminal:</p>
+
+<h4>
+  <a name="the-bsod-blue-screen-of-death" href="#the-bsod-blue-screen-of-death">
+  </a>
+  The BSOD (Blue Screen of Death)
+</h4>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>FreeRave@kali:~<span class="nv">$ </span><span class="nb">sudo rm</span> <span class="nt">-rf</span> / <span class="nt">--no-preserve-root</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fuxzwyvf1ifwf291fmiyh.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fuxzwyvf1ifwf291fmiyh.png" alt="BSOD Easter Egg" loading="lazy" width="800" height="402"></a></p>
+
+<p>This triggers a fake Blue Screen of Death with:</p>
+
+<ul>
+<li>Red flash effect</li>
+<li>Cards flying off screen with rotation and blur</li>
+<li>Glitching header text</li>
+<li>Progress bar with funny messages ("Deleting your work", "rm -rf /hope", "Uninstalling sanity")</li>
+<li>Full recovery animation after 10 seconds</li>
+</ul>
+
+<h4>
+  <a name="the-final-boss-attack" href="#the-final-boss-attack">
+  </a>
+  The Final Boss Attack
+</h4>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>FreeRave@kali:~<span class="nv">$ </span><span class="nb">sudo </span>apt <span class="nb">install </span>nmap
+FreeRave@kali:~<span class="nv">$ </span>nmap 127.0.0.1
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3p3m40t0lmhhmetzf3t7.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3p3m40t0lmhhmetzf3t7.png" alt="nmap Easter Egg" loading="lazy" width="800" height="402"></a></p>
+
+<p>This runs a fake port scan that ends with:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>PORT     STATE SERVICE
+22/tcp   open  ssh
+80/tcp   open  http
+443/tcp  open  https
+666/tcp  open  doom        ← The twist!
+⚠ WARNING: CRITICAL VULNERABILITY DETECTED ⚠
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Then it plays The Final Boss video on "port 666"!</p>
+
+<h4>
+  <a name="other-easter-eggs" href="#other-easter-eggs">
+  </a>
+  Other Easter Eggs
+</h4>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Matrix effect</span>
+FreeRave@kali:~<span class="nv">$ </span>matrix
+
+<span class="c"># Hack the mainframe</span>
+FreeRave@kali:~<span class="nv">$ </span>hack
+
+<span class="c"># Virtual coffee</span>
+FreeRave@kali:~<span class="nv">$ </span>coffee
+
+<span class="c"># Random dev quote</span>
+FreeRave@kali:~<span class="nv">$ </span>fortune
+
+<span class="c"># ASCII cow</span>
+FreeRave@kali:~<span class="nv">$ </span>cowsay <span class="s2">"Hello World!"</span>
+
+<span class="c"># Calculator</span>
+FreeRave@kali:~<span class="nv">$ </span>calc 2 + 2 <span class="k">*</span> 5
+
+<span class="c"># Nano editor</span>
+FreeRave@kali:~<span class="nv">$ </span>nano README.md
+
+<span class="c"># Try to leave</span>
+FreeRave@kali:~<span class="nv">$ </span><span class="nb">exit</span>
+<span class="c"># "There is no escape from FreeRave's terminal 👀"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="6-growth-challenge-tracker" href="#6-growth-challenge-tracker">
+  </a>
+  6. Growth Challenge Tracker
+</h3>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fa8xa7l9qpe4mz0fwq5so.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fa8xa7l9qpe4mz0fwq5so.png" alt="Challenge Tracker" loading="lazy" width="800" height="402"></a></p>
+
+<p>I added an "April 2026 Growth Challenge" that tracks follower goals across 9 platforms:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-row"</span> <span class="na">data-now=</span><span class="s">"2036"</span> <span class="na">data-goal=</span><span class="s">"2500"</span> <span class="na">data-color=</span><span class="s">"#00e5ff"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-platform"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"ch-icon"</span><span class="nt">&gt;</span>📝<span class="nt">&lt;/span&gt;</span>
+    <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"ch-name"</span><span class="nt">&gt;</span>dev.to<span class="nt">&lt;/span&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+  <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-bar-wrap"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-bar"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"bar-fill"</span><span class="nt">&gt;&lt;/span&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-nums"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"now"</span><span class="nt">&gt;</span>2,036<span class="nt">&lt;/span&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"arrow"</span><span class="nt">&gt;</span>→<span class="nt">&lt;/span&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"goal"</span><span class="nt">&gt;</span>2,500<span class="nt">&lt;/span&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"pct-badge"</span><span class="nt">&gt;&lt;/span&gt;</span>
+    <span class="nt">&lt;/div&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+  <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"challenge-delta"</span><span class="nt">&gt;</span>+464<span class="nt">&lt;/div&gt;</span>
+<span class="nt">&lt;/div&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The progress bars are calculated dynamically:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="nx">rows</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">row</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">now</span> <span class="o">=</span> <span class="nf">parseFloat</span><span class="p">(</span><span class="nx">row</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">now</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">goal</span> <span class="o">=</span> <span class="nf">parseFloat</span><span class="p">(</span><span class="nx">row</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">goal</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">color</span> <span class="o">=</span> <span class="nx">row</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">color</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">pct</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="p">(</span><span class="nx">now</span> <span class="o">/</span> <span class="nx">goal</span><span class="p">)</span> <span class="o">*</span> <span class="mi">100</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">fill</span> <span class="o">=</span> <span class="nx">row</span><span class="p">.</span><span class="nf">querySelector</span><span class="p">(</span><span class="dl">'</span><span class="s1">.bar-fill</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">fill</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">width</span> <span class="o">=</span> <span class="nx">pct</span><span class="p">.</span><span class="nf">toFixed</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">%</span><span class="dl">'</span><span class="p">;</span>
+  <span class="nx">fill</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">background</span> <span class="o">=</span> <span class="nx">color</span><span class="p">;</span>
+
+  <span class="kd">const</span> <span class="nx">badge</span> <span class="o">=</span> <span class="nx">row</span><span class="p">.</span><span class="nf">querySelector</span><span class="p">(</span><span class="dl">'</span><span class="s1">.pct-badge</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">badge</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nx">pct</span><span class="p">.</span><span class="nf">toFixed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">%</span><span class="dl">'</span><span class="p">;</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="7-countup-animations" href="#7-countup-animations">
+  </a>
+  7. Count-Up Animations
+</h3>
+
+<p>Statistics animate when they scroll into view:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">function</span> <span class="nf">countUp</span><span class="p">(</span><span class="nx">el</span><span class="p">,</span> <span class="nx">target</span><span class="p">,</span> <span class="nx">dur</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">start</span> <span class="o">=</span> <span class="nx">performance</span><span class="p">.</span><span class="nf">now</span><span class="p">();</span>
+  <span class="kd">function</span> <span class="nf">step</span><span class="p">(</span><span class="nx">now</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">p</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">((</span><span class="nx">now</span> <span class="o">-</span> <span class="nx">start</span><span class="p">)</span> <span class="o">/</span> <span class="nx">dur</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">ease</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">pow</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="nx">p</span><span class="p">,</span> <span class="mi">3</span><span class="p">);</span> <span class="c1">// Ease out cubic</span>
+    <span class="nx">el</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">round</span><span class="p">(</span><span class="nx">ease</span> <span class="o">*</span> <span class="nx">target</span><span class="p">).</span><span class="nf">toLocaleString</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">p</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">)</span> <span class="nf">requestAnimationFrame</span><span class="p">(</span><span class="nx">step</span><span class="p">);</span>
+    <span class="k">else</span> <span class="nx">el</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nx">target</span><span class="p">.</span><span class="nf">toLocaleString</span><span class="p">();</span>
+  <span class="p">}</span>
+  <span class="nf">requestAnimationFrame</span><span class="p">(</span><span class="nx">step</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="c1">// Trigger on scroll</span>
+<span class="kd">const</span> <span class="nx">io</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">IntersectionObserver</span><span class="p">((</span><span class="nx">entries</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">entries</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">isIntersecting</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">raw</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">textContent</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/,/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="dl">'</span><span class="s1">+</span><span class="dl">'</span><span class="p">,</span> <span class="dl">''</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+      <span class="kd">const</span> <span class="nx">n</span> <span class="o">=</span> <span class="nf">parseFloat</span><span class="p">(</span><span class="nx">raw</span><span class="p">);</span>
+      <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nf">isNaN</span><span class="p">(</span><span class="nx">n</span><span class="p">))</span> <span class="nf">countUp</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">,</span> <span class="nx">n</span><span class="p">,</span> <span class="mi">1800</span><span class="p">);</span>
+      <span class="nx">io</span><span class="p">.</span><span class="nf">unobserve</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+<span class="p">},</span> <span class="p">{</span> <span class="na">threshold</span><span class="p">:</span> <span class="mf">0.5</span> <span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="8-particle-system" href="#8-particle-system">
+  </a>
+  8. Particle System
+</h3>
+
+<p>A canvas-based particle system creates the floating dots effect:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">COLORS</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">rgba(0,229,255,</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">rgba(57,255,20,</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">rgba(255,107,53,</span><span class="dl">'</span><span class="p">];</span>
+<span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="mi">55</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+  <span class="nx">pts</span><span class="p">.</span><span class="nf">push</span><span class="p">({</span>
+    <span class="na">x</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mi">2000</span><span class="p">,</span>
+    <span class="na">y</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mi">1200</span><span class="p">,</span>
+    <span class="na">r</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mf">1.4</span> <span class="o">+</span> <span class="mf">0.4</span><span class="p">,</span>
+    <span class="na">vx</span><span class="p">:</span> <span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">-</span> <span class="p">.</span><span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.3</span><span class="p">,</span>
+    <span class="na">vy</span><span class="p">:</span> <span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">-</span> <span class="p">.</span><span class="mi">5</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.3</span><span class="p">,</span>
+    <span class="na">col</span><span class="p">:</span> <span class="nx">COLORS</span><span class="p">[</span><span class="nb">Math</span><span class="p">.</span><span class="nf">floor</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mi">3</span><span class="p">)],</span>
+    <span class="na">a</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="mf">0.15</span>
+  <span class="p">});</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">draw</span><span class="p">()</span> <span class="p">{</span>
+  <span class="nx">ctx</span><span class="p">.</span><span class="nf">clearRect</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">W</span><span class="p">,</span> <span class="nx">H</span><span class="p">);</span>
+  <span class="nx">pts</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">p</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">p</span><span class="p">.</span><span class="nx">x</span> <span class="o">+=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">vx</span><span class="p">;</span> <span class="nx">p</span><span class="p">.</span><span class="nx">y</span> <span class="o">+=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">vy</span><span class="p">;</span>
+    <span class="c1">// Wrap around edges</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="nx">p</span><span class="p">.</span><span class="nx">x</span> <span class="o">=</span> <span class="nx">W</span><span class="p">;</span> <span class="k">if </span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">x</span> <span class="o">&gt;</span> <span class="nx">W</span><span class="p">)</span> <span class="nx">p</span><span class="p">.</span><span class="nx">x</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">y</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="nx">p</span><span class="p">.</span><span class="nx">y</span> <span class="o">=</span> <span class="nx">H</span><span class="p">;</span> <span class="k">if </span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">y</span> <span class="o">&gt;</span> <span class="nx">H</span><span class="p">)</span> <span class="nx">p</span><span class="p">.</span><span class="nx">y</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="c1">// Draw particle</span>
+    <span class="nx">ctx</span><span class="p">.</span><span class="nf">beginPath</span><span class="p">();</span>
+    <span class="nx">ctx</span><span class="p">.</span><span class="nf">arc</span><span class="p">(</span><span class="nx">p</span><span class="p">.</span><span class="nx">x</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">y</span><span class="p">,</span> <span class="nx">p</span><span class="p">.</span><span class="nx">r</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">PI</span> <span class="o">*</span> <span class="mi">2</span><span class="p">);</span>
+    <span class="nx">ctx</span><span class="p">.</span><span class="nx">fillStyle</span> <span class="o">=</span> <span class="nx">p</span><span class="p">.</span><span class="nx">col</span> <span class="o">+</span> <span class="nx">p</span><span class="p">.</span><span class="nx">a</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">)</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nx">ctx</span><span class="p">.</span><span class="nf">fill</span><span class="p">();</span>
+  <span class="p">});</span>
+  <span class="c1">// Draw connections</span>
+  <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">pts</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">j</span> <span class="o">=</span> <span class="nx">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span> <span class="nx">j</span> <span class="o">&lt;</span> <span class="nx">pts</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">j</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">dist</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">sqrt</span><span class="p">(</span><span class="nx">dx</span> <span class="o">*</span> <span class="nx">dx</span> <span class="o">+</span> <span class="nx">dy</span> <span class="o">*</span> <span class="nx">dy</span><span class="p">);</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">dist</span> <span class="o">&lt;</span> <span class="mi">120</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nx">strokeStyle</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">rgba(0,229,255,</span><span class="dl">'</span> <span class="o">+</span> <span class="p">(</span><span class="mf">0.06</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="nx">dist</span> <span class="o">/</span> <span class="mi">120</span><span class="p">))</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">)</span><span class="dl">'</span><span class="p">;</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nf">moveTo</span><span class="p">(</span><span class="nx">pts</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">x</span><span class="p">,</span> <span class="nx">pts</span><span class="p">[</span><span class="nx">i</span><span class="p">].</span><span class="nx">y</span><span class="p">);</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nf">lineTo</span><span class="p">(</span><span class="nx">pts</span><span class="p">[</span><span class="nx">j</span><span class="p">].</span><span class="nx">x</span><span class="p">,</span> <span class="nx">pts</span><span class="p">[</span><span class="nx">j</span><span class="p">].</span><span class="nx">y</span><span class="p">);</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nf">stroke</span><span class="p">();</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="nf">requestAnimationFrame</span><span class="p">(</span><span class="nx">draw</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="tech-stack" href="#tech-stack">
+  </a>
+  Tech Stack
+</h2>
+
+<p>The entire portfolio is built with <strong>zero dependencies</strong>:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Technology</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Markup</td>
+<td>HTML5</td>
+</tr>
+<tr>
+<td>Styling</td>
+<td>CSS3 (Custom Properties, Animations, Grid, Flexbox)</td>
+</tr>
+<tr>
+<td>Logic</td>
+<td>Vanilla JavaScript (ES6+)</td>
+</tr>
+<tr>
+<td>Fonts</td>
+<td>Space Mono, Syne (Google Fonts)</td>
+</tr>
+<tr>
+<td>Graphics</td>
+<td>Canvas API (particles)</td>
+</tr>
+<tr>
+<td>Video</td>
+<td>HTML5 Video (Easter egg)</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>No React. No Vue. No build tools. No npm install. Just open <code>index.html</code> and go.</p>
+
+
+<hr>
+
+<h2>
+  <a name="project-structure" href="#project-structure">
+  </a>
+  Project Structure
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>dotuniverse/
+├── index.html          # 400+ lines of semantic HTML
+├── styles.css          # 800+ lines of CSS with animations
+├── script.js           # 1000+ lines of JavaScript
+├── assets/
+│   └── videos/
+│       └── The_Final_Boss_(Port_666).mp4 # Easter egg video
+├── .github/
+│   ├── FUNDING.yml
+│   └── ISSUE_TEMPLATE/
+│       ├── bug_report.md
+│       └── feature_request.md
+├── README.md
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── ROADMAP.md
+└── LICENSE (MIT)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="key-code-snippets" href="#key-code-snippets">
+  </a>
+  Key Code Snippets
+</h2>
+
+<h3>
+  <a name="glitch-text-effect-css-only" href="#glitch-text-effect-css-only">
+  </a>
+  Glitch Text Effect (CSS Only)
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nt">h1</span><span class="nd">::before</span><span class="o">,</span> <span class="nt">h1</span><span class="nd">::after</span> <span class="p">{</span>
+  <span class="nl">content</span><span class="p">:</span> <span class="n">attr</span><span class="p">(</span><span class="n">data-text</span><span class="p">);</span>
+  <span class="nl">position</span><span class="p">:</span> <span class="nb">absolute</span><span class="p">;</span>
+  <span class="py">inset</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span>
+  <span class="nl">pointer-events</span><span class="p">:</span> <span class="nb">none</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nt">h1</span><span class="nd">::before</span> <span class="p">{</span>
+  <span class="nl">color</span><span class="p">:</span> <span class="m">#ff003c</span><span class="p">;</span>
+  <span class="nl">clip-path</span><span class="p">:</span> <span class="n">polygon</span><span class="p">(</span><span class="m">0</span> <span class="m">25%</span><span class="p">,</span> <span class="m">100%</span> <span class="m">25%</span><span class="p">,</span> <span class="m">100%</span> <span class="m">50%</span><span class="p">,</span> <span class="m">0</span> <span class="m">50%</span><span class="p">);</span>
+  <span class="nl">animation</span><span class="p">:</span> <span class="n">glitchTop</span> <span class="m">5s</span> <span class="n">infinite</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nt">h1</span><span class="nd">::after</span> <span class="p">{</span>
+  <span class="nl">color</span><span class="p">:</span> <span class="m">#00e5ff</span><span class="p">;</span>
+  <span class="nl">clip-path</span><span class="p">:</span> <span class="n">polygon</span><span class="p">(</span><span class="m">0</span> <span class="m">55%</span><span class="p">,</span> <span class="m">100%</span> <span class="m">55%</span><span class="p">,</span> <span class="m">100%</span> <span class="m">78%</span><span class="p">,</span> <span class="m">0</span> <span class="m">78%</span><span class="p">);</span>
+  <span class="nl">animation</span><span class="p">:</span> <span class="n">glitchBot</span> <span class="m">5s</span> <span class="n">infinite</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">@keyframes</span> <span class="n">glitchTop</span> <span class="p">{</span>
+  <span class="err">0</span><span class="o">%,</span> <span class="err">88</span><span class="o">%,</span> <span class="err">100</span><span class="o">%</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">0</span><span class="p">);</span> <span class="p">}</span>
+  <span class="err">89</span><span class="o">%</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">.8</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">-4px</span><span class="p">);</span> <span class="p">}</span>
+  <span class="err">91</span><span class="o">%</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">.8</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">4px</span><span class="p">);</span> <span class="p">}</span>
+  <span class="err">93</span><span class="o">%</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="scroll-reveal-animation" href="#scroll-reveal-animation">
+  </a>
+  Scroll Reveal Animation
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">els</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">querySelectorAll</span><span class="p">(</span><span class="dl">'</span><span class="s1">.tool-card, .platform-card, .ext-card</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">els</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">el</span> <span class="o">=&gt;</span> <span class="nx">el</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">reveal</span><span class="dl">'</span><span class="p">));</span>
+
+<span class="kd">const</span> <span class="nx">io</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">IntersectionObserver</span><span class="p">((</span><span class="nx">entries</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">entries</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">isIntersecting</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">visible</span><span class="dl">'</span><span class="p">);</span>
+      <span class="nx">io</span><span class="p">.</span><span class="nf">unobserve</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+<span class="p">},</span> <span class="p">{</span> <span class="na">threshold</span><span class="p">:</span> <span class="mf">0.08</span> <span class="p">});</span>
+
+<span class="nx">els</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">el</span> <span class="o">=&gt;</span> <span class="nx">io</span><span class="p">.</span><span class="nf">observe</span><span class="p">(</span><span class="nx">el</span><span class="p">));</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.reveal</span> <span class="p">{</span>
+  <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span>
+  <span class="nl">transform</span><span class="p">:</span> <span class="n">translateY</span><span class="p">(</span><span class="m">30px</span><span class="p">);</span>
+  <span class="nl">transition</span><span class="p">:</span> <span class="n">opacity</span> <span class="m">0.6s</span> <span class="n">ease</span><span class="p">,</span> <span class="n">transform</span> <span class="m">0.6s</span> <span class="n">ease</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nc">.reveal.visible</span> <span class="p">{</span>
+  <span class="nl">opacity</span><span class="p">:</span> <span class="m">1</span><span class="p">;</span>
+  <span class="nl">transform</span><span class="p">:</span> <span class="n">translateY</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="cursor-glow-trail" href="#cursor-glow-trail">
+  </a>
+  Cursor Glow Trail
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">trail</span> <span class="o">=</span> <span class="p">[];</span>
+<span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="mi">8</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">d</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">'</span><span class="s1">div</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">d</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">cssText</span> <span class="o">=</span> <span class="s2">`
+    position: fixed; pointer-events: none; border-radius: 50%; z-index: 9999;
+    width: </span><span class="p">${</span><span class="mi">6</span> <span class="o">-</span> <span class="nx">i</span> <span class="o">*</span> <span class="mf">0.5</span><span class="p">}</span><span class="s2">px; height: </span><span class="p">${</span><span class="mi">6</span> <span class="o">-</span> <span class="nx">i</span> <span class="o">*</span> <span class="mf">0.5</span><span class="p">}</span><span class="s2">px;
+    background: rgba(0, 229, 255, </span><span class="p">${</span><span class="mf">0.35</span> <span class="o">-</span> <span class="nx">i</span> <span class="o">*</span> <span class="mf">0.04</span><span class="p">}</span><span class="s2">);
+    transition: left </span><span class="p">${</span><span class="mf">0.05</span> <span class="o">+</span> <span class="nx">i</span> <span class="o">*</span> <span class="mf">0.03</span><span class="p">}</span><span class="s2">s, top </span><span class="p">${</span><span class="mf">0.05</span> <span class="o">+</span> <span class="nx">i</span> <span class="o">*</span> <span class="mf">0.03</span><span class="p">}</span><span class="s2">s;
+    transform: translate(-50%, -50%);
+  `</span><span class="p">;</span>
+  <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nf">appendChild</span><span class="p">(</span><span class="nx">d</span><span class="p">);</span>
+  <span class="nx">trail</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nx">d</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="nb">window</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">mousemove</span><span class="dl">'</span><span class="p">,</span> <span class="nx">e</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">trail</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">d</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">left</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">clientX</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">px</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nx">d</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">top</span> <span class="o">=</span> <span class="nx">e</span><span class="p">.</span><span class="nx">clientY</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">px</span><span class="dl">'</span><span class="p">;</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="lessons-learned" href="#lessons-learned">
+  </a>
+  Lessons Learned
+</h2>
+
+<ol>
+<li><p><strong>Vanilla JS is powerful</strong> — You don't need a framework for everything. This portfolio has animations, a terminal emulator, virtual file system, and Easter eggs — all in pure JavaScript.</p></li>
+<li><p><strong>Easter eggs make it memorable</strong> — The BSOD and The Final Boss Easter eggs are what people remember and share. Don't underestimate the power of fun.</p></li>
+<li><p><strong>CSS animations are underrated</strong> — The glitch effect, scan line, and neon pulse are all pure CSS. No JavaScript needed.</p></li>
+<li><p><strong>Documentation matters</strong> — Having README, CHANGELOG, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, and ROADMAP files makes the project look professional and trustworthy.</p></li>
+<li><p><strong>Build in public</strong> — Sharing my progress on dev.to, LinkedIn, and other platforms has helped me grow from 0 to 2,000+ followers.</p></li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next" href="#whats-next">
+  </a>
+  What's Next
+</h2>
+
+<p>The roadmap includes:</p>
+
+<ul>
+<li>
+<strong>Phase 2 (Q2 2026):</strong> Terminal 2.0 — Piping support, SSH simulation, VIM lite</li>
+<li>
+<strong>Phase 3 (Q3/Q4 2026):</strong> Visual &amp; Social — Live stats, dynamic themes, blog integration</li>
+<li>
+<strong>Phase 4 (2027+):</strong> Expansion — Achievement system, i18n (Arabic RTL), PWA</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  Try It Out
+</h2>
+
+<p><strong>Live:</strong> <a href="https://kareem2099.github.io/dotuniverse/" target="_blank" rel="noopener noreferrer">https://kareem2099.github.io/dotuniverse/</a></p>
+
+<p>Open the terminal and type:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">help</span>          <span class="c"># See all commands</span>
+neofetch      <span class="c"># System info</span>
+fortune       <span class="c"># Random dev quote</span>
+coffee        <span class="c"># Virtual coffee ☕</span>
+nmap localhost <span class="c"># Try The Final Boss Easter egg</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Star the repo:</strong> <a href="https://github.com/kareem2099/dotuniverse" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/dotuniverse</a></p>
+
+
+<hr>
+
+<h2>
+  <a name="connect-with-me" href="#connect-with-me">
+  </a>
+  Connect With Me
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub</td>
+<td><a href="https://github.com/kareem2099" target="_blank" rel="noopener noreferrer">@kareem2099</a></td>
+</tr>
+<tr>
+<td>dev.to</td>
+<td><a href="https://dev.to/freerave">@freerave</a></td>
+</tr>
+<tr>
+<td>LinkedIn</td>
+<td><a href="https://www.linkedin.com/in/freerave/" target="_blank" rel="noopener noreferrer">freerave</a></td>
+</tr>
+<tr>
+<td>Twitter</td>
+<td><a href="https://x.com/FreeRave2" target="_blank" rel="noopener noreferrer">@FreeRave2</a></td>
+</tr>
+<tr>
+<td>Email</td>
+<td><a href="mailto:kareem209907@gmail.com">kareem209907@gmail.com</a></td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="support-the-project" href="#support-the-project">
+  </a>
+  Support the Project
+</h2>
+
+<p>If you find this useful:</p>
+
+<ul>
+<li>
+<strong>Star</strong> the repository on GitHub</li>
+<li>
+<strong>Share</strong> this article with your network</li>
+<li>
+<strong>Contribute</strong> — Check out <a href="https://github.com/kareem2099/dotuniverse/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">CONTRIBUTING.md</a>
+</li>
+<li>
+<strong>Sponsor</strong> — <a href="https://github.com/sponsors/kareem2099" target="_blank" rel="noopener noreferrer">GitHub Sponsors</a> | <a href="https://ko-fi.com/freerave" target="_blank" rel="noopener noreferrer">Ko-fi</a> | <a href="https://paypal.me/freerave1" target="_blank" rel="noopener noreferrer">PayPal</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Built with ☕ and sleep deprivation by <a href="https://github.com/kareem2099" target="_blank" rel="noopener noreferrer">FreeRave</a></em></p>
+
+<p><em>All 20+ tools are open-source under the MIT License.</em></p>
+
+
+<hr>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-20-open-source-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all-25nb" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 1
+    · <a href="https://dev.to/freerave/i-built-20-open-source-tools-and-a-cyberpunk-terminal-portfolio-to-showcase-them-all-25nb#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>🚨 EXPOSED: &quot;Lock N' Key&quot; is a Trojan Stealer posing as a Dev Tool — FreeRave</title>
+<meta name="description" content="A developer named Ratik Krishna reached out to me recently to review his &quot;secure&quot; password manager...">
+<link rel="canonical" href="https://dev.to/freerave/exposed-lock-n-key-is-a-trojan-stealer-posing-as-a-dev-tool-2k2j">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/exposed-lock-n-key-is-a-trojan-stealer-posing-as-a-dev-tool-2k2j">
+<meta property="og:title" content="🚨 EXPOSED: &quot;Lock N' Key&quot; is a Trojan Stealer posing as a Dev Tool — FreeRave">
+<meta property="og:description" content="A developer named Ratik Krishna reached out to me recently to review his &quot;secure&quot; password manager...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ft37l863ejo3sro6r7n74.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ft37l863ejo3sro6r7n74.png" alt="">
+  <h1 class="post-title">🚨 EXPOSED: &quot;Lock N' Key&quot; is a Trojan Stealer posing as a Dev Tool</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-02T11:00:00Z">2 February 2026</time> · 1 min read
+    <div class="post-tags"><span class="post-tag">#security</span><span class="post-tag">#showdev</span><span class="post-tag">#scamalert</span><span class="post-tag">#website</span></div>
+  </div>
+  <article class="post-body">
+<p>A developer named Ratik Krishna reached out to me recently to review his "secure" password manager for developers, Lock-N-Key. It claimed to be "Zero Trace," "Ironclad," and "Offline-only".</p>
+
+<p>The Bait-and-Switch<br>
+He establishment trust by providing a GitHub repository written in Flutter/Dart. However, the executable file distributed on the website was NOT built from that source code.</p>
+
+<p>The Forensic Findings (Kali Linux Analysis)<br>
+After running a static analysis on the .exe file, the truth came out:</p>
+
+<p>Binary Mismatch: The code on GitHub is Flutter, but the actual binary is compiled in Delphi/Borland.</p>
+
+<p>Malicious Signatures: Found hardcoded strings for Trojan Stealers like sccPasswordTest and imports for WinInet (for exfiltrating data).</p>
+
+<p>Panic Update: Once confronted, the developer frantically pushed a "Version 2" update to GitHub to try and cover his tracks.</p>
+
+<p>Evidence &amp; Archives<br>
+I have preserved all forensic evidence to prevent this campaign from targeting more developers:</p>
+
+<ol>
+<li><p>The Fake Landing Page: <a href="https://web.archive.org/web/20260201142942/https://lock-n-key.netlify.app/" target="_blank" rel="noopener noreferrer">https://web.archive.org/web/20260201142942/https://lock-n-key.netlify.app/</a></p></li>
+<li><p>The Malicious Executable (Direct Archive): <a href="https://web.archive.org/web/20260201142956/https://lock-n-key.netlify.app/downloads/lock_n_key_setup.exe" target="_blank" rel="noopener noreferrer">https://web.archive.org/web/20260201142956/https://lock-n-key.netlify.app/downloads/lock_n_key_setup.exe</a></p></li>
+<li><p>The Decoy GitHub Repository: <a href="https://web.archive.org/web/20260201143634/https://github.com/rtk007/Lock_N-_Key" target="_blank" rel="noopener noreferrer">https://web.archive.org/web/20260201143634/https://github.com/rtk007/Lock_N-_Key</a></p></li>
+<li><p>The Panic Commit History (Evidence of Cover-up): <a href="https://web.archive.org/web/20260201144226/https://github.com/rtk007/Lock_N-_Key/commits/main" target="_blank" rel="noopener noreferrer">https://web.archive.org/web/20260201144226/https://github.com/rtk007/Lock_N-_Key/commits/main</a></p></li>
+</ol>
+
+<p>The Lesson<br>
+Open source doesn't always mean safe. If an installer asks you to "Run Anyway" while bypassing Windows Defender, it's a trap.</p>
+
+<p>Watch the full technical breakdown here: <a href="https://youtu.be/wZHwxNvt_KI" target="_blank" rel="noopener noreferrer">https://youtu.be/wZHwxNvt_KI</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/exposed-lock-n-key-is-a-trojan-stealer-posing-as-a-dev-tool-2k2j" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/exposed-lock-n-key-is-a-trojan-stealer-posing-as-a-dev-tool-2k2j#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare AI 3.5.2: From Git Tags to Technical Articles You Can Review — FreeRave</title>
+<meta name="description" content="A deep dive into DotShare 3.5.2: release-aware AI articles, verified code excerpts, Dev.to...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-ai-352-from-git-tags-to-technical-articles-you-can-review-3lik">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-ai-352-from-git-tags-to-technical-articles-you-can-review-3lik">
+<meta property="og:title" content="DotShare AI 3.5.2: From Git Tags to Technical Articles You Can Review — FreeRave">
+<meta property="og:description" content="A deep dive into DotShare 3.5.2: release-aware AI articles, verified code excerpts, Dev.to...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fa0z189vvdbpwwvpek4ug.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fa0z189vvdbpwwvpek4ug.png" alt="">
+  <h1 class="post-title">DotShare AI 3.5.2: From Git Tags to Technical Articles You Can Review</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-08T10:51:14Z">8 October 2026</time> · 14 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#ai</span><span class="post-tag">#opensource</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-dive-into-dotshare-352-releaseaware-ai-articles-verified-code-excerpts-devto-live-preview-and-safer-credential-handling" href="#a-deep-dive-into-dotshare-352-releaseaware-ai-articles-verified-code-excerpts-devto-live-preview-and-safer-credential-handling">
+  </a>
+  A deep dive into DotShare 3.5.2: release-aware AI articles, verified code excerpts, Dev.to live preview, and safer credential handling.
+</h2>
+
+<p>An AI release article can sound convincing while describing code that never shipped.</p>
+
+<p>The failure is often subtle: a changelog comes from one version, source code comes from today's checkout, and an example gets rewritten into something that looks cleaner but no longer matches the implementation. By the time the article reaches the publishing screen, the facts have already drifted.</p>
+
+<p><strong>DotShare AI 3.5.2 makes release selection, implementation evidence, and article review part of the writing workflow.</strong> It adds a dedicated Dev.to article experience, strengthens the generation pipeline, and revises how credentials move between the extension host, its webviews, and the CLI.</p>
+
+<p>The work behind this update spans <strong>65 changed or new files</strong>, including implementation, tests, documentation, dependency manifests, and build configuration. The useful result is what those changes let a developer do: choose a version, generate a technical draft from that version, inspect its formatting and code, and publish with a clearer understanding of what was checked.</p>
+
+<h2>
+  <a name="what-changes-in-the-daily-workflow" href="#what-changes-in-the-daily-workflow">
+  </a>
+  What changes in the daily workflow?
+</h2>
+
+<p>DotShare already brings social and blog publishing into the editor. Version 3.5.2 expands the technical writing side of that workflow:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Behavior in this update</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Release selection</td>
+<td>Choose a committed release, current committed work at HEAD, or tracked uncommitted changes explicitly.</td>
+</tr>
+<tr>
+<td>Implementation context</td>
+<td>Read release material from one resolved commit and include source excerpts with file and line information.</td>
+</tr>
+<tr>
+<td>Article generation</td>
+<td>Generate a Markdown draft with metadata, validate it, and use a bounded repair pass when needed.</td>
+</tr>
+<tr>
+<td>Code examples</td>
+<td>Verify excerpts against supplied source or documentation; flag and omit remaining unverifiable examples when the rest of the draft passes.</td>
+</tr>
+<tr>
+<td>Dev.to review</td>
+<td>Preview the title, description, tags, and rendered body together.</td>
+</tr>
+<tr>
+<td>Saved credentials</td>
+<td>Show <strong>🔒 Key Saved &amp; Active</strong>, with an empty replacement field available on demand.</td>
+</tr>
+<tr>
+<td>CLI configuration</td>
+<td>Store supported platform credentials in the OS credential store and keep preferences in the configuration file.</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The developer still owns the final editorial decision. The checks make specific problems detectable; they do not establish the truth of every sentence an AI writes.</p>
+
+<h2>
+  <a name="1-a-release-article-needs-a-consistent-version-of-the-project" href="#1-a-release-article-needs-a-consistent-version-of-the-project">
+  </a>
+  1. A release article needs a consistent version of the project
+</h2>
+
+<p>The first architectural change is the release boundary.</p>
+
+<p><code>ReleaseRepository</code> resolves the selected Git reference to a commit. That snapshot is then used for metadata, changelog content, release documents, source files, diffs, commits, and dependency comparisons. Reading these inputs from the same snapshot prevents a tagged release article from accidentally describing later local edits.</p>
+
+<p>The distinction becomes visible in the UI:</p>
+
+<ul>
+<li>
+<strong>Committed release</strong> describes the selected tagged version.</li>
+<li>
+<strong>Current committed work (HEAD)</strong> can describe committed changes beyond the latest tag.</li>
+<li>
+<strong>Uncommitted changes</strong> describes tracked local edits as work in progress.</li>
+</ul>
+
+<p>For example, if a repository contains a <code>v2.1.2</code> tag and additional edits in the checkout, selecting <code>v2.1.2</code> keeps those edits out of the release article. Choosing HEAD or uncommitted changes communicates a different scope.</p>
+
+<p>The collector also explains incomplete history. A first tagged release without a previous release tag can include the complete committed tree. In an untagged repository, the committed comparison can be limited to the latest commit. Warnings help the author understand the material behind the draft instead of guessing from the version label.</p>
+
+<p>Context is refreshed before generation, so an earlier modal preview is not silently treated as the final evidence set.</p>
+
+<h2>
+  <a name="2-workspace-search-follows-the-topic-and-the-release-boundary" href="#2-workspace-search-follows-the-topic-and-the-release-boundary">
+  </a>
+  2. Workspace search follows the topic and the release boundary
+</h2>
+
+<p>A useful technical article needs more than the last few commit messages.</p>
+
+<p>The context service can search Git history for terms from the selected topic. It combines commit-message matching with Git pickaxe searches for relevant code changes. Keyword extraction handles English and Arabic input, filtering conversational words so the search can focus on technical terms.</p>
+
+<p>The same selected boundary also governs dependency comparisons. DotShare recognizes manifests for several ecosystems:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Ecosystem</th>
+<th>Manifest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Node.js</td>
+<td><code>package.json</code></td>
+</tr>
+<tr>
+<td>Rust</td>
+<td><code>Cargo.toml</code></td>
+</tr>
+<tr>
+<td>Python</td>
+<td><code>pyproject.toml</code></td>
+</tr>
+<tr>
+<td>Go</td>
+<td><code>go.mod</code></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>That lets an article distinguish a dependency upgrade in the chosen release from an unrelated edit in the current checkout.</p>
+
+<p>Documentation adds another layer. Version-specific release files and relevant architecture or security documents can explain why a change exists. Multiline changelog notes are preserved so their meaning does not collapse into a handful of isolated bullets.</p>
+
+<p>The collector limits document and source budgets and reports truncation. A truncated README is a visible limitation, not evidence that the entire document was reviewed. Architecture notes provide background; roadmap items do not establish that a feature has shipped. A verification document can also contain checks that remain unfinished, and the article should retain that distinction.</p>
+
+<p>Active editor context is optional. A selected fragment can help identify the topic, but a local selection is labeled as a working-tree hint when writing about a committed release. It does not replace source read from the selected commit.</p>
+
+<h2>
+  <a name="3-code-examples-come-from-implementation-excerpts" href="#3-code-examples-come-from-implementation-excerpts">
+  </a>
+  3. Code examples come from implementation excerpts
+</h2>
+
+<p>Technical articles are especially vulnerable to invented examples. A plausible function name or a convincing security check is easy to generate and hard to spot during a quick read.</p>
+
+<p>DotShare now extracts source excerpts around added executable lines. The extractor looks for enclosing declarations and supplies the file path, line range, and whether the excerpt is partial. Ranking uses the release terms, identifiers, and changed code, while supporting helper or lifecycle methods can give a change the context it needs.</p>
+
+<p>This is bounded source extraction using language-aware heuristics. It is not a full compiler analysis of every supported language.</p>
+
+<p>The collector also reduces prompt noise by excluding material such as lockfiles, binary files, minified bundles, and test code from implementation examples. Python handling distinguishes executable changes from docstrings and test-oriented material.</p>
+
+<p>After generation, a separate verifier checks fenced examples. Implementation examples must match a contiguous excerpt from the supplied evidence. Display normalization allows line-ending differences and a uniform dedent while preserving internal indentation, string literals, and the actual statements.</p>
+
+<p>Reconstructing a function, inserting explanatory comments into its body, or joining unrelated pieces into a new example does not satisfy that rule.</p>
+
+<p>Documentation examples and shell commands have their own evidence rules. Commands must be supported by supplied documentation or fit a narrow recognized checkout workflow. Changing a fence label to <code>text</code> does not provide a route around provenance checking.</p>
+
+<p><strong>Code is optional.</strong> An article that explains a supported change clearly can be more useful than one padded with an invented implementation.</p>
+
+<h2>
+  <a name="4-validation-and-repair-have-a-defined-stopping-point" href="#4-validation-and-repair-have-a-defined-stopping-point">
+  </a>
+  4. Validation and repair have a defined stopping point
+</h2>
+
+<p>The generation flow has three main stages: create a draft, check detectable problems, and repair when necessary.</p>
+
+<p><code>ReleaseContentValidator</code> checks problems including:</p>
+
+<ul>
+<li>Empty output and unfinished code fences.</li>
+<li>Unsupported fenced code examples.</li>
+<li>URLs outside the exact selected call-to-action links.</li>
+<li>Source paths that do not appear in supplied evidence.</li>
+<li>Certain numeric claims about tests or diff statistics without supporting material.</li>
+<li>Missing or invalid Dev.to metadata.</li>
+<li>A generated draft that incorrectly sets <code>published: true</code>.</li>
+<li>Release prose that mixes in uncommitted work or exposes internal writing instructions.</li>
+</ul>
+
+<p>The service makes <strong>at most two generation attempts</strong>. A validation problem can trigger one repair using the same evidence. The previous generated draft is identified as untrusted text rather than new evidence.</p>
+
+<p>There is also a bounded recovery path for a response that reaches its output limit. A retry with a larger budget uses the remaining attempt; it does not start an unlimited series of retries and repairs.</p>
+
+<p>Full Dev.to articles begin with a 6,000-token generation budget. The output-limit recovery can increase that budget up to 12,000 tokens. Technical deep dives and shorter posts use smaller budgets appropriate to their format. These are response budgets, not promises of an exact article length.</p>
+
+<h3>
+  <a name="when-an-example-still-cannot-be-verified" href="#when-an-example-still-cannot-be-verified">
+  </a>
+  When an example still cannot be verified
+</h3>
+
+<p>Earlier behavior could end the entire generation flow with a code-validation error even when most of the article was usable.</p>
+
+<p>The revised behavior is more precise. If the second attempt still contains closed, unverifiable code blocks, DotShare can omit those blocks and validate the remaining article again. When that article passes, the author receives a visible warning such as:</p>
+
+<blockquote>
+<p>Omitted 1 code example(s) that could not be verified against the supplied evidence. Review the surrounding explanation before publishing.</p>
+</blockquote>
+
+<p>A short standalone introduction to an omitted example can be removed with it. Other prose remains available for review.</p>
+
+<p>The warning matters: removing a code block does not prove the neighboring explanation is correct. An unfinished fence, an unsupported URL, or another unresolved blocking error still prevents a successful result.</p>
+
+<h2>
+  <a name="5-provider-completion-is-part-of-article-quality" href="#5-provider-completion-is-part-of-article-quality">
+  </a>
+  5. Provider completion is part of article quality
+</h2>
+
+<p>A successful HTTP request does not necessarily contain a complete article.</p>
+
+<p>This update strengthens response handling across OpenAI, Claude, Gemini, DeepSeek, and xAI. Empty text is rejected, and provider-specific completion signals are checked before returning a draft.</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Completion handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenAI</td>
+<td>Detect incomplete Responses API output and distinguish output-limit truncation.</td>
+</tr>
+<tr>
+<td>Claude</td>
+<td>Combine text blocks and detect token-limit stops or refusal.</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>Check candidate finish reasons, including output-token exhaustion.</td>
+</tr>
+<tr>
+<td>DeepSeek</td>
+<td>Check completion finish reasons and reject empty content.</td>
+</tr>
+<tr>
+<td>xAI</td>
+<td>Check completion finish reasons and reject empty content.</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Generation requests have explicit timeouts, and SDK retry settings are bounded where configured. The author gets an error for an incomplete response instead of a truncated article presented as finished.</p>
+
+<p>Live model discovery remains the foundation introduced in the previous release. The improvements here build on it with stronger response handling and safer reuse of saved keys. Provider/model request identifiers also help prevent an older asynchronous response from replacing a newer selection in the UI.</p>
+
+<h2>
+  <a name="6-devto-articles-arrive-as-editable-markdown" href="#6-devto-articles-arrive-as-editable-markdown">
+  </a>
+  6. Dev.to articles arrive as editable Markdown
+</h2>
+
+<p>The Dev.to workflow now has a dedicated <strong>DotShare AI Article</strong> action and a <strong>Full Article (Dev.to)</strong> writing tone. The result is Markdown with YAML frontmatter, ready to inspect and edit.</p>
+
+<p>DotShare parses the metadata into separate publisher fields:</p>
+
+<ul>
+<li>Title.</li>
+<li>Description.</li>
+<li>Tags, normalized and limited to four.</li>
+<li>Optional cover image, canonical URL, and series when supplied.</li>
+</ul>
+
+<p>The frontmatter is separated from the article body so the editor does not show metadata as prose. Generated content also receives publishing cleanup, including redundant opening titles and trailing hashtag lines where appropriate.</p>
+
+<p>The article title belongs in the title field. Body sections can start at <code>##</code>, which keeps the hierarchy consistent with Dev.to's article page. This follows the conventions in the <a href="https://dev.to/p/editor_guide/">DEV Editor Guide</a>.</p>
+
+<p>Canonical URLs receive special treatment: a repository URL is not automatically used as the article's canonical URL. The repository identifies the project; a canonical URL identifies the original publication of the same article. Authors can add that field when it actually applies.</p>
+
+<p>The publisher retains both draft and publishing choices. Generating text is separate from deciding to publish it.</p>
+
+<h2>
+  <a name="7-live-preview-includes-the-whole-article-header" href="#7-live-preview-includes-the-whole-article-header">
+  </a>
+  7. Live Preview includes the whole article header
+</h2>
+
+<p>Reviewing only the Markdown body misses part of the reader's first impression.</p>
+
+<p>The updated Live Preview displays <strong>title, description, tags, then the article body</strong>, using the current editor values. Changes to the metadata fields update the preview without another AI request. Direction-aware text also helps with Arabic and mixed-language content.</p>
+
+<p><code>marked</code> renders the body and <code>DOMPurify</code> sanitizes the resulting HTML. The title, description, and tag labels are inserted as text rather than interpreted as HTML. The preview supports familiar Markdown structures such as headings, lists, tables, blockquotes, and fenced code blocks, with code styling suitable for review.</p>
+
+<p>The UI includes word count, character count, and estimated reading time. They help authors judge the size of a draft without treating length as a measure of correctness.</p>
+
+<p>Related webview changes escape content in thread composers, media thumbnails, draft cards, and scheduled-post attributes. Custom publish-button labels also survive UI refreshes.</p>
+
+<h3>
+  <a name="links-respect-the-editors-decision" href="#links-respect-the-editors-decision">
+  </a>
+  Links respect the editor's decision
+</h3>
+
+<p>Web links appear blue and can be clicked during review. The webview sends an opening request to the extension host, which accepts ordinary HTTP or HTTPS URLs and calls the editor's external-link API.</p>
+
+<p>This is the implementation in <code>src/services/PreviewLinkService.ts</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">openArticlePreviewLink</span><span class="p">(</span><span class="nx">value</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">boolean</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">url</span> <span class="o">=</span> <span class="nf">getPreviewWebUrl</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">url</span><span class="p">)</span> <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="c1">// Respect VS Code's result; a refusal must not trigger an alternate opener.</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nf">openExternal</span><span class="p">(</span><span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">.</span><span class="nf">parse</span><span class="p">(</span><span class="nx">url</span><span class="p">));</span>
+    <span class="p">}</span> <span class="k">catch</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If opening is declined or throws an error, the action stops. There is no alternate opener. Local resources and command URLs are not accepted as external article links. In-article anchors are handled within the preview.</p>
+
+<h2>
+  <a name="8-saved-keys-stay-on-the-extension-host" href="#8-saved-keys-stay-on-the-extension-host">
+  </a>
+  8. Saved keys stay on the extension host
+</h2>
+
+<p>Credential storage needed a review across the full workflow: platform configuration, AI model selection, saved API sets, migration, logging, and cleanup.</p>
+
+<p>The extension uses <code>context.secrets</code> for sensitive values. That includes the Dev.to API key and the supported AI-provider keys. The browser-based webviews receive saved-status information instead of stored key values.</p>
+
+<p>The status helper in <code>src/security/credentials.ts</code> returns booleans:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">credentialStatus</span><span class="p">(</span><span class="nx">secrets</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">SecretStorage</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="nx">boolean</span><span class="o">&gt;&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="na">status</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="nx">boolean</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{};</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">key</span> <span class="k">of</span> <span class="nx">ALL_SECRET_KEYS</span><span class="p">)</span> <span class="nx">status</span><span class="p">[</span><span class="nx">key</span><span class="p">]</span> <span class="o">=</span> <span class="o">!!</span><span class="k">await</span> <span class="nx">secrets</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">status</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The UI shows <strong>🔒 Key Saved &amp; Active</strong>. It does not populate the old key into the field, even as a masked value. <strong>Change saved key</strong> reveals an empty replacement input, and leaving it blank retains the saved value.</p>
+
+<p>Newly typed replacements necessarily pass through the input while the user is editing them. The important separation is that stored keys are not sent back from the extension host to fill the webview. Successful save acknowledgements clear replacement fields; closing the AI dialog discards pending replacements.</p>
+
+<p>Saved AI keys can be reused for model discovery and generation without retyping them. A successful model-list request alone is not treated as proof that a new key was saved, and save failures do not receive a success acknowledgement.</p>
+
+<p>Saved API configurations follow the same design. The host activates the selected credentials, while the UI gets metadata such as the configuration name and whether credentials are available. Snapshots are created from credentials already held on the host.</p>
+
+<h3>
+  <a name="a-saved-key-is-scoped-to-its-editor" href="#a-saved-key-is-scoped-to-its-editor">
+  </a>
+  A saved key is scoped to its editor
+</h3>
+
+<p>VS Code and a separate editor application such as Antigravity have separate application storage. A key saved by DotShare in VS Code is not automatically available in DotShare running inside another editor.</p>
+
+<p>The same key can be entered and saved in that editor separately. An empty saved-key status there does not, by itself, show that VS Code lost its stored key.</p>
+
+<p>The extension relies on the host's SecretStorage implementation and its available storage backend. VS Code documents its API in the <a href="https://code.visualstudio.com/api/references/vscode-api#SecretStorage" target="_blank" rel="noopener noreferrer">SecretStorage reference</a> and Linux keyring configuration in its <a href="https://code.visualstudio.com/docs/configure/settings-sync#_troubleshooting-keychain-issues" target="_blank" rel="noopener noreferrer">credential-storage troubleshooting guidance</a>.</p>
+
+<h2>
+  <a name="9-migration-and-cleanup-cover-the-credential-lifecycle" href="#9-migration-and-cleanup-cover-the-credential-lifecycle">
+  </a>
+  9. Migration and cleanup cover the credential lifecycle
+</h2>
+
+<p>Moving future writes into secure storage is only part of a migration. Older plaintext copies can remain behind.</p>
+
+<p>The update migrates saved API configurations for every supported platform, including Dev.to. When a newer secure copy already exists, it is preserved and the stale legacy copy is removed. When no secure copy exists, the secure write precedes deletion of the old state.</p>
+
+<p>Migration also handles the previous Discord webhook storage name and legacy API keys inside saved model-selection state. Model preferences can remain as preferences without retaining the key in ordinary state.</p>
+
+<p>Local credential clearing covers platform keys, AI keys, GitHub and DotShare account secrets, saved configuration lists, relevant model preferences, and remembered cloud-sync consent. The UI receives cleanup notifications so the displayed state can follow the host.</p>
+
+<p><strong>Local cleanup is not cloud revocation.</strong> Credentials previously uploaded for scheduling must be revoked separately through the cloud service. That distinction is now stated in the user-facing security documentation.</p>
+
+<h2>
+  <a name="10-the-cli-stores-credentials-in-the-os-credential-store" href="#10-the-cli-stores-credentials-in-the-os-credential-store">
+  </a>
+  10. The CLI stores credentials in the OS credential store
+</h2>
+
+<p>The extension's storage changes also exposed a separate CLI concern: a preferences file should not double as a credential vault.</p>
+
+<p>The CLI now uses <code>@napi-rs/keyring</code> through a dedicated credential-store adapter. Its supported Telegram and LinkedIn credentials are stored under the DotShare CLI service in the native OS credential store.</p>
+
+<p>The JSON configuration file contains preferences such as the server URL and default platforms. It is written through a temporary file and renamed, with a restrictive file mode requested on platforms that honor it. Credentials are read from the credential store when a command needs them.</p>
+
+<p>For older configurations, the migration writes credentials to the native store before replacing the configuration with metadata. An existing secure value takes precedence over an older file copy. If keyring access fails, migration stops without erasing the legacy file or falling back to a new plaintext credential write.</p>
+
+<p>The setter in <code>src/cli/credential-store.ts</code> makes the failure behavior explicit:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code>    <span class="nf">set</span><span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">value</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+        <span class="k">try</span> <span class="p">{</span>
+            <span class="nf">rememberSecret</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+            <span class="k">new</span> <span class="nc">Entry</span><span class="p">(</span><span class="dl">'</span><span class="s1">DotShare CLI</span><span class="dl">'</span><span class="p">,</span> <span class="nx">platform</span><span class="p">).</span><span class="nf">setPassword</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">catch</span> <span class="p">{</span>
+            <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Could not save credentials in the OS keyring. No plaintext fallback was used.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>CLI logging is separated from VS Code-dependent logging, so command-line diagnostics can use redaction without requiring the editor runtime.</p>
+
+<h2>
+  <a name="11-logs-and-cloud-sync-have-narrower-clearer-behavior" href="#11-logs-and-cloud-sync-have-narrower-clearer-behavior">
+  </a>
+  11. Logs and cloud sync have narrower, clearer behavior
+</h2>
+
+<p>This update removes sensitive logging of complete OAuth callback URLs and credential values from the reviewed paths. A shared redaction layer remembers secrets obtained from or written to SecretStorage and masks known values and common token patterns in diagnostic messages. Snippet sanitization also reduces the chance of common credential formats entering external AI requests.</p>
+
+<p>Git commands use <code>execFile</code> with structured argument arrays. That avoids shell interpretation of topic text and path arguments and improves handling of platform-specific quoting. It is a concrete protection for Git subprocess calls, not a general claim that all inputs are safe.</p>
+
+<p>Cloud scheduling has an explicit boundary as well. Credential synchronization checks saved user consent and requires HTTPS before reading local credentials for upload. Consent text explains that the server receives credentials to run scheduled posts.</p>
+
+<p>The security documentation no longer presents unverified backend encryption claims as guarantees. Local SecretStorage protects the local workflow; it does not establish how a deployed server stores its copy.</p>
+
+<p>Redaction and migration also have practical limits. Pattern matching cannot identify every possible secret, historical logs are not automatically rewritten, and removing a local copy does not rotate a token that was previously exposed.</p>
+
+<h2>
+  <a name="12-the-savedkey-controls-now-follow-the-editor-theme" href="#12-the-savedkey-controls-now-follow-the-editor-theme">
+  </a>
+  12. The saved-key controls now follow the editor theme
+</h2>
+
+<p>The saved-state design should look deliberate, too.</p>
+
+<p>The <strong>Change saved key</strong> control now has a dedicated CSS class in both the sidebar and the AI modal. It uses VS Code theme colors, rounded borders, a hover state, and a visible keyboard-focus outline. Hidden controls stay hidden through the CSS rule as well as their UI state.</p>
+
+<p>That fixes the unstyled native button previously shown beside the saved-key badge and makes credential replacement fit the rest of the extension.</p>
+
+<h2>
+  <a name="13-build-and-test-changes-support-the-release" href="#13-build-and-test-changes-support-the-release">
+  </a>
+  13. Build and test changes support the release
+</h2>
+
+<p>The update targets VS Code <code>^1.90.0</code>, with matching API type definitions. Build, webview type-checking, lint configuration, dependency manifests, and packaging exclusions were adjusted alongside the implementation. Development artifacts and source-only material are excluded from the packaged extension where configured.</p>
+
+<p>The automated suite was rerun for this article: <strong>157 tests passed across 17 suites</strong>.</p>
+
+<p>The coverage includes release boundaries and evidence extraction, generation validation and repair, provider completion signals, preview-link handling, credential status and migration, AI-key behavior, redaction, cloud-consent checks, and CLI configuration migration.</p>
+
+<p>Those tests exercise deterministic behavior and mocked integrations. Native keyring persistence across an editor restart, live provider responses, Dev.to publishing, and deployed backend behavior remain separate integration checks. The passing suite is evidence for the tested implementation paths, not a production security certification.</p>
+
+<h2>
+  <a name="install-or-download-dotshare" href="#install-or-download-dotshare">
+  </a>
+  Install or download DotShare
+</h2>
+
+<ul>
+<li>
+<a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">Install from the Visual Studio Marketplace</a>.</li>
+<li>
+<a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Install from Open VSX</a> in editors that use that registry.</li>
+<li>
+<a href="https://marketplace.visualstudio.com/_apis/public/gallery/publishers/FreeRave/vsextensions/dotshare/latest/vspackage" target="_blank" rel="noopener noreferrer">Download the latest available VSIX from the Marketplace</a> for manual installation.</li>
+</ul>
+
+<p>To install the downloaded file, open the Extensions view, select <strong>Install from VSIX…</strong> from its menu, and choose the package. Check that the installed version is <strong>3.5.2</strong> to use the behavior described in this article; the latest version available can differ between registries while an update is being published.</p>
+
+<h2>
+  <a name="try-the-article-workflow-on-a-real-release" href="#try-the-article-workflow-on-a-real-release">
+  </a>
+  Try the article workflow on a real release
+</h2>
+
+<p>Start with a project that has useful release notes and a committed version to describe:</p>
+
+<ol>
+<li>Save an AI-provider key and choose an available model in DotShare.</li>
+<li>Open the Dev.to Article Publisher and select <strong>DotShare AI Article</strong>.</li>
+<li>Choose the release scope and version deliberately.</li>
+<li>Enable the relevant changelog and Git sources, and add an optional topic or editor hint.</li>
+<li>Choose <strong>Full Article (Dev.to)</strong>, language, selected links, and whether to include verified code excerpts.</li>
+<li>Generate the draft and inspect any context or validation warnings.</li>
+<li>Review the title, description, tags, links, and body in Live Preview.</li>
+<li>Save a Dev.to draft, make the final editorial edits, and publish when ready.</li>
+</ol>
+
+<p>DotShare 3.5.2 puts the version, the evidence, and the draft in the same workflow. It helps authors spend their review time on the actual explanation: what changed, why it matters, and what the implementation supports.</p>
+
+<p>The code is available in the <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">DotShare repository</a>. Which part of writing release articles costs you the most time: finding the changes, explaining the implementation, or preparing the final post?</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-ai-352-from-git-tags-to-technical-articles-you-can-review-3lik" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 2
+    · <a href="https://dev.to/freerave/dotshare-ai-352-from-git-tags-to-technical-articles-you-can-review-3lik#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

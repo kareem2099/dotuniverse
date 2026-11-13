@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I built a radial menu that converts any file on Linux — FreeRave</title>
+<meta name="description" content="DotMorph: right-click a file, a wheel blooms, pick a format. 440+ local conversions for...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-radial-menu-that-converts-any-file-on-linux-4c4m">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-radial-menu-that-converts-any-file-on-linux-4c4m">
+<meta property="og:title" content="I built a radial menu that converts any file on Linux — FreeRave">
+<meta property="og:description" content="DotMorph: right-click a file, a wheel blooms, pick a format. 440+ local conversions for...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpsxp64j5hg9534og1g75.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpsxp64j5hg9534og1g75.png" alt="">
+  <h1 class="post-title">I built a radial menu that converts any file on Linux</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-24T10:31:27Z">24 October 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#python</span><span class="post-tag">#opensource</span><span class="post-tag">#showdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="dotmorph-rightclick-a-file-a-wheel-blooms-pick-a-format-440-local-conversions-for-images-pdf-svg-video-audio-and-office-files-from-your-file-manager-a-hotkey-or-a-screen-edge" href="#dotmorph-rightclick-a-file-a-wheel-blooms-pick-a-format-440-local-conversions-for-images-pdf-svg-video-audio-and-office-files-from-your-file-manager-a-hotkey-or-a-screen-edge">
+  </a>
+  DotMorph: right-click a file, a wheel blooms, pick a format. 440+ local conversions for images, PDF, SVG, video, audio and Office files, from your file manager, a hotkey or a screen edge.
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F8vcd8odij1dyin5io0o2.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F8vcd8odij1dyin5io0o2.gif" alt="The DotMorph wheel opening on a video, blooming the Video fan, converting to GIF and finishing with a particle burst" loading="lazy" width="720" height="562"></a></p>
+
+<p>Right-click a file. A wheel blooms around it. Pick a format. Done.</p>
+
+<p>That is the whole idea behind <strong>DotMorph</strong>, a file converter for Linux that lives in a radial menu instead of a window. It does 440+ conversions (images, PDF, SVG, video, audio, Office documents, Markdown) and everything happens on your machine. It's free, open source (Apache 2.0) and part of <a href="https://dotsuite.dev/en" target="_blank" rel="noopener noreferrer">DotSuite</a>, my collection of developer tools.</p>
+
+<p>This is the first of four posts. This one is the tour; the next three are about how it's built.</p>
+
+<h2>
+  <a name="why-another-converter" href="#why-another-converter">
+  </a>
+  Why another converter?
+</h2>
+
+<p>Converting a file on Linux usually goes one of three ways:</p>
+
+<ol>
+<li>You remember (or search for) the right <code>ffmpeg</code> / <code>magick</code> / <code>libreoffice --headless</code> incantation.</li>
+<li>You install a big GUI app, open it, find the file again, pick a format from a dropdown.</li>
+<li>You upload your file to some random website and hope it isn't keeping a copy.</li>
+</ol>
+
+<p>On Windows there's a nice pattern for this: converters that sit in the right-click menu. I wanted that on Linux, and I wanted it to feel like a <em>tool</em>, not a form. So: a wheel that appears where you are, shows only what makes sense for the file you picked, and gets out of the way.</p>
+
+<h2>
+  <a name="what-it-converts" href="#what-it-converts">
+  </a>
+  What it converts
+</h2>
+
+<p>DotMorph doesn't reimplement codecs. It drives the tools that are already the best at each job, and only offers what your machine can actually do:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Files</th>
+<th>Examples</th>
+<th>Done by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Images</td>
+<td>PNG, JPG, WebP, AVIF, HEIC, GIF, TIFF, ICO, PSD, XCF, JPEG XL</td>
+<td>Pillow, ImageMagick</td>
+</tr>
+<tr>
+<td>SVG</td>
+<td>→ PNG, WebP, … and <strong>vector PDF</strong>
+</td>
+<td>librsvg (via ctypes)</td>
+</tr>
+<tr>
+<td>PDF</td>
+<td>→ images (one per page), → text, compress, merge</td>
+<td>poppler, Ghostscript</td>
+</tr>
+<tr>
+<td>Video</td>
+<td>MP4, MKV, WebM, MOV, AVI, … ↔ each other, → GIF, → audio</td>
+<td>ffmpeg</td>
+</tr>
+<tr>
+<td>Audio</td>
+<td>MP3, M4A, OGG, Opus, FLAC, WAV, AAC</td>
+<td>ffmpeg</td>
+</tr>
+<tr>
+<td>Documents</td>
+<td>DOCX, ODT, PPTX, XLSX, … → PDF and between Office formats</td>
+<td>LibreOffice (headless)</td>
+</tr>
+<tr>
+<td>Text</td>
+<td>Markdown, HTML, reST, Org, EPUB ↔ DOCX, ODT, EPUB, PDF</td>
+<td>pandoc</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Plus tools that keep the format: <strong>compress</strong> (never returns a bigger file), <strong>resize</strong>, <strong>rotate</strong>, <strong>strip metadata</strong> (EXIF, GPS, tags), <strong>mute</strong> a video, <strong>merge</strong> images and PDFs into one PDF.</p>
+
+<p>On a machine with everything installed that's 53 formats, 6 tools and 440+ conversions. If a tool is missing, its conversions simply don't show up, and <code>dotmorph doctor</code> tells you which package to install for apt, dnf, pacman or zypper.</p>
+
+<h2>
+  <a name="many-ways-in-one-wheel" href="#many-ways-in-one-wheel">
+  </a>
+  Many ways in, one wheel
+</h2>
+
+<p>The wheel opens from wherever you happen to be:</p>
+
+<ul>
+<li>
+<strong>File manager right-click</strong>: Nautilus, Thunar, Dolphin and Nemo, with a <em>DotMorph</em> submenu and quick actions (To PNG, To PDF, To MP4, Compress…) that run without any window.</li>
+<li>
+<strong>Open with DotMorph</strong> in any app that lists launchers.</li>
+<li>
+<strong>A global hotkey</strong> (Super+Shift+M): copy files in your file manager, press it, the wheel opens with those files.</li>
+<li>
+<strong>The edge dock</strong>: drag the wheel against the side of the screen and it turns into a slim tab. Hover it and half a wheel slides out, like Android's edge panels. Drop files on it.</li>
+<li>
+<strong>Watched folders</strong>: <code>dotmorph watch ~/Downloads --to webp</code> converts new files as they land (inotify, run as a systemd user service).</li>
+<li>
+<strong>The terminal</strong>, for everything above and more.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fu209dmjm1ua6nm56hjsd.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fu209dmjm1ua6nm56hjsd.gif" alt="Dragging the wheel to the left edge: it docks as a tab, then opens as a half wheel on hover" loading="lazy" width="760" height="517"></a></p>
+
+<p>Thanks to a small background daemon, the wheel opens in about <strong>0.1 s</strong> instead of the ~1 s it takes to start Qt. Post 3 is about how that works.</p>
+
+<h2>
+  <a name="the-command-line-is-a-firstclass-citizen" href="#the-command-line-is-a-firstclass-citizen">
+  </a>
+  The command line is a first-class citizen
+</h2>
+
+<p>Everything the wheel does, the CLI does too:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotmorph convert holiday/<span class="k">*</span>.heic <span class="nt">--to</span> jpg              <span class="c"># batch, in parallel</span>
+dotmorph convert talk.mov <span class="nt">--to</span> mp4                    <span class="c"># same codec? stream copy, seconds</span>
+dotmorph convert report.docx slides.pptx <span class="nt">--to</span> pdf
+dotmorph convert photos/<span class="k">*</span>.jpg <span class="nt">--preset</span> web            <span class="c"># WebP, ≤1920 px, quality 80, no metadata</span>
+dotmorph convert scan.pdf <span class="nt">--to</span> compress
+dotmorph convert diagram.svg <span class="nt">--to</span> pdf                 <span class="c"># stays vector</span>
+dotmorph formats video.mp4                            <span class="c"># what can this file become?</span>
+dotmorph doctor                                       <span class="c"># what's installed, what's missing</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>You get a live progress bar, Ctrl-C cancels cleanly, existing files are never overwritten (you get <code>name (1).ext</code>), and half-written files never appear because every job works in a hidden folder and finishes with a rename.</p>
+
+<h2>
+  <a name="settings-in-english-and-arabic" href="#settings-in-english-and-arabic">
+  </a>
+  Settings, in English and Arabic
+</h2>
+
+<p>There's a separate settings window: themes (dark, light, glass), pinned and hidden formats, the hotkey recorder, file-manager integration, watch folders, and a page that lists every engine with a "copy install command" button. The whole interface is also available in Arabic, laid out right to left.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyia08jj67amqgkb5ut68.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyia08jj67amqgkb5ut68.png" alt="The settings window in English (dark theme) and Arabic (light theme, right to left)" loading="lazy" width="800" height="272"></a></p>
+
+<h2>
+  <a name="install" href="#install">
+  </a>
+  Install
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>pipx <span class="nb">install</span> <span class="s1">'dotmorph[gui]'</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Or grab the <strong>AppImage</strong> (one file, no install, and AppImageUpdate can update it), the <strong>.deb</strong>, or the <strong>Arch package</strong> from the <a href="https://github.com/kareem2099/DotMorph/releases" target="_blank" rel="noopener noreferrer">releases page</a>. Every file is checksummed and GPG-signed.</p>
+
+<p>DotMorph is also on <a href="https://www.appimagehub.com/p/2380213/" target="_blank" rel="noopener noreferrer">AppImageHub</a> and <a href="https://www.opendesktop.org/p/2380213/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>, and in the <a href="https://appimage.github.io" target="_blank" rel="noopener noreferrer">AppImage community catalog</a> that stores like AppImagePool read from.</p>
+
+<p>Then, optionally:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotmorph integrate          <span class="c"># right-click menus</span>
+dotmorph daemon <span class="nt">--install</span>   <span class="c"># instant wheel + edge dock at login</span>
+dotmorph hotkey             <span class="c"># Super+Shift+M</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>It needs Python 3.10+ and works on glibc 2.28 and newer (Ubuntu 20.04, Debian 11, RHEL 8 and later).</p>
+
+<h2>
+  <a name="honest-limitations" href="#honest-limitations">
+  </a>
+  Honest limitations
+</h2>
+
+<ul>
+<li>On Wayland the wheel runs through <strong>XWayland</strong>, so it can stay on top and be placed. A native layer-shell version is planned.</li>
+<li>The hotkey is registered automatically on <strong>GNOME and Xfce</strong>; on other desktops <code>dotmorph hotkey</code> prints the command to bind yourself.</li>
+<li>The AppImage is <strong>x86_64 only</strong> for now.</li>
+<li>LibreOffice conversions run <strong>one at a time</strong> (a limitation of its profile).</li>
+</ul>
+
+<h2>
+  <a name="whats-next-in-this-series" href="#whats-next-in-this-series">
+  </a>
+  What's next in this series
+</h2>
+
+<ol>
+<li>
+<strong>This post</strong>: the tour.</li>
+<li>
+<strong>The engine</strong>: eight backends behind one interface, safe output, cancelling, and the SVG bug that started the whole rewrite.</li>
+<li>
+<strong>The wheel</strong>: QML, GPU-drawn ring sectors, particles, a 0.1 s daemon and the edge dock.</li>
+<li>
+<strong>Shipping it</strong>: PyPI, AppImage, .deb, Arch and AUR from one signed tag, and why the AppImage went from 109 MB to 73 MB.</li>
+</ol>
+
+<p>If you try it, I'd love to hear what you convert most, and what's missing.</p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotMorph" target="_blank" rel="noopener noreferrer">kareem2099/DotMorph</a>
+</li>
+<li>
+<strong>Project page:</strong> <a href="https://dotsuite.dev/en/product/dotmorph" target="_blank" rel="noopener noreferrer">dotsuite.dev/en/product/dotmorph</a>
+</li>
+<li>
+<strong>Also on:</strong> <a href="https://pypi.org/project/dotmorph/" target="_blank" rel="noopener noreferrer">PyPI</a> · <a href="https://www.appimagehub.com/p/2380213/" target="_blank" rel="noopener noreferrer">AppImageHub</a> · <a href="https://www.opendesktop.org/p/2380213/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>
+</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-radial-menu-that-converts-any-file-on-linux-4c4m" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-radial-menu-that-converts-any-file-on-linux-4c4m#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

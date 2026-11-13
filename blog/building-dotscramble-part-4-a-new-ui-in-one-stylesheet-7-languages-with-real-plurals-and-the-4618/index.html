@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotScramble Part 4: A New UI in One Stylesheet, 7 Languages With Real Plurals, and the Bugs Only a Clean Machine Found — FreeRave</title>
+<meta name="description" content="DotScramble 1.5 rebuilt: one token-based QSS file for 16 themes, a canvas with Detect...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotscramble-part-4-a-new-ui-in-one-stylesheet-7-languages-with-real-plurals-and-the-4618">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotscramble-part-4-a-new-ui-in-one-stylesheet-7-languages-with-real-plurals-and-the-4618">
+<meta property="og:title" content="Building DotScramble Part 4: A New UI in One Stylesheet, 7 Languages With Real Plurals, and the Bugs Only a Clean Machine Found — FreeRave">
+<meta property="og:description" content="DotScramble 1.5 rebuilt: one token-based QSS file for 16 themes, a canvas with Detect...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyb8fv5lgubmvby3jk6mi.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyb8fv5lgubmvby3jk6mi.png" alt="">
+  <h1 class="post-title">Building DotScramble Part 4: A New UI in One Stylesheet, 7 Languages With Real Plurals, and the Bugs Only a Clean Machine Found</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-02T19:27:44Z">2 November 2026</time> · 10 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#pyside6</span><span class="post-tag">#linux</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="dotscramble-15-rebuilt-one-tokenbased-qss-file-for-16-themes-a-canvas-with-detect-preview-and-compare-five-new-languages-with-cldr-plurals-a-privacy-tool-that-refuses-to-fail-silently-and-four-packaging-bugs-my-own-ci-never-saw" href="#dotscramble-15-rebuilt-one-tokenbased-qss-file-for-16-themes-a-canvas-with-detect-preview-and-compare-five-new-languages-with-cldr-plurals-a-privacy-tool-that-refuses-to-fail-silently-and-four-packaging-bugs-my-own-ci-never-saw">
+  </a>
+  DotScramble 1.5 rebuilt: one token-based QSS file for 16 themes, a canvas with Detect preview and Compare, five new languages with CLDR plurals, a privacy tool that refuses to fail silently, and four packaging bugs my own CI never saw.
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fiety3i0nkxrm8i5prnhr.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fiety3i0nkxrm8i5prnhr.gif" alt="DotScramble 1.5: Detect outlines the faces, Pixelation is picked, Apply hides them" loading="lazy" width="600" height="600"></a></p>
+
+<p><a href="https://dev.to/freerave/building-dotscramble-part-3-wayland-wars-a-custom-file-picker-and-designing-ai-evasion-2mja">Part 3</a> ended with the PySide6 migration and the design of AI Evasion. Since then DotScramble went through its biggest update yet: <strong>1.5</strong>. Four things changed:</p>
+
+<ol>
+<li>The whole interface was rebuilt, and every color now comes from <strong>one stylesheet</strong>.</li>
+<li>It went from two languages to <strong>seven</strong>, with plural forms that are actually correct.</li>
+<li>A batch of fixes, led by one rule: <strong>a privacy tool must never fail silently</strong>.</li>
+<li>Releases are now built, tested and signed by <strong>GitHub Actions</strong>, and a clean machine found four bugs my own CI had been hiding.</li>
+</ol>
+
+<p>If you haven't seen what DotScramble does, the <a href="https://dev.to/freerave/i-built-a-linux-app-that-hides-faces-license-plates-and-gps-from-your-photos-3h97">tour</a> covers it in five minutes.</p>
+
+
+<hr>
+
+<h2>
+  <a name="1-the-ui-rebuild" href="#1-the-ui-rebuild">
+  </a>
+  1. The UI rebuild
+</h2>
+
+<p>The 1.4 window had grown by accretion: a header, then a toolbar, then buttons that did the same thing as the toolbar, long radio lists, emoji as icons, and colors set in Python all over the place. Changing a theme meant hoping every widget had been told.</p>
+
+<p>1.5 has a single toolbar, a sidebar in four numbered steps (<strong>What to hide → How to hide it → Fine-tune → Metadata on save</strong>), effect tiles instead of radio buttons, one primary <strong>Apply effect</strong> button, and SVG icons that recolor with the theme.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fraw.githubusercontent.com%2Fkareem2099%2FDotScramble%2Fmain%2Fdocs%2Fscreenshots%2Fhero.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fraw.githubusercontent.com%2Fkareem2099%2FDotScramble%2Fmain%2Fdocs%2Fscreenshots%2Fhero.png" alt="The new DotScramble window: toolbar, four-step sidebar, four faces pixelated" loading="lazy" width="800" height="500"></a></p>
+
+<h3>
+  <a name="one-stylesheet-sixteen-themes" href="#one-stylesheet-sixteen-themes">
+  </a>
+  One stylesheet, sixteen themes
+</h3>
+
+<p>The rule I set: <strong>widgets never set a color or a font in Python.</strong> All styling lives in one file, <code>assets/themes/theme_template.qss</code>, written with tokens:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="c">/* {key} is a theme color, {key@NN} the same color at NN % opacity,
+   {on:key} a readable text color on top of it */</span>
+<span class="nt">QPushButton</span><span class="o">[</span><span class="nt">variant</span><span class="o">=</span><span class="s1">"primary"</span><span class="o">]</span> <span class="p">{</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="err">{</span><span class="n">accent_cyan</span><span class="p">}</span><span class="o">;</span>
+    <span class="nt">border</span><span class="o">:</span> <span class="err">1</span><span class="nt">px</span> <span class="nt">solid</span> <span class="p">{</span><span class="err">accent_cyan</span><span class="p">}</span><span class="o">;</span>
+    <span class="nt">color</span><span class="o">:</span> <span class="p">{</span><span class="py">on</span><span class="p">:</span><span class="n">accent_cyan</span><span class="p">}</span><span class="o">;</span>
+    <span class="nt">font-weight</span><span class="o">:</span> <span class="err">700</span><span class="o">;</span>
+<span class="err">}</span>
+
+<span class="nt">QPushButton</span><span class="o">[</span><span class="nt">variant</span><span class="o">=</span><span class="s1">"primary"</span><span class="o">]</span><span class="nd">:hover</span> <span class="p">{</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="err">{</span><span class="n">accent_cyan</span><span class="err">@</span><span class="m">85</span><span class="p">}</span><span class="o">;</span>
+<span class="err">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The theme manager fills the tokens from the active theme in <code>themes.json</code> with one regex:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">_TOKEN_RE</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">\{(on:)?([a-z_]+)(?:@(\d{1,3}))?\}</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_resolve_token</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">colors</span><span class="p">,</span> <span class="n">match</span><span class="p">):</span>
+    <span class="n">on</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="k">match</span><span class="p">.</span><span class="nf">groups</span><span class="p">()</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="n">colors</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">on</span><span class="p">:</span>   <span class="c1"># pick white or near-black, whichever reads better on this color
+</span>        <span class="n">white</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_calculate_contrast_ratio</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="sh">'</span><span class="s">#ffffff</span><span class="sh">'</span><span class="p">)</span>
+        <span class="n">black</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_calculate_contrast_ratio</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="sh">'</span><span class="s">#000000</span><span class="sh">'</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sh">'</span><span class="s">#ffffff</span><span class="sh">'</span> <span class="k">if</span> <span class="n">white</span> <span class="o">&gt;=</span> <span class="n">black</span> <span class="k">else</span> <span class="sh">'</span><span class="s">#111111</span><span class="sh">'</span>
+    <span class="k">if</span> <span class="n">alpha</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">r</span><span class="p">,</span> <span class="n">g</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_hex_to_rgb</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="sh">"</span><span class="s">rgba(</span><span class="si">{</span><span class="n">r</span><span class="si">}</span><span class="s">, </span><span class="si">{</span><span class="n">g</span><span class="si">}</span><span class="s">, </span><span class="si">{</span><span class="n">b</span><span class="si">}</span><span class="s">, </span><span class="si">{</span><span class="nf">min</span><span class="p">(</span><span class="nf">int</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="mi">100</span><span class="p">)</span> <span class="o">/</span> <span class="mi">100</span><span class="si">:</span><span class="p">.</span><span class="mi">2</span><span class="n">f</span><span class="si">}</span><span class="s">)</span><span class="sh">"</span>
+    <span class="k">return</span> <span class="n">value</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Widgets only expose hooks: an <code>objectName</code> for unique pieces (<code>#Toolbar</code>, <code>#Sidebar</code>), a <code>variant</code> property for button flavours, a <code>role</code> for text styles. <code>{on:key}</code> turned out to be the most useful token: text on an accent-colored button is readable in all 16 themes without a single per-theme override. The image picker, the metadata dialogs and the batch window, which used to carry their own inline styles, now use the same file, so dialogs finally follow the theme too.</p>
+
+<h3>
+  <a name="a-canvas-you-can-trust" href="#a-canvas-you-can-trust">
+  </a>
+  A canvas you can trust
+</h3>
+
+<p>The old preview was a scaled label. The new canvas has mouse-wheel zoom around the cursor, pan, fit / 100 %, and two features that change how the app feels:</p>
+
+<ul>
+<li>
+<strong>Detect preview</strong> (<code>Ctrl+F</code>) outlines every region before anything is touched. Clicking one toggles it:
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code>  <span class="n">index</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_detection_at</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+      <span class="n">self</span><span class="p">.</span><span class="n">_skipped</span> <span class="o">^=</span> <span class="p">{</span><span class="n">index</span><span class="p">}</span>          <span class="c1"># click again to include it back
+</span>      <span class="n">self</span><span class="p">.</span><span class="n">detectionsChanged</span><span class="p">.</span><span class="nf">emit</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When you press Apply, only the regions still outlined are hidden. In a group photo, <em>you</em> decide who stays visible.</p>
+
+<ul>
+<li>
+<strong>Compare</strong> (<code>Ctrl+Shift+C</code>) draws the original on one side of a draggable divider and the result on the other, by clipping the "before" image to the divider's position.</li>
+</ul>
+
+<h3>
+  <a name="snapping-to-half-the-screen" href="#snapping-to-half-the-screen">
+  </a>
+  Snapping to half the screen
+</h3>
+
+<p>A small bug with a lesson. On GNOME, dragging the window to the screen edge did nothing. The window refused to tile because its <strong>minimum width was 1,095 px</strong>: the toolbar with all its labels was that wide, and Qt adds up minimum sizes. Half of a 1920 px screen is 960.</p>
+
+<p>The fix has two parts. The toolbar no longer reports a minimum width (<code>QSizePolicy.Policy.Ignored</code>), and an event filter switches it to icon-only buttons when there isn't room for the labels:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">self</span><span class="p">.</span><span class="n">toolbar</span><span class="p">.</span><span class="nf">setSizePolicy</span><span class="p">(</span><span class="n">QSizePolicy</span><span class="p">.</span><span class="n">Policy</span><span class="p">.</span><span class="n">Ignored</span><span class="p">,</span> <span class="n">QSizePolicy</span><span class="p">.</span><span class="n">Policy</span><span class="p">.</span><span class="n">Fixed</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_set_toolbar_compact</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">compact</span><span class="p">):</span>
+    <span class="n">style</span> <span class="o">=</span> <span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">ToolButtonStyle</span><span class="p">.</span><span class="n">ToolButtonIconOnly</span> <span class="k">if</span> <span class="n">compact</span>
+             <span class="k">else</span> <span class="n">Qt</span><span class="p">.</span><span class="n">ToolButtonStyle</span><span class="p">.</span><span class="n">ToolButtonTextBesideIcon</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">button</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_labelled_tools</span><span class="p">:</span>
+        <span class="n">button</span><span class="p">.</span><span class="nf">setToolButtonStyle</span><span class="p">(</span><span class="n">style</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The window's minimum is now 640 × 480, and it snaps like any other app.</p>
+
+
+<hr>
+
+<h2>
+  <a name="2-seven-languages-and-plurals-that-are-actually-right" href="#2-seven-languages-and-plurals-that-are-actually-right">
+  </a>
+  2. Seven languages, and plurals that are actually right
+</h2>
+
+<p>1.5 adds <strong>Persian</strong> (right to left), <strong>Spanish</strong>, <strong>Russian</strong>, <strong>German</strong> and <strong>Turkish</strong> to English and Arabic, and starts in your system language when it's one of them. Every screen is translated, including the factory metadata presets. Those got stable IDs (<code>strip_all</code>, <code>strip_gps</code>…) and translated display names, so presets users saved under their own names keep working.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ft2bfpc9mebwa9qje46jp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ft2bfpc9mebwa9qje46jp.png" alt="DotScramble in Arabic, right to left, on the light theme" loading="lazy" width="800" height="500"></a></p>
+
+<p>The interesting part was counting. My first translations dodged numbers ("Processed: 3") because "3 files" is easy in English and wrong almost everywhere else:</p>
+
+<ul>
+<li>
+<strong>Arabic</strong> has six plural forms: ملف واحد / ملفين / 3 ملفات / 11 ملفًا…</li>
+<li>
+<strong>Russian</strong> has three: 1 файл / 3 файла / 5 файлов, and 21 is "one" again.</li>
+<li>
+<strong>Persian</strong> uses the same form for 0 and 1.</li>
+</ul>
+
+<p>So a counted string in the locale files is now a dict of CLDR plural forms, and <code>get(key, count=n)</code> picks one:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="nl">"detected"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+  </span><span class="nl">"one"</span><span class="p">:</span><span class="w">   </span><span class="s2">"{shown} of {count} region will be hidden — click it to skip it"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"other"</span><span class="p">:</span><span class="w"> </span><span class="s2">"{shown} of {count} regions will be hidden — click one to skip it"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The rules are small functions, straight from CLDR:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_plural_ar</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">zero</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">one</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">two</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="mi">3</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;=</span> <span class="mi">10</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">few</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="mi">11</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;=</span> <span class="mi">99</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">many</span><span class="sh">"</span>
+    <span class="k">return</span> <span class="sh">"</span><span class="s">other</span><span class="sh">"</span>
+
+<span class="k">def</span> <span class="nf">_plural_ru</span><span class="p">(</span><span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">10</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">!=</span> <span class="mi">11</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">one</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="mi">2</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">10</span> <span class="o">&lt;=</span> <span class="mi">4</span> <span class="ow">and</span> <span class="ow">not</span> <span class="mi">12</span> <span class="o">&lt;=</span> <span class="n">n</span> <span class="o">%</span> <span class="mi">100</span> <span class="o">&lt;=</span> <span class="mi">14</span><span class="p">:</span> <span class="k">return</span> <span class="sh">"</span><span class="s">few</span><span class="sh">"</span>
+    <span class="k">return</span> <span class="sh">"</span><span class="s">many</span><span class="sh">"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>One subtlety: in "3 of 4 regions", the noun agrees with the <strong>total</strong>, not with the number shown, so the <em>total</em> has to pick the form. 105 tests now pin the rules and every counted string in every language.</p>
+
+
+<hr>
+
+<h2>
+  <a name="3-a-privacy-tool-must-never-fail-silently" href="#3-a-privacy-tool-must-never-fail-silently">
+  </a>
+  3. A privacy tool must never fail silently
+</h2>
+
+<p>This one scared me. Updating dependencies pulled in <strong>OpenCV 5</strong>, which no longer ships the Haar cascade files that free-tier face detection loads. The detectors returned an empty list, which looks exactly like "no faces found". The result: <em>"0 regions processed"</em>, a success message, and <strong>the face still visible</strong> in the saved photo.</p>
+
+<p>For most apps, "found nothing" is a fine default. For an app whose whole job is hiding faces, it's the worst possible outcome. Now the engine can tell the two apart:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">missing_cascades</span><span class="p">(</span><span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="sh">"""</span><span class="s">Cascade files `mode` needs but that can</span><span class="sh">'</span><span class="s">t be loaded. The detect_* methods
+    return [] in that case, which is indistinguishable from </span><span class="sh">"</span><span class="s">nothing found</span><span class="sh">"</span><span class="s">:
+    callers must check this first so a face is never left visible silently.</span><span class="sh">"""</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">HAAR_CASCADES</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="p">[])</span> <span class="k">if</span> <span class="nf">_get_cascade</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The window shows an error before detecting, batch processing marks the file as <strong>failed</strong> instead of "done", and <code>requirements.txt</code> pins <code>opencv-contrib-python&lt;5</code> with a comment explaining why.</p>
+
+<p>The same principle fixed a few quieter bugs:</p>
+
+<ul>
+<li>
+<strong>Live preview stacked the effect on itself.</strong> Each slider move blurred the already-blurred image, so the preview looked stronger than what you'd save. It now always re-applies to the original.</li>
+<li>
+<strong>Redo worked only once in a row</strong>: redo saved its result as a new history step, and saving a step clears the redo stack. Redo now saves with <code>clear_redo=False</code>.</li>
+<li>
+<strong>A startup error crashed the app</strong> (a core dump, because the error dialog was built before <code>QApplication</code> existed) instead of telling you what was wrong.</li>
+</ul>
+
+<h3>
+  <a name="activation-failed-to-fetch" href="#activation-failed-to-fetch">
+  </a>
+  Activation: "Failed to fetch"
+</h3>
+
+<p>When the DotSuite dashboard moved to <code>dotsuite.dev</code>, Pro activation broke with a bare <em>"Failed to fetch"</em> in the browser. Activation works through a small local HTTP server the app runs on <code>127.0.0.1</code>: the website sends the licence key to it. Two things had changed underneath it. The new origin wasn't in the server's CORS allow-list, and Chrome's <strong>Private Network Access</strong> now sends a preflight before a public site may talk to <code>localhost</code>, which the server has to answer explicitly:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nf">if </span><span class="p">(</span><span class="n">origin</span> <span class="ow">in</span> <span class="n">ALLOWED_ORIGINS</span>
+        <span class="ow">and</span> <span class="n">self</span><span class="p">.</span><span class="n">headers</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">Access-Control-Request-Private-Network</span><span class="sh">'</span><span class="p">,</span> <span class="sh">''</span><span class="p">).</span><span class="nf">lower</span><span class="p">()</span> <span class="o">==</span> <span class="sh">'</span><span class="s">true</span><span class="sh">'</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">send_header</span><span class="p">(</span><span class="sh">'</span><span class="s">Access-Control-Allow-Private-Network</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">true</span><span class="sh">'</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The second half of the bug was a 404 from a licence server that had moved. Two behaviour changes came with the fix: a rejected activation now shows the server's reason instead of a status code, and a Pro licence is no longer removed when the server simply can't be reached. Only an explicit rejection revokes it.</p>
+
+
+<hr>
+
+<h2>
+  <a name="4-shipping-it-four-bugs-only-a-clean-machine-found" href="#4-shipping-it-four-bugs-only-a-clean-machine-found">
+  </a>
+  4. Shipping it: four bugs only a clean machine found
+</h2>
+
+<p>Until 1.4, releases were built on my laptop. That's how 1.4.1 ended up needing a much newer glibc than most users have: PyInstaller binaries need a glibc at least as new as the machine that built them.</p>
+
+<p>In 1.5, pushing a tag runs one workflow on <strong>Ubuntu 22.04</strong> (glibc 2.35): tests → build the AppImage, <code>.deb</code>, Arch package and tarball → inspect the binaries → smoke-test the AppImage → write <code>SHA256SUMS</code> → GPG-sign every file → publish. The built-in updater installs an update only after the checksum <strong>and</strong> the signature check out against a pinned key fingerprint. And <code>version_policy.json</code> in the repo lets an old, broken version show an "Update required" screen with a download button. It never blocks offline use.</p>
+
+<p>That pipeline was green from day one. Then real machines found four bugs.</p>
+
+<h3>
+  <a name="bug-1-tesseract-crashed-but-only-in-the-packages" href="#bug-1-tesseract-crashed-but-only-in-the-packages">
+  </a>
+  Bug 1: Tesseract crashed, but only in the packages
+</h3>
+
+<p>Text and single-word detection said <em>"Tesseract not found"</em> in the AppImage and the <code>.deb</code>, yet <code>tesseract</code> was installed. Running it with the bundle's library path showed why:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>tesseract: /tmp/_MEI…/libstdc++.so.6: version `GLIBCXX_3.4.32' not found
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>PyInstaller's bootloader points <code>LD_LIBRARY_PATH</code> at the bundle so the app finds its own libraries. Every program the app <em>starts</em> inherits that, so the system Tesseract loaded the bundle's older <code>libstdc++</code> from Ubuntu 22.04 and died. The dynamic loader reads the variable once at startup, so the app can safely put the user's value back for its children:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">restore_child_library_path</span><span class="p">(</span><span class="n">environ</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">environ</span> <span class="k">if</span> <span class="n">environ</span> <span class="ow">is</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">environ</span>
+    <span class="n">frozen</span> <span class="o">=</span> <span class="nf">getattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="sh">'</span><span class="s">frozen</span><span class="sh">'</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="k">if</span> <span class="n">frozen</span> <span class="ow">is</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">frozen</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">frozen</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">sys</span><span class="p">.</span><span class="n">platform</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">'</span><span class="s">linux</span><span class="sh">'</span><span class="p">):</span>
+        <span class="k">return</span>
+    <span class="n">original</span> <span class="o">=</span> <span class="n">environ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">LD_LIBRARY_PATH_ORIG</span><span class="sh">"</span><span class="p">)</span>   <span class="c1"># saved by the bootloader
+</span>    <span class="k">if</span> <span class="n">original</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">environ</span><span class="p">[</span><span class="sh">"</span><span class="s">LD_LIBRARY_PATH</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">original</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">environ</span><span class="p">.</span><span class="nf">pop</span><span class="p">(</span><span class="sh">"</span><span class="s">LD_LIBRARY_PATH</span><span class="sh">"</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That was 1.5.1.</p>
+
+<h3>
+  <a name="bug-2-the-appimage-couldnt-open-a-window" href="#bug-2-the-appimage-couldnt-open-a-window">
+  </a>
+  Bug 2: the AppImage couldn't open a window
+</h3>
+
+<p>I submitted DotScramble to <a href="https://www.appimagehub.com/p/2362477/" target="_blank" rel="noopener noreferrer">AppImageHub</a>, whose test runs your AppImage on a clean Ubuntu 22.04 and takes a screenshot. It failed:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Cannot load library …/platforms/libqxcb.so: libxkbcommon-x11.so.0: cannot open shared object file
+This application failed to start because no Qt platform plugin could be initialized.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Qt's X11 plugin needs five libraries (<code>libxkbcommon-x11</code>, <code>libxcb-icccm</code>, <code>libxcb-keysyms</code>, <code>libxcb-shape</code>, <code>libxcb-xkb</code>) that PyInstaller only bundles if they're installed <strong>on the build machine</strong>. They weren't, PyInstaller skipped them with a warning nobody read, and my smoke test passed because it ran Qt with the <code>offscreen</code> platform, which never loads the X11 plugin. On my desktop, those libraries happen to be installed, so I never saw it.</p>
+
+<p>I reproduced their environment in Docker before changing anything: same failure, then <code>Application initialized successfully</code> once those five libraries were present. The fix was to install them on the builder. The real change was in the workflow: it now <strong>lists every library the X11 plugin links</strong> (<code>readelf -d</code>) and fails if one isn't in the binary, and it <strong>runs the AppImage on X11 in a clean <code>ubuntu:22.04</code> container</strong> before publishing. Both checks failed on the old build and passed on 1.5.4, and AppImageHub's test turned green.</p>
+
+<h3>
+  <a name="bug-3-the-check-that-almost-broke-the-appimage" href="#bug-3-the-check-that-almost-broke-the-appimage">
+  </a>
+  Bug 3: the check that almost broke the AppImage
+</h3>
+
+<p>To verify the AppImage's embedded update information (so AppImageUpdate and Gear Lever can update it), my first draft of the check read the ELF section with:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>objcopy <span class="nt">--dump-section</span> .upd_info<span class="o">=</span>/dev/stdout DotScramble-Linux-x86_64.AppImage
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>With no output file, <code>objcopy</code> <strong>rewrites the input in place</strong>, and it drops everything after the ELF part, which in an AppImage is the entire SquashFS image. I only noticed because the next step, extracting the AppImage, failed locally with <em>"This doesn't look like a squashfs image"</em>. In CI it would have published a broken file. <code>readelf --string-dump=.upd_info</code> only reads.</p>
+
+<h3>
+  <a name="bug-4-right-metadata-wrong-file-name" href="#bug-4-right-metadata-wrong-file-name">
+  </a>
+  Bug 4: right metadata, wrong file name
+</h3>
+
+<p>AppImageHub builds its listing from the AppStream file inside the AppImage. I shipped it under the current AppStream name, <code>….metainfo.xml</code>. Their scripts only read <code>*.appdata.xml</code> for the summary and description, so the listing would have been blank. Same content, different name: 1.5.3.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bugs-i-hit-and-what-they-actually-were" href="#bugs-i-hit-and-what-they-actually-were">
+  </a>
+  Bugs I Hit and What They Actually Were
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Actual cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Window won't snap to half the screen</td>
+<td>toolbar's labels made the minimum width 1,095 px</td>
+</tr>
+<tr>
+<td>"0 regions processed", face still visible</td>
+<td>OpenCV 5 dropped the Haar cascade files; empty list looked like "no faces"</td>
+</tr>
+<tr>
+<td>Preview stronger than the saved image</td>
+<td>live preview re-applied the effect to its own output</td>
+</tr>
+<tr>
+<td>"Failed to fetch" on activation</td>
+<td>new origin missing from CORS, plus Chrome's Private Network Access preflight</td>
+</tr>
+<tr>
+<td>"Tesseract not found" in packages only</td>
+<td>children inherited the bundle's <code>LD_LIBRARY_PATH</code> and its older <code>libstdc++</code>
+</td>
+</tr>
+<tr>
+<td>AppImage quits on a clean system</td>
+<td>five X11 libraries missing from the build; smoke test ran <code>offscreen</code>
+</td>
+</tr>
+<tr>
+<td>AppImage corrupted by its own check</td>
+<td>
+<code>objcopy</code> without an output file rewrites the input</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2>
+  <a name="honest-limitations" href="#honest-limitations">
+  </a>
+  Honest Limitations
+</h2>
+
+<ul>
+<li>Still <strong>Linux x86_64 only</strong>, glibc 2.35+. No Windows or macOS builds yet.</li>
+<li>The five new translations are new. They follow CLDR, but a native speaker will find phrasing to fix, and corrections are very welcome.</li>
+<li>The theme system covers Qt widgets. The canvas overlays read colors through <code>qproperty-*</code> hooks, so a theme can't yet change, say, the detection outline's thickness.</li>
+<li>AI Evasion works as before: slow on the CPU, and tested against MediaPipe only.</li>
+</ul>
+
+<h2>
+  <a name="key-takeaways" href="#key-takeaways">
+  </a>
+  Key Takeaways
+</h2>
+
+<ol>
+<li>
+<strong>One stylesheet with tokens beats colors scattered across Python.</strong> <code>{on:key}</code> alone removed a whole class of unreadable-button bugs.</li>
+<li>
+<strong>Plurals are data, not string formatting.</strong> Six Arabic forms don't fit in an f-string.</li>
+<li><strong>In a privacy tool, "found nothing" and "couldn't look" must never look the same.</strong></li>
+<li>
+<strong>Your CI is a machine you configured.</strong> Test on one you didn't: a clean container found two bugs that every green CI run had missed.</li>
+<li><strong>Read the tool's man page before pointing it at your release artifact.</strong></li>
+</ol>
+
+<p>DotScramble 1.5.4 is out: AppImage, <code>.deb</code>, Arch package and tarball, all GPG-signed.</p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">kareem2099/DotScramble</a>
+</li>
+<li>
+<strong>Download:</strong> <a href="https://github.com/kareem2099/DotScramble/releases/latest" target="_blank" rel="noopener noreferrer">latest release</a>
+</li>
+<li>
+<strong>Also on:</strong> <a href="https://www.appimagehub.com/p/2362477/" target="_blank" rel="noopener noreferrer">AppImageHub</a> · <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>
+</li>
+<li>
+<strong>Project page:</strong> <a href="https://dotsuite.dev/en/product/dotscramble" target="_blank" rel="noopener noreferrer">dotsuite.dev/en/product/dotscramble</a>
+</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotscramble-part-4-a-new-ui-in-one-stylesheet-7-languages-with-real-plurals-and-the-4618" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotscramble-part-4-a-new-ui-in-one-stylesheet-7-languages-with-real-plurals-and-the-4618#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

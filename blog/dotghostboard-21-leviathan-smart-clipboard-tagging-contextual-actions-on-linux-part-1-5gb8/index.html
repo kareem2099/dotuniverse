@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotGhostBoard 2.1 'Leviathan' — Smart Clipboard Tagging &amp; Contextual Actions on Linux (Part 1) — FreeRave</title>
+<meta name="description" content="How we built a rules-based clipboard intelligence engine for Linux — local, deterministic,...">
+<link rel="canonical" href="https://dev.to/freerave/dotghostboard-21-leviathan-smart-clipboard-tagging-contextual-actions-on-linux-part-1-5gb8">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotghostboard-21-leviathan-smart-clipboard-tagging-contextual-actions-on-linux-part-1-5gb8">
+<meta property="og:title" content="DotGhostBoard 2.1 'Leviathan' — Smart Clipboard Tagging &amp; Contextual Actions on Linux (Part 1) — FreeRave">
+<meta property="og:description" content="How we built a rules-based clipboard intelligence engine for Linux — local, deterministic,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F38g96ht0257bj4wopneb.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F38g96ht0257bj4wopneb.png" alt="">
+  <h1 class="post-title">DotGhostBoard 2.1 'Leviathan' — Smart Clipboard Tagging &amp; Contextual Actions on Linux (Part 1)</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-02T20:59:46Z">2 October 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#opensource</span><span class="post-tag">#python</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-we-built-a-rulesbased-clipboard-intelligence-engine-for-linux-local-deterministic-submillisecond-for-typical-payloads-lt-5kb-zero-ai-zero-telemetry-autotagging-contextual-smart-actions-and-a-tight-pipeline-architecture-explained" href="#how-we-built-a-rulesbased-clipboard-intelligence-engine-for-linux-local-deterministic-submillisecond-for-typical-payloads-lt-5kb-zero-ai-zero-telemetry-autotagging-contextual-smart-actions-and-a-tight-pipeline-architecture-explained">
+  </a>
+  How we built a rules-based clipboard intelligence engine for Linux — local, deterministic, sub-millisecond for typical payloads (&lt; 5KB), zero AI, zero telemetry. Auto-tagging, contextual smart actions, and a tight pipeline architecture explained.
+</h2>
+
+<p>You copy a minified JSON blob from a terminal log. To actually read it, you paste it into an editor, run a formatter, then copy the result back. You copy an API key from a config file and your clipboard manager stores it as plain text, alongside screenshots and grocery lists, until you manually hunt it down and secure it.</p>
+
+<p>Most clipboard tools treat every copied item the same: inert text in a database. For anyone who spends time in terminals, editors, and browser devtools, that uniformity creates constant small frictions that accumulate fast.</p>
+
+<p><strong>DotGhostBoard 2.1 "Leviathan"</strong> takes a different approach. The clipboard understands what it's holding and surfaces the right action immediately — format this JSON, open that URL, secure this credential.</p>
+
+<p>This is a two-part series on how we built it:</p>
+
+<ul>
+<li>
+<strong>Part 1 (you're here):</strong> Rules-based Smart Auto-Tagging, Contextual Smart Actions, and the pipeline behind them.</li>
+<li>
+<strong><a href="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8">Part 2</a>:</strong> Cryptographic <code>.vault</code> Backups, CSPRNG Password Generator, Secret Expiry, and Encrypted Version History.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-design-constraint-local-deterministic-fast" href="#the-design-constraint-local-deterministic-fast">
+  </a>
+  The Design Constraint: Local, Deterministic, Fast
+</h2>
+
+<p>The obvious shortcut for text classification is an LLM or a cloud API. For a clipboard manager, that's a non-starter on three counts.</p>
+
+<p>Your clipboard routinely holds API keys, internal paths, private tokens, and proprietary code snippets. Sending that to any remote service — even a local on-device model — introduces a trust boundary that shouldn't exist in a tool people actually rely on for security. Beyond that, loading inference libraries adds hundreds of MB of idle RAM, and any latency between <code>Ctrl+C</code> and the item appearing in history is enough to make the tool feel broken.</p>
+
+<p>Our constraint was concrete: <strong>every classification must run locally, produce deterministic results, and complete in under 1ms for typical clipboard payloads (&lt; 5KB), scaling to ~1.4ms worst-case at the 8KB classification cap.</strong></p>
+
+<p>The approach: pre-compiled regular expressions, structural heuristics, and a pool-based keyspace entropy estimate — no opaque models.</p>
+
+
+<hr>
+
+<h2>
+  <a name="1-the-autotagger-how-classification-actually-works" href="#1-the-autotagger-how-classification-actually-works">
+  </a>
+  1. The Auto-Tagger: How Classification Actually Works
+</h2>
+
+<p>The engine lives in <code>core/security/auto_tagger.py</code>. It runs synchronously on every new clipboard item before storage and UI rendering.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Captured Text ──► Pre-compiled Patterns &amp; Heuristics ──► Tags ──► Storage &amp; UI
+                  ├── URL regex                       ──► #link
+                  ├── JSON fast-path + json.loads     ──► #json
+                  ├── Code keywords + bracket density ──► #code
+                  ├── Known prefixes + entropy gate   ──► #secret
+                  ├── IPv4 regex + IPv6 regex         ──► #ip
+                  ├── RFC-like email regex            ──► #email
+                  ├── Unix / Windows path regex       ──► #path
+                  └── Hex length check {32,64}        ──► #hash
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>All patterns compile once at module load time. The function is pure — no I/O, no Qt, no database access — which makes it fast to call and trivial to test.</p>
+
+<p>Here's the real implementation, abbreviated:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/security/auto_tagger.py
+</span>
+<span class="kn">import</span> <span class="n">json</span><span class="p">,</span> <span class="n">re</span><span class="p">,</span> <span class="n">math</span><span class="p">,</span> <span class="n">string</span>
+
+<span class="c1"># ── Compiled patterns (module-level — compiled once, reused forever) ──────────
+</span>
+<span class="n">_RE_URL</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">https?://[^\s\"</span><span class="sh">'</span><span class="s">&lt;&gt;]{3,}|ftp://[^\s\"</span><span class="sh">'</span><span class="s">&lt;&gt;]{3,}</span><span class="sh">"</span><span class="p">,</span> <span class="n">re</span><span class="p">.</span><span class="n">IGNORECASE</span><span class="p">)</span>
+<span class="n">_RE_EMAIL</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="n">_RE_IPV4</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span>                             <span class="c1"># validates 0-255 per octet
+</span>    <span class="sa">r</span><span class="sh">"</span><span class="s">\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}</span><span class="sh">"</span>
+    <span class="sa">r</span><span class="sh">"</span><span class="s">(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b</span><span class="sh">"</span>
+<span class="p">)</span>
+<span class="n">_RE_IPV6</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">\b(?:[0-9a-fA-F]{1,4}:){2,7}[0-9a-fA-F]{1,4}\b</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="c1"># Pragmatic range matching MD5 (32), SHA-1 (40), SHA-256 (64); strict lengths planned for v2.2
+</span><span class="n">_RE_HEX_HASH</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">\b[0-9a-fA-F]{32,64}\b</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="c1"># Known credential prefixes — the first line of secret detection
+</span><span class="n">_RE_SECRET_PATTERNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">ghp_[A-Za-z0-9]{36,}</span><span class="sh">"</span><span class="p">),</span>                          <span class="c1"># GitHub PAT
+</span>    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">AKIA[0-9A-Z]{16}</span><span class="sh">"</span><span class="p">),</span>                               <span class="c1"># AWS Access Key
+</span>    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">sk-[A-Za-z0-9]{32,}</span><span class="sh">"</span><span class="p">),</span>                           <span class="c1"># OpenAI / Stripe
+</span>    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">xox[baprs]-[A-Za-z0-9\-]{10,}</span><span class="sh">"</span><span class="p">),</span>                 <span class="c1"># Slack tokens
+</span>    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">eyJ[A-Za-z0-9\-_]{10,}\.[A-Za-z0-9\-_]{10,}</span><span class="sh">"</span><span class="p">),</span>  <span class="c1"># JWT
+</span>    <span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">"</span><span class="s">-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----</span><span class="sh">"</span><span class="p">),</span>
+<span class="p">]</span>
+
+<span class="c1"># (Note: _RE_PATH, _CODE_KEYWORDS, and _CODE_BRACKETS are omitted here for brevity)
+</span>
+<span class="c1"># ── Pool-based keyspace entropy estimate ──────────────────────────────────────
+</span>
+<span class="k">def</span> <span class="nf">_entropy_bits</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Estimate theoretical keyspace entropy: H = len * log₂(pool_size).</span><span class="sh">"""</span>
+    <span class="n">pool</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="nf">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_lowercase</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span> <span class="n">pool</span> <span class="o">+=</span> <span class="mi">26</span>
+    <span class="k">if</span> <span class="nf">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_uppercase</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span> <span class="n">pool</span> <span class="o">+=</span> <span class="mi">26</span>
+    <span class="k">if</span> <span class="nf">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">digits</span>           <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span> <span class="n">pool</span> <span class="o">+=</span> <span class="mi">10</span>
+    <span class="c1"># Any non-alphanumeric character (symbols, punctuation, or non-ASCII) adds 32
+</span>    <span class="k">if</span> <span class="nf">any</span><span class="p">(</span><span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_letters</span> <span class="o">+</span> <span class="n">string</span><span class="p">.</span><span class="n">digits</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span> <span class="n">pool</span> <span class="o">+=</span> <span class="mi">32</span>
+    <span class="k">return</span> <span class="n">math</span><span class="p">.</span><span class="nf">log2</span><span class="p">(</span><span class="n">pool</span> <span class="ow">or</span> <span class="mi">26</span><span class="p">)</span> <span class="o">*</span> <span class="nf">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+
+<span class="c1"># ── Main classification function ──────────────────────────────────────────────
+</span>
+<span class="k">def</span> <span class="nf">detect_tags</span><span class="p">(</span><span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">content</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nf">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">content</span><span class="p">.</span><span class="nf">strip</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">_RE_URL</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>    <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#link</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_RE_EMAIL</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>  <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#email</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_RE_IPV4</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_RE_IPV6</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">):</span> <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#ip</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_RE_PATH</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">and</span> <span class="sh">"</span><span class="s">#link</span><span class="sh">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>   <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#path</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_RE_HEX_HASH</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>                       <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#hash</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="c1"># Secret detection: known prefix first, entropy gate as fallback
+</span>    <span class="n">is_secret</span> <span class="o">=</span> <span class="nf">any</span><span class="p">(</span><span class="n">p</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_RE_SECRET_PATTERNS</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_secret</span> <span class="ow">and</span> <span class="nf">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">16</span> <span class="ow">and</span> <span class="sh">"</span><span class="s"> </span><span class="sh">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">text</span> <span class="ow">and</span> <span class="sh">"</span><span class="se">\n</span><span class="sh">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">text</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nf">_entropy_bits</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">90</span><span class="p">:</span>
+            <span class="n">is_secret</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="k">if</span> <span class="n">is_secret</span><span class="p">:</span>
+        <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#secret</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="c1"># JSON: only attempt parse if it looks like an object or array
+</span>    <span class="k">if</span> <span class="n">text</span><span class="p">.</span><span class="nf">lstrip</span><span class="p">().</span><span class="nf">startswith</span><span class="p">((</span><span class="sh">"</span><span class="s">{</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">[</span><span class="sh">"</span><span class="p">)):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#json</span><span class="sh">"</span><span class="p">)</span>
+        <span class="nf">except </span><span class="p">(</span><span class="n">json</span><span class="p">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="nb">ValueError</span><span class="p">):</span>
+            <span class="k">pass</span>
+
+    <span class="c1"># Code: multi-line with language keywords or dense bracket patterns
+</span>    <span class="k">if</span> <span class="sh">"</span><span class="se">\n</span><span class="sh">"</span> <span class="ow">in</span> <span class="n">text</span> <span class="ow">and</span> <span class="nf">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">40</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">_CODE_KEYWORDS</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_CODE_BRACKETS</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+            <span class="n">tags</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">#code</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nf">list</span><span class="p">(</span><span class="nb">dict</span><span class="p">.</span><span class="nf">fromkeys</span><span class="p">(</span><span class="n">tags</span><span class="p">))</span>  <span class="c1"># deduplicate, preserve order
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="secret-detection-two-layers" href="#secret-detection-two-layers">
+  </a>
+  Secret Detection: Two Layers
+</h3>
+
+<p>The <code>#secret</code> classifier uses a two-step approach:</p>
+
+<p><strong>Layer 1 — Known prefixes.</strong> Patterns like <code>ghp_</code>, <code>AKIA</code>, <code>eyJ</code> (JWT header) are unambiguous. Match any of them and the tag is assigned immediately, no entropy calculation needed.</p>
+
+<p><strong>Layer 2 — Entropy gate.</strong> For everything else: single-line, no spaces, at least 16 characters, and a pool-based keyspace entropy ≥ 90 bits. The 90-bit threshold was tuned empirically to catch random high-entropy tokens, API keys, and strong bearer credentials while skipping short identifiers, dictionary words, and common camelCase variable names.</p>
+
+<p>Both conditions guard against a common pitfall: pure Shannon entropy on raw text produces too many false positives on long sentences or dense code snippets. The entropy function here is <code>H = len × log₂(pool_size)</code> — a measure of the <em>theoretical keyspace</em>, not character frequency distribution.</p>
+
+<blockquote>
+<p><strong>Note on non-ASCII characters:</strong> Because <code>any(c not in string.ascii_letters + string.digits ...)</code> catches non-ASCII characters (e.g. Arabic script, accented letters, emoji), unicode text will trigger the <code>+32</code> symbols branch. This heuristic is tuned primarily for ASCII credentials; multilingual script entropy is handled gracefully without throwing exceptions.</p>
+</blockquote>
+
+<h3>
+  <a name="known-limitations" href="#known-limitations">
+  </a>
+  Known Limitations
+</h3>
+
+<p>Honest engineering requires talking about edge cases:</p>
+
+<ol>
+<li>
+<strong>Long Paths tagged as <code>#secret</code>:</strong> A Unix path like <code>/home/kareem/StudioProjects/DotGhostBoard/main.py</code> currently receives both <code>#path</code> and <code>#secret</code> — it satisfies the entropy gate because it has no spaces and mixes uppercase, lowercase, digits, and <code>/</code>. We've logged this as a known limitation; v2.2 will add <code>#path</code> as an explicit exclusion condition for the entropy fallback.</li>
+<li>
+<strong>Hashes flagged as <code>#secret</code>:</strong> A 32-character hex string (like an MD5 digest) uses digits + lowercase (<code>pool = 36</code>), yielding <code>32 × log₂(36) ≈ 165 bits</code>, which clears the ≥ 90-bit gate. Consequently, MD5 and SHA digests receive both <code>#hash</code> and <code>#secret</code>; a dedicated check to prioritize <code>#hash</code> alone is slated for v2.2.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="2-what-the-tag-enables-contextual-smart-actions" href="#2-what-the-tag-enables-contextual-smart-actions">
+  </a>
+  2. What the Tag Enables: Contextual Smart Actions
+</h2>
+
+<p>Tags are displayed as colored pill chips on each card. More importantly, they drive <strong>Contextual Smart Actions</strong> — buttons that appear dynamically in the card toolbar based on what was detected.</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Action</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>#link</code></td>
+<td>🔗 Open Link</td>
+<td>
+<code>QDesktopServices.openUrl()</code> — no copy-paste to browser</td>
+</tr>
+<tr>
+<td><code>#json</code></td>
+<td>
+<code>{ }</code> Format JSON</td>
+<td>Parses, re-serializes with 2-space indent, writes back to clipboard</td>
+</tr>
+<tr>
+<td><code>#email</code></td>
+<td>✉ Compose</td>
+<td>Constructs a <code>mailto:</code> URI, hands off to default mail client</td>
+</tr>
+<tr>
+<td><code>#ip</code></td>
+<td>📡 Copy IP</td>
+<td>Extracts just the IP from surrounding log noise</td>
+</tr>
+<tr>
+<td><code>#secret</code></td>
+<td>🛡 → Vault</td>
+<td>Opens Vault drawer, prefills secret dialog, purges plaintext from history</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Here's the JSON formatter — the action developers use most:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/widgets/item_card.py (simplified)
+</span><span class="kn">import</span> <span class="n">json</span>
+
+<span class="k">def</span> <span class="nf">_on_format_json</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">parsed</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_raw_text</span><span class="p">)</span>
+        <span class="n">formatted</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">parsed</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+        <span class="n">QApplication</span><span class="p">.</span><span class="nf">clipboard</span><span class="p">().</span><span class="nf">setText</span><span class="p">(</span><span class="n">formatted</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_flash_badge</span><span class="p">(</span><span class="sh">"</span><span class="s">✓ Formatted</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">json</span><span class="p">.</span><span class="n">JSONDecodeError</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_flash_badge</span><span class="p">(</span><span class="sh">"</span><span class="s">✗ Invalid JSON</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>One button. Minified JSON in, readable JSON back in your clipboard. No editor, no extra window.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Facfb25eq5b5pldkhxpkp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Facfb25eq5b5pldkhxpkp.png" alt="DotGhostBoard 2.1 Smart Auto-Tagging &amp; Contextual Actions Live UI" loading="lazy" width="800" height="216"></a><br>
+<em>Figure 1: Auto-detected tags (<code>#link</code>, <code>#ip</code>, <code>#code</code>) and dynamic contextual smart actions (<code>🔗 Open Link</code>, <code>📡 Copy IP</code>) on clipboard cards.</em></p>
+
+<hr>
+<h2>
+  <a name="3-pipeline-architecture" href="#3-pipeline-architecture">
+  </a>
+  3. Pipeline Architecture
+</h2>
+
+<p>The classifier only stays fast because it runs inside a well-isolated pipeline:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fb7mwvntrvq6rrmbusbb2.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fb7mwvntrvq6rrmbusbb2.png" alt="DotGhostBoard 2.1 Ingestion &amp; Classification Pipeline" loading="lazy" width="800" height="382"></a><br>
+<em>Figure 2: The 4-phase sequential classification and dispatch pipeline.</em><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[System Clipboard] ──► ClipboardWatcher (background polling / events)
+                             │
+                             ▼
+                    ClipboardPipeline (pure policy layer)
+                      ├── App filter      (skip blacklisted sources)
+                      ├── Self-paste guard (skip our own copy events)
+                      ├── AutoTagger      (sync, pure, no I/O)
+                      └── Duplicate &amp; pin policy
+                             │
+                             ▼
+                    HistoryService ──► SQLite (PRAGMA secure_delete)
+                             │
+                             ▼
+                    HistoryController ──► CardsView (lazy render)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>AutoTagger</code> has zero dependencies on Qt, SQLite, or any network code. That isolation means:</p>
+
+<ul>
+<li>The UI thread is never blocked by classification.</li>
+<li>Unit tests need no display server or mocked widgets.</li>
+<li>You can swap, extend, or replace tagging rules without touching controllers or storage.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="4-measured-latency" href="#4-measured-latency">
+  </a>
+  4. Measured Latency
+</h2>
+
+<p>We wanted hard performance guarantees rather than assumptions. Here are <code>timeit</code> measurements on typical clipboard payloads running on an <strong>Intel Core i5-8350U @ 1.70GHz (Python 3.14.7, Linux x86_64)</strong>, 1,000 iterations each:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fxa88jjpqkrr6fvqc6da0.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fxa88jjpqkrr6fvqc6da0.png" alt="DotGhostBoard 2.1 Classification Latency Benchmarks" loading="lazy" width="800" height="382"></a><br>
+<em>Figure 3: Microsecond-level classification benchmark measurements across typical clipboard payloads.</em><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Payload                      min µs    median µs    max µs
+──────────────────────────────────────────────────────────
+URL                             8.2          8.8      10.7
+GitHub PAT                      6.5          6.8      10.1
+IPv4 address                    7.1          7.5      12.7
+MD5 hash                        7.1          7.2       7.6
+JSON (small, ~80 chars)        14.1         14.4      16.1
+Code snippet                   20.3         20.4      21.4
+Plain English text             14.8         15.2      15.3
+JSON (1KB payload)             80.3         81.8      82.6
+Worst-case dense (7.8KB)     1380.0       1410.6    1460.0
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The "&lt; 1ms" guarantee holds for typical clipboard payloads (&lt; 5KB), with small items (URLs, hashes, JSON) processing in 8–82 µs. At the 8KB cap, worst-case dense tokens (7.8KB of unspaced text forcing character-by-character entropy evaluation) measure ~1.4ms. Payloads exceeding 8KB automatically bypass the entropy gate to ensure the UI loop never hitches on huge paste events.</p>
+
+
+<hr>
+
+<h2>
+  <a name="coming-up-in-part-2" href="#coming-up-in-part-2">
+  </a>
+  Coming Up in Part 2
+</h2>
+
+<p>The productivity layer is half the story. The other half is what happens to sensitive data after it's detected.</p>
+
+<p>In <strong><a href="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8">Part 2</a></strong>, we cover the security architecture:</p>
+
+<ul>
+<li>🔐 <strong>Standalone <code>.vault</code> encrypted backups</strong> — AES-256-GCM packages with AAD header authentication, zero plaintext on disk, PBKDF2 key derivation.</li>
+<li>⚡ <strong>CSPRNG Password &amp; Token Generator</strong> — Live keyspace entropy meter calibrated to 131.1 bits.</li>
+<li>⏳ <strong>Secret Expiry Tracking</strong> — Calendar-based expiry with <code>⛔ EXPIRED</code> and <code>⚠️ 3d left</code> badges.</li>
+<li>📜 <strong>Encrypted Version History</strong> — Last 3 versions retained, one-click atomic revert.</li>
+<li>🧹 <strong>Coordinated Plaintext Sweep</strong> — Purging matching unencrypted history records upon Vault deletion.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-dotghostboard-21" href="#try-dotghostboard-21">
+  </a>
+  📦 Try DotGhostBoard 2.1
+</h2>
+
+<p>100% free and open-source — <strong>Apache-2.0 License.</strong></p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">kareem2099/DotGhostBoard</a>
+</li>
+<li>
+<strong>OpenDesktop / KDE Store:</strong> <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard on OpenDesktop</a>
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>git clone https://github.com/kareem2099/DotGhostBoard.git
+<span class="nb">cd </span>DotGhostBoard
+
+python3 <span class="nt">-m</span> venv venv <span class="o">&amp;&amp;</span> <span class="nb">source </span>venv/bin/activate
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+
+python3 main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="keyboard-shortcuts" href="#keyboard-shortcuts">
+  </a>
+  Keyboard Shortcuts
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ctrl+Alt+V</code></td>
+<td>Summon / hide Dashboard (migrates to active workspace)</td>
+</tr>
+<tr>
+<td><code>Ctrl+Alt+Space</code></td>
+<td>Floating Spotlight Quick Search</td>
+</tr>
+<tr>
+<td><code>Ctrl+Shift+V</code></td>
+<td>Open / close The Vault encrypted drawer</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<p>Questions about the classification heuristics, the entropy threshold choice, or the action pipeline? Drop them in the comments. 👻</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotghostboard-21-leviathan-smart-clipboard-tagging-contextual-actions-on-linux-part-1-5gb8" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotghostboard-21-leviathan-smart-clipboard-tagging-contextual-actions-on-linux-part-1-5gb8#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

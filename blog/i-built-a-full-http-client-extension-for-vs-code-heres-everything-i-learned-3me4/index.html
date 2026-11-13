@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Full HTTP Client Extension for VS Code — Here's Everything I Learned — FreeRave</title>
+<meta name="description" content="DotFetch v1.2.0 — A deep dive into building a professional REST client inside VS Code with Auth,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-full-http-client-extension-for-vs-code-heres-everything-i-learned-3me4">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-full-http-client-extension-for-vs-code-heres-everything-i-learned-3me4">
+<meta property="og:title" content="I Built a Full HTTP Client Extension for VS Code — Here's Everything I Learned — FreeRave">
+<meta property="og:description" content="DotFetch v1.2.0 — A deep dive into building a professional REST client inside VS Code with Auth,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Farisw6tx6rgxk2sozg63.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Farisw6tx6rgxk2sozg63.png" alt="">
+  <h1 class="post-title">I Built a Full HTTP Client Extension for VS Code — Here's Everything I Learned</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-21T09:00:00Z">21 March 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#api</span><span class="post-tag">#showdev</span><span class="post-tag">#tooling</span><span class="post-tag">#vscode</span></div>
+  </div>
+  <article class="post-body">
+<p>DotFetch v1.2.0 — A deep dive into building a professional REST client inside VS Code with Auth, Retry Logic, JSON Highlighting, and a modular ES Modules architecture."<br>
+tags: vscode, typescript, javascript, webdev</p>
+<h2>
+  <a name="coverimage-httpsrawgithubusercontentcomkareem2099dotfetchmainmediascreenshotmainpng" href="#coverimage-httpsrawgithubusercontentcomkareem2099dotfetchmainmediascreenshotmainpng">
+  </a>
+  cover_image: <a href="https://raw.githubusercontent.com/kareem2099/DotFetch/main/media/screenshot-main.png" target="_blank" rel="noopener noreferrer">https://raw.githubusercontent.com/kareem2099/DotFetch/main/media/screenshot-main.png</a>
+</h2>
+
+<p>I've been building <strong>DotFetch</strong> — a VS Code extension that replaces Postman/Insomnia for developers who live inside their editor. Version 1.2.0 just dropped, and I want to share the interesting engineering decisions behind it.</p>
+
+<blockquote>
+<p>🔗 <a href="https://github.com/kareem2099/DotFetch" target="_blank" rel="noopener noreferrer">GitHub</a> | <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotfetch" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a> | <a href="https://open-vsx.org/extension/freerave/dotfetch" target="_blank" rel="noopener noreferrer">Open VSX</a></p>
+</blockquote>
+
+<hr>
+<h2>
+  <a name="what-is-dotfetch" href="#what-is-dotfetch">
+  </a>
+  What is DotFetch?
+</h2>
+
+<p>An HTTP client that lives inside your VS Code sidebar. No context switching, no separate app. Just open the panel and fire requests.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Features shipped in v1.2.0:
+✅ Basic Auth (RFC 7617) + Bearer Token (RFC 6750)
+✅ JSON Syntax Highlighting
+✅ Request Templates
+✅ Auto Retry with Linear Backoff
+✅ History Search &amp; Filter
+✅ Collection Export to JSON
+✅ Modular ES Modules architecture
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="see-it-in-action-60second-demo" href="#see-it-in-action-60second-demo">
+  </a>
+  🎥 See it in action (60-second Demo)
+</h3>
+
+<h2>
+  <a name="-youtube-svnr96kakwu-" href="#-youtube-svnr96kakwu-">
+  </a>
+    <iframe src="https://www.youtube.com/embed/sVnR96kAkwU" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+
+</h2>
+
+<h2>
+  <a name="problem-1-vs-code-webviews-are-sandboxed" href="#problem-1-vs-code-webviews-are-sandboxed">
+  </a>
+  Problem 1: VS Code Webviews are sandboxed
+</h2>
+
+<p>The biggest surprise when building a VS Code extension with a Webview: <strong>you can't use <code>window.prompt()</code>, <code>window.alert()</code>, or <code>window.confirm()</code></strong> reliably. They're blocked in the webview sandbox.</p>
+
+<p>I learned this the hard way when building the Template save feature:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// ❌ This silently does nothing in VS Code webviews</span>
+<span class="kd">const</span> <span class="nx">name</span> <span class="o">=</span> <span class="nb">window</span><span class="p">.</span><span class="nf">prompt</span><span class="p">(</span><span class="dl">'</span><span class="s1">Template name:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">defaultName</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The fix? Build a proper modal and communicate via <code>postMessage</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// ✅ Show a real modal instead</span>
+<span class="kd">function</span> <span class="nf">saveAsTemplate</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">modal</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">template-modal</span><span class="dl">'</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">nameInput</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">template-name</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">modal</span><span class="p">)</span> <span class="p">{</span> <span class="nx">modal</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">modal-visible</span><span class="dl">'</span><span class="p">);</span> <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">nameInput</span><span class="p">)</span> <span class="p">{</span> 
+        <span class="nx">nameInput</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">defaultName</span><span class="p">;</span> 
+        <span class="nx">nameInput</span><span class="p">.</span><span class="nf">focus</span><span class="p">();</span> 
+        <span class="nx">nameInput</span><span class="p">.</span><span class="nf">select</span><span class="p">();</span> 
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">confirmSaveAsTemplate</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">name</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">template-name</span><span class="dl">'</span><span class="p">).</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">name</span><span class="p">)</span> <span class="p">{</span> 
+        <span class="nx">vscode</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">notify</span><span class="dl">'</span><span class="p">,</span> <span class="na">level</span><span class="p">:</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">,</span> <span class="na">text</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Enter a name</span><span class="dl">'</span> <span class="p">});</span> 
+        <span class="k">return</span><span class="p">;</span> 
+    <span class="p">}</span>
+    <span class="c1">// ... save logic</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Rule of thumb:</strong> Never use browser dialogs in a VS Code webview. Always build custom modals.</p>
+
+
+<hr>
+
+<h2>
+  <a name="problem-2-the-2000line-scriptjs-monster" href="#problem-2-the-2000line-scriptjs-monster">
+  </a>
+  Problem 2: The 2000-line script.js monster
+</h2>
+
+<p>After shipping 5 features, <code>media/script.js</code> hit <strong>2000+ lines</strong> and was growing fast. I decided to refactor <em>before</em> adding more features — best decision I made.</p>
+
+<h3>
+  <a name="the-architecture" href="#the-architecture">
+  </a>
+  The Architecture
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>src/webview/
+├── state.js         ← Single shared state object
+├── api.js           ← vscode.postMessage wrapper
+├── ui.js            ← Tabs, modals, previews, query params
+├── auth.js          ← T201, T202
+├── highlighting.js  ← T203 JSON highlighting
+├── collections.js   ← Collections + Templates (T204)
+├── history.js       ← History management
+├── curl.js          ← cURL import/export
+├── request.js       ← sendRequest, loadForm, save
+└── main.js          ← Entry point + message handler
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-shared-state-pattern" href="#the-shared-state-pattern">
+  </a>
+  The Shared State Pattern
+</h3>
+
+<p>Instead of scattering state across files, I centralized everything:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/state.js</span>
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">state</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">queryParams</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="na">history</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="na">collections</span><span class="p">:</span> <span class="p">{},</span>
+    <span class="na">expandedCollections</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Set</span><span class="p">(),</span>
+    <span class="na">currentRequest</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+    <span class="na">settings</span><span class="p">:</span> <span class="p">{</span> <span class="na">timeout</span><span class="p">:</span> <span class="mi">10000</span> <span class="p">},</span>
+    <span class="na">environments</span><span class="p">:</span> <span class="p">[],</span>
+    <span class="na">isRequestInProgress</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">isUpdatingPreview</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">previewTimeout</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+    <span class="na">authConfig</span><span class="p">:</span> <span class="p">{</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">none</span><span class="dl">'</span><span class="p">,</span> <span class="na">username</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span> <span class="na">password</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span> <span class="na">token</span><span class="p">:</span> <span class="dl">''</span> <span class="p">}</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Every module imports <code>state</code> and mutates it directly. Simple, predictable, no prop drilling.</p>
+
+<h3>
+  <a name="the-api-wrapper" href="#the-api-wrapper">
+  </a>
+  The API Wrapper
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/api.js</span>
+<span class="kd">let</span> <span class="nx">_vscode</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">initApi</span><span class="p">(</span><span class="nx">vscode</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">_vscode</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">post</span><span class="p">(</span><span class="nx">message</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">_vscode</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">(</span><span class="nx">message</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">notify</span><span class="p">(</span><span class="nx">level</span><span class="p">,</span> <span class="nx">text</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">_vscode</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">notify</span><span class="dl">'</span><span class="p">,</span> <span class="nx">level</span><span class="p">,</span> <span class="nx">text</span> <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now any module can call <code>notify('error', 'Something went wrong')</code> without knowing about VS Code internals.</p>
+
+<h3>
+  <a name="esbuild-bundles-it-all" href="#esbuild-bundles-it-all">
+  </a>
+  esbuild bundles it all
+</h3>
+
+<p>The key insight: esbuild takes the ES Modules source and bundles it into a single <code>media/script.js</code> that VS Code can load.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="err">//</span><span class="w"> </span><span class="err">package.json</span><span class="w">
+</span><span class="p">{</span><span class="w">
+  </span><span class="nl">"scripts"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"esbuild-base"</span><span class="p">:</span><span class="w"> </span><span class="s2">"esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node &amp;&amp; esbuild ./src/webview/main.js --bundle --outfile=media/script.js --format=iife --platform=browser"</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Result: <code>media/script.js</code> went from <strong>2000 lines hand-written</strong> to <strong>49.6 KB bundled</strong> — and each source file is clean and focused.</p>
+
+
+<hr>
+
+<h2>
+  <a name="problem-3-implementing-auto-retry-the-right-way" href="#problem-3-implementing-auto-retry-the-right-way">
+  </a>
+  Problem 3: Implementing Auto Retry the Right Way
+</h2>
+
+<p>The retry logic lives in <code>extension.ts</code> (Node.js side), not the webview. Here's the full retry loop:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleRequest</span><span class="p">(</span><span class="nx">webviewView</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">WebviewView</span><span class="p">,</span> <span class="nx">message</span><span class="p">:</span> <span class="kr">any</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">startTime</span> <span class="o">=</span> <span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">maxRetries</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="nf">parseInt</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">retryCount</span><span class="p">)</span> <span class="o">||</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="mi">5</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">retryableCodes</span> <span class="o">=</span> <span class="p">[</span><span class="dl">'</span><span class="s1">ECONNREFUSED</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">ENOTFOUND</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">ETIMEDOUT</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">ECONNABORTED</span><span class="dl">'</span><span class="p">];</span>
+
+    <span class="kd">let</span> <span class="nx">lastError</span><span class="p">:</span> <span class="kr">any</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">attempt</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">attempt</span> <span class="o">&lt;=</span> <span class="nx">maxRetries</span><span class="p">;</span> <span class="nx">attempt</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Notify UI about retry progress</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">attempt</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">webviewView</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+                <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">retryAttempt</span><span class="dl">'</span><span class="p">,</span>
+                <span class="nx">attempt</span><span class="p">,</span>
+                <span class="na">total</span><span class="p">:</span> <span class="nx">maxRetries</span>
+            <span class="p">});</span>
+
+            <span class="c1">// Linear backoff: wait attempt * 1000ms</span>
+            <span class="k">await</span> <span class="k">new</span> <span class="nc">Promise</span><span class="p">(</span><span class="nx">resolve</span> <span class="o">=&gt;</span> <span class="nf">setTimeout</span><span class="p">(</span><span class="nx">resolve</span><span class="p">,</span> <span class="nx">attempt</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">));</span>
+        <span class="p">}</span>
+
+        <span class="k">this</span><span class="p">.</span><span class="nx">abortController</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">AbortController</span><span class="p">();</span>
+
+        <span class="k">try</span> <span class="p">{</span>
+            <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">axios</span><span class="p">({</span> <span class="cm">/* ... */</span> <span class="p">});</span>
+
+            <span class="c1">// Success — send response and exit loop</span>
+            <span class="nx">webviewView</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+                <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">response</span><span class="dl">'</span><span class="p">,</span>
+                <span class="c1">// ...</span>
+                <span class="na">attempts</span><span class="p">:</span> <span class="nx">attempt</span> <span class="o">+</span> <span class="mi">1</span>  <span class="c1">// Let the UI know how many attempts it took</span>
+            <span class="p">});</span>
+            <span class="k">return</span><span class="p">;</span>
+
+        <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">)</span> <span class="p">{</span>
+            <span class="nx">lastError</span> <span class="o">=</span> <span class="nx">error</span><span class="p">;</span>
+
+            <span class="c1">// Don't retry if user cancelled</span>
+            <span class="k">if </span><span class="p">(</span><span class="nx">error</span> <span class="k">instanceof</span> <span class="nb">Error</span> <span class="o">&amp;&amp;</span> <span class="nx">error</span><span class="p">.</span><span class="nx">name</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">CanceledError</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+                <span class="nx">webviewView</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> 
+                    <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">,</span> 
+                    <span class="na">error</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Request cancelled</span><span class="dl">'</span><span class="p">,</span>
+                    <span class="na">cancelled</span><span class="p">:</span> <span class="kc">true</span> 
+                <span class="p">});</span>
+                <span class="k">return</span><span class="p">;</span>
+            <span class="p">}</span>
+
+            <span class="c1">// Only retry on network errors, not HTTP errors</span>
+            <span class="kd">const</span> <span class="nx">isRetryable</span> <span class="o">=</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">isAxiosError</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="o">&amp;&amp;</span>
+                <span class="nx">error</span><span class="p">.</span><span class="nx">request</span> <span class="o">&amp;&amp;</span>        <span class="c1">// Request was made</span>
+                <span class="o">!</span><span class="nx">error</span><span class="p">.</span><span class="nx">response</span> <span class="o">&amp;&amp;</span>      <span class="c1">// But no response received</span>
+                <span class="nx">retryableCodes</span><span class="p">.</span><span class="nf">includes</span><span class="p">((</span><span class="nx">error</span> <span class="k">as</span> <span class="kr">any</span><span class="p">).</span><span class="nx">code</span> <span class="o">||</span> <span class="dl">''</span><span class="p">);</span>
+
+            <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">isRetryable</span> <span class="o">||</span> <span class="nx">attempt</span> <span class="o">&gt;=</span> <span class="nx">maxRetries</span><span class="p">)</span> <span class="p">{</span> <span class="k">break</span><span class="p">;</span> <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="c1">// All attempts failed — send descriptive error</span>
+    <span class="kd">let</span> <span class="nx">errorMessage</span> <span class="o">=</span> <span class="nf">buildErrorMessage</span><span class="p">(</span><span class="nx">lastError</span><span class="p">,</span> <span class="nx">maxRetries</span><span class="p">);</span>
+    <span class="nx">webviewView</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">,</span> <span class="na">error</span><span class="p">:</span> <span class="nx">errorMessage</span> <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Key decisions:</strong></p>
+
+<ul>
+<li>Only retry on <strong>network-level errors</strong> (no response), not HTTP errors (4xx, 5xx). A <code>404</code> should not be retried.</li>
+<li>Linear backoff (<code>attempt * 1000ms</code>) not exponential — simpler and sufficient for transient failures.</li>
+<li>Max 5 retries, configurable per request.</li>
+<li>The UI shows <code>Retry 1/2...</code> in the Send button during retries.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="problem-4-xsssafe-json-syntax-highlighting" href="#problem-4-xsssafe-json-syntax-highlighting">
+  </a>
+  Problem 4: XSS-safe JSON Syntax Highlighting
+</h2>
+
+<p>I wanted pretty colored JSON without importing a library. The trick is to <strong>escape HTML first</strong>, then apply highlighting:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/highlighting.js</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">syntaxHighlightJson</span><span class="p">(</span><span class="nx">json</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="k">typeof</span> <span class="nx">json</span> <span class="o">!==</span> <span class="dl">'</span><span class="s1">string</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">json</span> <span class="o">=</span> <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">(</span><span class="nx">json</span><span class="p">,</span> <span class="kc">null</span><span class="p">,</span> <span class="mi">2</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// CRITICAL: Escape HTML BEFORE adding spans</span>
+    <span class="c1">// Otherwise injected HTML in JSON values becomes XSS</span>
+    <span class="nx">json</span> <span class="o">=</span> <span class="nx">json</span>
+        <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&amp;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;amp;</span><span class="dl">'</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&lt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;lt;</span><span class="dl">'</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&gt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;gt;</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="nx">json</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span>
+        <span class="sr">/</span><span class="se">(</span><span class="sr">"</span><span class="se">(\\</span><span class="sr">u</span><span class="se">[</span><span class="sr">a-zA-Z0-9</span><span class="se">]{4}</span><span class="sr">|</span><span class="se">\\[^</span><span class="sr">u</span><span class="se">]</span><span class="sr">|</span><span class="se">[^\\</span><span class="sr">"</span><span class="se">])</span><span class="sr">*"</span><span class="se">(\s</span><span class="sr">*:</span><span class="se">)?</span><span class="sr">|</span><span class="se">\b(</span><span class="sr">true|false|null</span><span class="se">)\b</span><span class="sr">|-</span><span class="se">?\d</span><span class="sr">+</span><span class="se">(?:\.\d</span><span class="sr">*</span><span class="se">)?(?:[</span><span class="sr">eE</span><span class="se">][</span><span class="sr">+</span><span class="se">\-]?\d</span><span class="sr">+</span><span class="se">)?)</span><span class="sr">/g</span><span class="p">,</span>
+        <span class="p">(</span><span class="nx">match</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+            <span class="kd">let</span> <span class="nx">cls</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">json-number</span><span class="dl">'</span><span class="p">;</span>
+            <span class="k">if </span><span class="p">(</span><span class="sr">/^"/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">match</span><span class="p">))</span> <span class="p">{</span>
+                <span class="nx">cls</span> <span class="o">=</span> <span class="sr">/:$/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">match</span><span class="p">)</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">json-key</span><span class="dl">'</span> <span class="p">:</span> <span class="dl">'</span><span class="s1">json-string</span><span class="dl">'</span><span class="p">;</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">(</span><span class="sr">/true|false/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">match</span><span class="p">))</span> <span class="p">{</span>
+                <span class="nx">cls</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">json-boolean</span><span class="dl">'</span><span class="p">;</span>
+            <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">(</span><span class="sr">/null/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">match</span><span class="p">))</span> <span class="p">{</span>
+                <span class="nx">cls</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">json-null</span><span class="dl">'</span><span class="p">;</span>
+            <span class="p">}</span>
+            <span class="k">return</span> <span class="s2">`&lt;span class="</span><span class="p">${</span><span class="nx">cls</span><span class="p">}</span><span class="s2">"&gt;</span><span class="p">${</span><span class="nx">match</span><span class="p">}</span><span class="s2">&lt;/span&gt;`</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And the CSS (VS Code dark theme colors):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.json-key</span>     <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#9cdcfe</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* Light blue */</span>
+<span class="nc">.json-string</span>  <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#ce9178</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* Orange */</span>
+<span class="nc">.json-number</span>  <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#b5cea8</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* Light green */</span>
+<span class="nc">.json-boolean</span> <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#569cd6</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* Blue */</span>
+<span class="nc">.json-null</span>    <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#569cd6</span><span class="p">;</span> <span class="p">}</span>  <span class="c">/* Blue */</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The colors match VS Code's own JSON editor — intentional.</p>
+
+
+<hr>
+
+<h2>
+  <a name="problem-5-auth-without-exposing-credentials-in-logs" href="#problem-5-auth-without-exposing-credentials-in-logs">
+  </a>
+  Problem 5: Auth without exposing credentials in logs
+</h2>
+
+<p>Basic Auth encoding happens <strong>in the browser</strong> (webview side), not in the extension. This prevents credentials from appearing in VS Code's output channel:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/auth.js</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">buildAuthHeader</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">basic</span><span class="dl">'</span> <span class="o">&amp;&amp;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">username</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// btoa() runs in the webview — never touches extension.ts logs</span>
+        <span class="kd">const</span> <span class="nx">encoded</span> <span class="o">=</span> <span class="nf">btoa</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">username</span><span class="p">}</span><span class="s2">:</span><span class="p">${</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">password</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+        <span class="k">return</span> <span class="s2">`Authorization: Basic </span><span class="p">${</span><span class="nx">encoded</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">bearer</span><span class="dl">'</span> <span class="o">&amp;&amp;</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">token</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="s2">`Authorization: Bearer </span><span class="p">${</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">token</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The auth header is injected into the headers string before sending to <code>extension.ts</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/request.js</span>
+<span class="kd">const</span> <span class="nx">authHeader</span> <span class="o">=</span> <span class="nf">buildAuthHeader</span><span class="p">();</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">authHeader</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">hasAuthHeader</span> <span class="o">=</span> <span class="nx">finalHeaders</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">().</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">authorization:</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">hasAuthHeader</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">finalHeaders</span> <span class="o">=</span> <span class="nx">finalHeaders</span><span class="p">.</span><span class="nf">trim</span><span class="p">()</span> 
+            <span class="p">?</span> <span class="s2">`</span><span class="p">${</span><span class="nx">finalHeaders</span><span class="p">.</span><span class="nf">trim</span><span class="p">()}</span><span class="s2">\n</span><span class="p">${</span><span class="nx">authHeader</span><span class="p">}</span><span class="s2">`</span> 
+            <span class="p">:</span> <span class="nx">authHeader</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>By the time <code>extension.ts</code> sees the headers, they're already encoded. The logger never sees the raw credentials.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-raw-vscodeignore-endraw-trick-that-matters" href="#the-raw-vscodeignore-endraw-trick-that-matters">
+  </a>
+  The <code>.vscodeignore</code> trick that matters
+</h2>
+
+<p>Before shipping, make sure your <code>.vscodeignore</code> excludes <code>node_modules</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>node_modules/**
+src/**
+**/*.map
+**/*.ts
+out/test/**
+out/logger.js
+out/environmentTree.js
+out/environmentManager.js
+out/utils/**
+
+!out/extension.js
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+!media/**/*
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>With esbuild bundling <code>node_modules</code> into <code>out/extension.js</code>, you don't need to ship <code>node_modules</code> at all. My package went from <strong>250+ files</strong> to <strong>~15 files</strong>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-for-v130" href="#whats-next-for-v130">
+  </a>
+  What's next for v1.3.0
+</h2>
+
+<ul>
+<li>
+<strong>GraphQL support</strong> — dedicated query editor</li>
+<li>
+<strong>Response diffing</strong> — compare two responses side by side</li>
+<li>
+<strong>Import from Postman collections</strong> — migrate existing work</li>
+<li>
+<strong>WebSocket support</strong> — for real-time API testing</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  Try it out
+</h2>
+
+<p><strong>VS Code / Cursor:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>ext <span class="nb">install </span>FreeRave.dotfetch
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>VSCodium / Open VSX:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>https://open-vsx.org/extension/freerave/dotfetch
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Or build from source:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>git clone https://github.com/kareem2099/DotFetch.git
+<span class="nb">cd </span>DotFetch
+npm <span class="nb">install
+</span>npm run compile
+<span class="c"># Press F5 in VS Code to launch Extension Development Host</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If you find bugs or have feature requests, open an issue on GitHub. PRs are welcome! 🚀</p>
+
+
+<hr>
+
+<p><em>Built with TypeScript, esbuild, and a lot of VS Code webview debugging.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-full-http-client-extension-for-vs-code-heres-everything-i-learned-3me4" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-full-http-client-extension-for-vs-code-heres-everything-i-learned-3me4#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

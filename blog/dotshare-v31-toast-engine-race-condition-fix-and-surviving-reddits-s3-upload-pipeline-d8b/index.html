@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare v3.1 — Toast Engine, Race Condition Fix, and Surviving Reddit's S3 Upload Pipeline — FreeRave</title>
+<meta name="description" content="Full technical breakdown of v3.1 'The Polish Pass' — a custom WebView toast system, global...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-v31-toast-engine-race-condition-fix-and-surviving-reddits-s3-upload-pipeline-d8b">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-v31-toast-engine-race-condition-fix-and-surviving-reddits-s3-upload-pipeline-d8b">
+<meta property="og:title" content="DotShare v3.1 — Toast Engine, Race Condition Fix, and Surviving Reddit's S3 Upload Pipeline — FreeRave">
+<meta property="og:description" content="Full technical breakdown of v3.1 'The Polish Pass' — a custom WebView toast system, global...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fldmrp7v3up9cp23zzb0b.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fldmrp7v3up9cp23zzb0b.png" alt="">
+  <h1 class="post-title">DotShare v3.1 — Toast Engine, Race Condition Fix, and Surviving Reddit's S3 Upload Pipeline</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-13T10:19:46Z">13 April 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#debugging</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="full-technical-breakdown-of-v31-the-polish-pass-a-custom-webview-toast-system-global-loading-states-perplatform-character-limits-and-the-two-bugs-that-took-the-longest-to-kill" href="#full-technical-breakdown-of-v31-the-polish-pass-a-custom-webview-toast-system-global-loading-states-perplatform-character-limits-and-the-two-bugs-that-took-the-longest-to-kill">
+  </a>
+  Full technical breakdown of v3.1 'The Polish Pass' — a custom WebView toast system, global loading states, per-platform character limits, and the two bugs that took the longest to kill.
+</h2>
+
+<p>v3.0 added the platforms. v3.1 made them feel like they belonged.</p>
+
+<p>"The Polish Pass" is the kind of release that's invisible when it works and infuriating when it doesn't. No new platforms. No headline features. Just: notifications that don't hijack your screen, buttons that tell you something is happening, character counters that actually enforce limits — and two bugs that were quietly breaking things since the beginning.</p>
+
+<p>This is the full technical breakdown.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-in-v31" href="#whats-in-v31">
+  </a>
+  What's in v3.1
+</h2>
+
+<ul>
+<li>Custom WebView toast notification engine (replaces VS Code popups)</li>
+<li>Global loading states on all async actions</li>
+<li>Per-platform character limit validation with visual feedback</li>
+<li>Glassmorphism UI pass</li>
+<li>
+<strong>The Disappearing Preview race condition</strong> — fixed</li>
+<li>
+<strong>Reddit's S3 native image upload pipeline</strong> — fixed</li>
+<li>Reddit field name synchronization between frontend and backend</li>
+<li>Unused variable cleanup for ESLint compliance</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="1-the-toast-notification-engine" href="#1-the-toast-notification-engine">
+  </a>
+  1. The Toast Notification Engine
+</h2>
+
+<p>Before v3.1, every status update used <code>vscode.window.showInformationMessage()</code> — a popup in the VS Code notification center that requires manual dismissal and breaks your flow. For an extension designed to keep you in the editor, it was wrong.</p>
+
+<p>The replacement is a custom toast system that lives entirely inside the WebView.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flbwuopoy85mkx4rpm2u5.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flbwuopoy85mkx4rpm2u5.png" alt="DotShare toast notifications showing success, error, warning, and info states with animated progress bars" loading="lazy" width="800" height="1422"></a></p>
+
+<h3>
+  <a name="html-container" href="#html-container">
+  </a>
+  HTML Container
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="c">&lt;!-- media/webview/platform-post.html --&gt;</span>
+<span class="nt">&lt;div</span> <span class="na">id=</span><span class="s">"toast-container"</span> <span class="na">aria-live=</span><span class="s">"polite"</span> <span class="na">aria-atomic=</span><span class="s">"false"</span><span class="nt">&gt;&lt;/div&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>One container, fixed to the bottom-right of the WebView. Toasts mount and remove themselves.</p>
+
+<h3>
+  <a name="the-toast-function" href="#the-toast-function">
+  </a>
+  The Toast Function
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// media/webview/app.ts</span>
+
+<span class="kd">type</span> <span class="nx">ToastType</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">warning</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">info</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">TOAST_ICONS</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="nx">ToastType</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">success</span><span class="p">:</span> <span class="dl">'</span><span class="s1">✓</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">error</span><span class="p">:</span>   <span class="dl">'</span><span class="s1">✕</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">warning</span><span class="p">:</span> <span class="dl">'</span><span class="s1">⚠</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">info</span><span class="p">:</span>    <span class="dl">'</span><span class="s1">ℹ</span><span class="dl">'</span><span class="p">,</span>
+<span class="p">};</span>
+
+<span class="kd">function</span> <span class="nf">escHtml</span><span class="p">(</span><span class="nx">str</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="kr">string</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="nx">str</span>
+    <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&amp;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;amp;</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&lt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;lt;</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&gt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;gt;</span><span class="dl">'</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/"/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&amp;quot;</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">toast</span><span class="p">(</span>
+  <span class="nx">msg</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="kd">type</span><span class="p">:</span> <span class="nx">ToastType</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">info</span><span class="dl">'</span><span class="p">,</span>
+  <span class="nx">ms</span><span class="p">:</span> <span class="kr">number</span> <span class="o">=</span> <span class="mi">5000</span>
+<span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">container</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">toast-container</span><span class="dl">'</span><span class="p">);</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">container</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+  <span class="kd">const</span> <span class="nx">el</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">'</span><span class="s1">div</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">el</span><span class="p">.</span><span class="nx">className</span> <span class="o">=</span> <span class="s2">`toast toast-</span><span class="p">${</span><span class="kd">type</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+  <span class="nx">el</span><span class="p">.</span><span class="nf">setAttribute</span><span class="p">(</span><span class="dl">'</span><span class="s1">role</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">alert</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">el</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nf">setProperty</span><span class="p">(</span><span class="dl">'</span><span class="s1">--toast-duration</span><span class="dl">'</span><span class="p">,</span> <span class="s2">`</span><span class="p">${</span><span class="nx">ms</span><span class="p">}</span><span class="s2">ms`</span><span class="p">);</span>
+
+  <span class="nx">el</span><span class="p">.</span><span class="nx">innerHTML</span> <span class="o">=</span> <span class="s2">`
+    &lt;span class="toast-icon"&gt;</span><span class="p">${</span><span class="nx">TOAST_ICONS</span><span class="p">[</span><span class="kd">type</span><span class="p">]}</span><span class="s2">&lt;/span&gt;
+    &lt;span class="toast-message"&gt;</span><span class="p">${</span><span class="nf">escHtml</span><span class="p">(</span><span class="nx">msg</span><span class="p">)}</span><span class="s2">&lt;/span&gt;
+    &lt;div class="toast-progress"&gt;&lt;/div&gt;
+  `</span><span class="p">;</span>
+
+  <span class="nx">container</span><span class="p">.</span><span class="nf">appendChild</span><span class="p">(</span><span class="nx">el</span><span class="p">);</span>
+
+  <span class="c1">// Trigger enter animation on next paint</span>
+  <span class="nf">requestAnimationFrame</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="nx">el</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">toast-visible</span><span class="dl">'</span><span class="p">));</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">ms</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="nx">el</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="dl">'</span><span class="s1">toast-visible</span><span class="dl">'</span><span class="p">);</span>
+      <span class="nx">el</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">toast-exit</span><span class="dl">'</span><span class="p">);</span>
+      <span class="nx">el</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">transitionend</span><span class="dl">'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="nx">el</span><span class="p">.</span><span class="nf">remove</span><span class="p">(),</span> <span class="p">{</span> <span class="na">once</span><span class="p">:</span> <span class="kc">true</span> <span class="p">});</span>
+    <span class="p">},</span> <span class="nx">ms</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="css" href="#css">
+  </a>
+  CSS
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="c">/* media/webview/style.css */</span>
+
+<span class="nf">#toast-container</span> <span class="p">{</span>
+  <span class="nl">position</span><span class="p">:</span> <span class="nb">fixed</span><span class="p">;</span>
+  <span class="nl">bottom</span><span class="p">:</span> <span class="m">1.5rem</span><span class="p">;</span>
+  <span class="nl">right</span><span class="p">:</span> <span class="m">1.5rem</span><span class="p">;</span>
+  <span class="nl">display</span><span class="p">:</span> <span class="n">flex</span><span class="p">;</span>
+  <span class="nl">flex-direction</span><span class="p">:</span> <span class="n">column</span><span class="p">;</span>
+  <span class="py">gap</span><span class="p">:</span> <span class="m">8px</span><span class="p">;</span>
+  <span class="nl">z-index</span><span class="p">:</span> <span class="m">9999</span><span class="p">;</span>
+  <span class="nl">pointer-events</span><span class="p">:</span> <span class="nb">none</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nc">.toast</span> <span class="p">{</span>
+  <span class="nl">display</span><span class="p">:</span> <span class="n">flex</span><span class="p">;</span>
+  <span class="nl">align-items</span><span class="p">:</span> <span class="nb">center</span><span class="p">;</span>
+  <span class="py">gap</span><span class="p">:</span> <span class="m">10px</span><span class="p">;</span>
+  <span class="nl">padding</span><span class="p">:</span> <span class="m">12px</span> <span class="m">16px</span><span class="p">;</span>
+  <span class="nl">border-radius</span><span class="p">:</span> <span class="m">8px</span><span class="p">;</span>
+  <span class="nl">font-size</span><span class="p">:</span> <span class="m">13px</span><span class="p">;</span>
+  <span class="nl">min-width</span><span class="p">:</span> <span class="m">260px</span><span class="p">;</span>
+  <span class="nl">max-width</span><span class="p">:</span> <span class="m">380px</span><span class="p">;</span>
+  <span class="nl">position</span><span class="p">:</span> <span class="nb">relative</span><span class="p">;</span>
+  <span class="nl">overflow</span><span class="p">:</span> <span class="nb">hidden</span><span class="p">;</span>
+  <span class="nl">pointer-events</span><span class="p">:</span> <span class="n">all</span><span class="p">;</span>
+  <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span>
+  <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">20px</span><span class="p">);</span>
+  <span class="nl">transition</span><span class="p">:</span> <span class="n">opacity</span> <span class="m">0.2s</span> <span class="n">ease</span><span class="p">,</span> <span class="n">transform</span> <span class="m">0.2s</span> <span class="n">ease</span><span class="p">;</span>
+  <span class="py">backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">8px</span><span class="p">);</span>
+  <span class="nl">-webkit-backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">8px</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="nc">.toast-visible</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">1</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">0</span><span class="p">);</span> <span class="p">}</span>
+<span class="nc">.toast-exit</span>    <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">20px</span><span class="p">);</span> <span class="p">}</span>
+
+<span class="nc">.toast-success</span> <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">29</span><span class="p">,</span><span class="m">158</span><span class="p">,</span><span class="m">117</span><span class="p">,</span><span class="m">0.15</span><span class="p">);</span> <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">29</span><span class="p">,</span><span class="m">158</span><span class="p">,</span><span class="m">117</span><span class="p">,</span><span class="m">0.4</span><span class="p">);</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#4ade80</span><span class="p">;</span> <span class="p">}</span>
+<span class="nc">.toast-error</span>   <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">239</span><span class="p">,</span><span class="m">68</span><span class="p">,</span><span class="m">68</span><span class="p">,</span><span class="m">0.15</span><span class="p">);</span>  <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">239</span><span class="p">,</span><span class="m">68</span><span class="p">,</span><span class="m">68</span><span class="p">,</span><span class="m">0.4</span><span class="p">);</span>  <span class="nl">color</span><span class="p">:</span> <span class="m">#f87171</span><span class="p">;</span> <span class="p">}</span>
+<span class="nc">.toast-warning</span> <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">245</span><span class="p">,</span><span class="m">158</span><span class="p">,</span><span class="m">11</span><span class="p">,</span><span class="m">0.15</span><span class="p">);</span> <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">245</span><span class="p">,</span><span class="m">158</span><span class="p">,</span><span class="m">11</span><span class="p">,</span><span class="m">0.4</span><span class="p">);</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#fbbf24</span><span class="p">;</span> <span class="p">}</span>
+<span class="nc">.toast-info</span>    <span class="p">{</span> <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">59</span><span class="p">,</span><span class="m">130</span><span class="p">,</span><span class="m">246</span><span class="p">,</span><span class="m">0.15</span><span class="p">);</span> <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">59</span><span class="p">,</span><span class="m">130</span><span class="p">,</span><span class="m">246</span><span class="p">,</span><span class="m">0.4</span><span class="p">);</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#60a5fa</span><span class="p">;</span> <span class="p">}</span>
+
+<span class="nc">.toast-progress</span> <span class="p">{</span>
+  <span class="nl">position</span><span class="p">:</span> <span class="nb">absolute</span><span class="p">;</span>
+  <span class="nl">bottom</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span> <span class="nl">left</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span>
+  <span class="nl">height</span><span class="p">:</span> <span class="m">2px</span><span class="p">;</span>
+  <span class="nl">width</span><span class="p">:</span> <span class="m">100%</span><span class="p">;</span>
+  <span class="nl">background</span><span class="p">:</span> <span class="n">currentColor</span><span class="p">;</span>
+  <span class="nl">opacity</span><span class="p">:</span> <span class="m">0.4</span><span class="p">;</span>
+  <span class="nl">animation</span><span class="p">:</span> <span class="n">toast-shrink</span> <span class="n">var</span><span class="p">(</span><span class="n">--toast-duration</span><span class="p">,</span> <span class="m">5000ms</span><span class="p">)</span> <span class="n">linear</span> <span class="n">forwards</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">@keyframes</span> <span class="n">toast-shrink</span> <span class="p">{</span>
+  <span class="nt">from</span> <span class="p">{</span> <span class="nl">width</span><span class="p">:</span> <span class="m">100%</span><span class="p">;</span> <span class="p">}</span>
+  <span class="nt">to</span>   <span class="p">{</span> <span class="nl">width</span><span class="p">:</span> <span class="m">0%</span><span class="p">;</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="2-global-loading-states" href="#2-global-loading-states">
+  </a>
+  2. Global Loading States
+</h2>
+
+<p>Every async button now disables itself and shows a spinner during the operation. Prevents double-submissions. Makes it obvious something is happening.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// media/webview/app.ts</span>
+
+<span class="kd">function</span> <span class="nf">setLoading</span><span class="p">(</span><span class="nx">btn</span><span class="p">:</span> <span class="nx">HTMLButtonElement</span><span class="p">,</span> <span class="nx">loading</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">,</span> <span class="nx">label</span><span class="p">?:</span> <span class="kr">string</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">loading</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">originalText</span> <span class="o">=</span> <span class="nx">btn</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">??</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nx">label</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">⏳ Working…</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">disabled</span> <span class="o">=</span> <span class="kc">true</span><span class="p">;</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-loading</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nx">btn</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">originalText</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">Share</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">disabled</span> <span class="o">=</span> <span class="kc">false</span><span class="p">;</span>
+    <span class="nx">btn</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-loading</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="c1">// On click — enter loading state</span>
+<span class="nx">btnShare</span><span class="p">?.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">click</span><span class="dl">'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">btnShare</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+  <span class="nf">setLoading</span><span class="p">(</span><span class="nx">btnShare</span><span class="p">,</span> <span class="kc">true</span><span class="p">,</span> <span class="dl">'</span><span class="s1">⏳ Sharing…</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nf">send</span><span class="p">(</span><span class="dl">'</span><span class="s1">share</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">platform</span><span class="p">:</span>       <span class="nx">activeCommandPlatform</span><span class="p">,</span>
+    <span class="na">post</span><span class="p">:</span>           <span class="nx">textarea</span><span class="p">?.</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">(),</span>
+    <span class="na">mediaFilePaths</span><span class="p">:</span> <span class="nx">activeMediaPaths</span><span class="p">,</span>
+  <span class="p">});</span>
+<span class="p">});</span>
+
+<span class="c1">// On complete — exit loading state</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">shareComplete</span><span class="dl">'</span><span class="p">:</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">btnShare</span><span class="p">)</span> <span class="nf">setLoading</span><span class="p">(</span><span class="nx">btnShare</span><span class="p">,</span> <span class="kc">false</span><span class="p">);</span>
+  <span class="nf">resetAllComposers</span><span class="p">();</span>
+  <span class="nf">toast</span><span class="p">(</span><span class="dl">'</span><span class="s1">Shared successfully!</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">);</span>
+  <span class="k">break</span><span class="p">;</span>
+
+<span class="c1">// On error — also exit loading so user can retry</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">status</span><span class="dl">'</span><span class="p">:</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span> <span class="o">&amp;&amp;</span> <span class="nx">btnShare</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">setLoading</span><span class="p">(</span><span class="nx">btnShare</span><span class="p">,</span> <span class="kc">false</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="nf">toast</span><span class="p">(</span><span class="nc">String</span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">status</span> <span class="o">??</span> <span class="dl">''</span><span class="p">),</span> <span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">info</span><span class="dl">'</span><span class="p">);</span>
+  <span class="k">break</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="3-character-limit-validation" href="#3-character-limit-validation">
+  </a>
+  3. Character Limit Validation
+</h2>
+
+<p><code>MAX_CHARS</code> existed before v3.1 but was never wired to the UI. This release connects it to both the counter display and the share button state.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9p29pc5hrwx4u0q8q9r9.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9p29pc5hrwx4u0q8q9r9.png" alt="Character counter at 240/280 for X showing warning color, and over-limit state with red counter and disabled share button" loading="lazy" width="800" height="879"></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// media/webview/app.ts</span>
+
+<span class="kd">const</span> <span class="nx">MAX_CHARS</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">number</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">x</span><span class="p">:</span>        <span class="mi">280</span><span class="p">,</span>
+  <span class="na">bluesky</span><span class="p">:</span>  <span class="mi">300</span><span class="p">,</span>
+  <span class="na">linkedin</span><span class="p">:</span> <span class="mi">3000</span><span class="p">,</span>
+  <span class="na">telegram</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
+  <span class="na">facebook</span><span class="p">:</span> <span class="mi">63206</span><span class="p">,</span>
+  <span class="na">discord</span><span class="p">:</span>  <span class="mi">2000</span><span class="p">,</span>
+  <span class="na">reddit</span><span class="p">:</span>   <span class="mi">40000</span><span class="p">,</span>
+  <span class="na">devto</span><span class="p">:</span>    <span class="mi">100000</span><span class="p">,</span>
+  <span class="na">medium</span><span class="p">:</span>   <span class="mi">100000</span><span class="p">,</span>
+<span class="p">};</span>
+
+<span class="kd">function</span> <span class="nf">updateCharCounter</span><span class="p">():</span> <span class="k">void</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">textarea</span> <span class="o">||</span> <span class="o">!</span><span class="nx">counter</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+  <span class="kd">const</span> <span class="nx">len</span>      <span class="o">=</span> <span class="nx">textarea</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">platform</span> <span class="o">=</span> <span class="nx">activeCommandPlatform</span> <span class="o">??</span> <span class="dl">''</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">max</span>      <span class="o">=</span> <span class="nx">MAX_CHARS</span><span class="p">[</span><span class="nx">platform</span><span class="p">]</span> <span class="o">??</span> <span class="kc">null</span><span class="p">;</span>
+
+  <span class="nx">counter</span><span class="p">.</span><span class="nx">textContent</span> <span class="o">=</span> <span class="nx">max</span> <span class="p">?</span> <span class="s2">`</span><span class="p">${</span><span class="nx">len</span><span class="p">}</span><span class="s2"> / </span><span class="p">${</span><span class="nx">max</span><span class="p">}</span><span class="s2">`</span> <span class="p">:</span> <span class="nc">String</span><span class="p">(</span><span class="nx">len</span><span class="p">);</span>
+  <span class="nx">counter</span><span class="p">.</span><span class="nx">className</span>   <span class="o">=</span> <span class="dl">'</span><span class="s1">compose-counter</span><span class="dl">'</span><span class="p">;</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">max</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">len</span> <span class="o">&gt;</span> <span class="nx">max</span><span class="p">)</span>                       <span class="nx">counter</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">counter-error</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">else</span> <span class="k">if </span><span class="p">(</span><span class="nx">len</span> <span class="o">&gt;</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">floor</span><span class="p">(</span><span class="nx">max</span> <span class="o">*</span> <span class="mf">0.8</span><span class="p">))</span> <span class="nx">counter</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="dl">'</span><span class="s1">counter-warn</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">updateShareBtn</span><span class="p">():</span> <span class="k">void</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">btnShare</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">empty</span>   <span class="o">=</span> <span class="o">!</span><span class="nx">textarea</span><span class="p">?.</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">().</span><span class="nx">length</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">platform</span> <span class="o">=</span> <span class="nx">activeCommandPlatform</span> <span class="o">??</span> <span class="dl">''</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">max</span>     <span class="o">=</span> <span class="nx">MAX_CHARS</span><span class="p">[</span><span class="nx">platform</span><span class="p">]</span> <span class="o">??</span> <span class="kc">null</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">over</span>    <span class="o">=</span> <span class="nx">max</span> <span class="p">?</span> <span class="p">(</span><span class="nx">textarea</span><span class="p">?.</span><span class="nx">value</span><span class="p">.</span><span class="nx">length</span> <span class="o">??</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nx">max</span> <span class="p">:</span> <span class="kc">false</span><span class="p">;</span>
+  <span class="nx">btnShare</span><span class="p">.</span><span class="nx">disabled</span> <span class="o">=</span> <span class="nx">empty</span> <span class="o">||</span> <span class="nx">over</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nx">textarea</span><span class="p">?.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">input</span><span class="dl">'</span><span class="p">,</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nf">updateCharCounter</span><span class="p">();</span>
+  <span class="nf">updateShareBtn</span><span class="p">();</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.compose-counter</span>               <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="n">var</span><span class="p">(</span><span class="n">--vscode-descriptionForeground</span><span class="p">);</span> <span class="nl">font-size</span><span class="p">:</span> <span class="m">12px</span><span class="p">;</span> <span class="p">}</span>
+<span class="nc">.compose-counter.counter-warn</span>  <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#f59e0b</span><span class="p">;</span> <span class="p">}</span>
+<span class="nc">.compose-counter.counter-error</span> <span class="p">{</span> <span class="nl">color</span><span class="p">:</span> <span class="m">#ef4444</span><span class="p">;</span> <span class="nl">font-weight</span><span class="p">:</span> <span class="m">600</span><span class="p">;</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="4-the-glassmorphism-ui-pass" href="#4-the-glassmorphism-ui-pass">
+  </a>
+  4. The Glassmorphism UI Pass
+</h2>
+
+<p>Cards and modals now use <code>backdrop-filter: blur</code> with semi-transparent fills. Depth without visual weight.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.composer-card</span> <span class="p">{</span>
+  <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.04</span><span class="p">);</span>
+  <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.08</span><span class="p">);</span>
+  <span class="nl">border-radius</span><span class="p">:</span> <span class="m">12px</span><span class="p">;</span>
+  <span class="py">backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">8px</span><span class="p">);</span>
+  <span class="nl">-webkit-backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">8px</span><span class="p">);</span>
+  <span class="nl">transition</span><span class="p">:</span> <span class="n">border-color</span> <span class="m">0.2s</span> <span class="n">ease</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nc">.composer-card</span><span class="nd">:hover</span> <span class="p">{</span>
+  <span class="nl">border-color</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.14</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="nc">.modal-content</span> <span class="p">{</span>
+  <span class="nl">background</span><span class="p">:</span> <span class="n">rgba</span><span class="p">(</span><span class="m">30</span><span class="p">,</span> <span class="m">30</span><span class="p">,</span> <span class="m">40</span><span class="p">,</span> <span class="m">0.92</span><span class="p">);</span>
+  <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">rgba</span><span class="p">(</span><span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.1</span><span class="p">);</span>
+  <span class="nl">border-radius</span><span class="p">:</span> <span class="m">14px</span><span class="p">;</span>
+  <span class="py">backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">12px</span><span class="p">);</span>
+  <span class="nl">-webkit-backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">12px</span><span class="p">);</span>
+  <span class="nl">animation</span><span class="p">:</span> <span class="n">modal-enter</span> <span class="m">0.2s</span> <span class="n">cubic-bezier</span><span class="p">(</span><span class="m">0.34</span><span class="p">,</span> <span class="m">1.56</span><span class="p">,</span> <span class="m">0.64</span><span class="p">,</span> <span class="m">1</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">@keyframes</span> <span class="n">modal-enter</span> <span class="p">{</span>
+  <span class="nt">from</span> <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">scale</span><span class="p">(</span><span class="m">0.95</span><span class="p">)</span> <span class="n">translateY</span><span class="p">(</span><span class="m">8px</span><span class="p">);</span> <span class="p">}</span>
+  <span class="nt">to</span>   <span class="p">{</span> <span class="nl">opacity</span><span class="p">:</span> <span class="m">1</span><span class="p">;</span> <span class="nl">transform</span><span class="p">:</span> <span class="n">scale</span><span class="p">(</span><span class="m">1</span><span class="p">)</span>    <span class="n">translateY</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>   <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="5-the-disappearing-preview-race-condition" href="#5-the-disappearing-preview-race-condition">
+  </a>
+  5. The Disappearing Preview Race Condition
+</h2>
+
+<p>This was the most subtle bug. And it was hiding in plain sight.</p>
+
+<h3>
+  <a name="the-symptom" href="#the-symptom">
+  </a>
+  The Symptom
+</h3>
+
+<p>Attach a file → preview appears → preview vanishes 500ms later. Every time.</p>
+
+<h3>
+  <a name="the-root-cause" href="#the-root-cause">
+  </a>
+  The Root Cause
+</h3>
+
+<p>When a file uploaded successfully, the backend sent:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w"> </span><span class="err">command:</span><span class="w"> </span><span class="err">'status'</span><span class="p">,</span><span class="w"> </span><span class="err">type:</span><span class="w"> </span><span class="err">'success'</span><span class="p">,</span><span class="w"> </span><span class="err">status:</span><span class="w"> </span><span class="err">'File</span><span class="w"> </span><span class="err">uploaded</span><span class="w"> </span><span class="err">successfully'</span><span class="w"> </span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The WebView message handler treated <em>every</em> success the same way:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ BEFORE — nuked everything on any success message</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">status</span><span class="dl">'</span><span class="p">:</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nf">resetAllComposers</span><span class="p">();</span> <span class="c1">// cleared activeMediaPaths + removed preview DOM</span>
+  <span class="p">}</span>
+  <span class="nf">toast</span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">status</span><span class="p">,</span> <span class="nx">msg</span><span class="p">.</span><span class="kd">type</span><span class="p">);</span>
+  <span class="k">break</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>resetAllComposers()</code> was designed for one thing: clean up after a post is fully shared. But it was firing on file uploads, auto-saves, and every other intermediate success too.</p>
+
+<h3>
+  <a name="the-fix" href="#the-fix">
+  </a>
+  The Fix
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ AFTER — terminal vs intermediate distinction</span>
+<span class="k">case</span> <span class="dl">'</span><span class="s1">status</span><span class="dl">'</span><span class="p">:</span> <span class="p">{</span>
+  <span class="nf">toast</span><span class="p">(</span><span class="nc">String</span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">status</span> <span class="o">??</span> <span class="dl">''</span><span class="p">),</span> <span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">info</span><span class="dl">'</span><span class="p">);</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">text</span> <span class="o">=</span> <span class="nc">String</span><span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">status</span> <span class="o">??</span> <span class="dl">''</span><span class="p">).</span><span class="nf">toLowerCase</span><span class="p">();</span>
+
+    <span class="kd">const</span> <span class="nx">isTerminal</span>     <span class="o">=</span> <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">shared</span><span class="dl">'</span><span class="p">)</span>    <span class="o">||</span>
+                           <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">published</span><span class="dl">'</span><span class="p">)</span> <span class="o">||</span>
+                           <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">complete</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">isIntermediate</span> <span class="o">=</span> <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">upload</span><span class="dl">'</span><span class="p">)</span>    <span class="o">||</span>
+                           <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">saved</span><span class="dl">'</span><span class="p">)</span>     <span class="o">||</span>
+                           <span class="nx">text</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">processing</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">isTerminal</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nx">isIntermediate</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nf">resetAllComposers</span><span class="p">();</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+  <span class="k">break</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The rule going forward:</strong> <code>resetAllComposers()</code> is terminal-only. Intermediate feedback goes to <code>toast()</code> and targeted DOM updates — never a full reset.</p>
+
+
+<hr>
+
+<h2>
+  <a name="6-reddits-s3-upload-pipeline" href="#6-reddits-s3-upload-pipeline">
+  </a>
+  6. Reddit's S3 Upload Pipeline
+</h2>
+
+<p>This was the hardest fix in v3.1. Reddit's native image upload doesn't use a standard multipart POST endpoint. It routes through Amazon S3, and the sequence has enough specific requirements that every step has its own failure mode.</p>
+
+<h3>
+  <a name="the-full-flow" href="#the-full-flow">
+  </a>
+  The Full Flow
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>POST /api/media/asset.json  →  receive S3 upload URL + signed fields
+POST to S3 URL (FormData)   →  upload the file bytes
+POST /api/submit            →  create the Reddit post with asset URL
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="step-1-get-s3-credentials" href="#step-1-get-s3-credentials">
+  </a>
+  Step 1 — Get S3 Credentials
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/platforms/reddit.ts</span>
+
+<span class="k">async</span> <span class="kd">function</span> <span class="nf">getS3UploadUrl</span><span class="p">(</span>
+  <span class="nx">accessToken</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">filePath</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">mimeType</span><span class="p">:</span> <span class="kr">string</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">uploadUrl</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">fields</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span><span class="p">;</span> <span class="nl">assetUrl</span><span class="p">:</span> <span class="kr">string</span> <span class="p">}</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">res</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span>
+    <span class="dl">'</span><span class="s1">https://oauth.reddit.com/api/media/asset.json</span><span class="dl">'</span><span class="p">,</span>
+    <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+      <span class="na">filepath</span><span class="p">:</span> <span class="nx">path</span><span class="p">.</span><span class="nf">basename</span><span class="p">(</span><span class="nx">filePath</span><span class="p">),</span>
+      <span class="na">mimetype</span><span class="p">:</span> <span class="nx">mimeType</span><span class="p">,</span>
+    <span class="p">}),</span>
+    <span class="p">{</span>
+      <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">Authorization</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">accessToken</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/x-www-form-urlencoded</span><span class="dl">'</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">User-Agent</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">DotShare/3.1</span><span class="dl">'</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">}</span>
+  <span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">uploadUrl</span> <span class="o">=</span> <span class="s2">`https:</span><span class="p">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">args</span><span class="p">.</span><span class="nx">action</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+
+  <span class="c1">// Reddit returns fields as [{name, value}] array — convert to object</span>
+  <span class="kd">const</span> <span class="na">fields</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{};</span>
+  <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">f</span> <span class="k">of</span> <span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">args</span><span class="p">.</span><span class="nx">fields</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">fields</span><span class="p">[</span><span class="nx">f</span><span class="p">.</span><span class="nx">name</span><span class="p">]</span> <span class="o">=</span> <span class="nx">f</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="p">{</span>
+    <span class="nx">uploadUrl</span><span class="p">,</span>
+    <span class="nx">fields</span><span class="p">,</span>
+    <span class="na">assetUrl</span><span class="p">:</span> <span class="s2">`https://i.redd.it/</span><span class="p">${</span><span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">asset</span><span class="p">.</span><span class="nx">asset_id</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+  <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="step-2-upload-to-s3" href="#step-2-upload-to-s3">
+  </a>
+  Step 2 — Upload to S3
+</h3>
+
+<p>Two traps here. Field order in FormData matters — S3 requires all fields before the file. And S3 requires <code>Content-Length</code> explicitly — axios doesn't set it automatically for <code>FormData</code> in Node.js.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">async</span> <span class="kd">function</span> <span class="nf">uploadToS3</span><span class="p">(</span>
+  <span class="nx">uploadUrl</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">fields</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span><span class="p">,</span>
+  <span class="nx">filePath</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">mimeType</span><span class="p">:</span> <span class="kr">string</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">fileBuffer</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">fs</span><span class="p">.</span><span class="nx">promises</span><span class="p">.</span><span class="nf">readFile</span><span class="p">(</span><span class="nx">filePath</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">formData</span>   <span class="o">=</span> <span class="k">new</span> <span class="nc">FormData</span><span class="p">();</span>
+
+  <span class="c1">// All fields MUST come before the file — S3 policy</span>
+  <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="p">[</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">]</span> <span class="k">of</span> <span class="nb">Object</span><span class="p">.</span><span class="nf">entries</span><span class="p">(</span><span class="nx">fields</span><span class="p">))</span> <span class="p">{</span>
+    <span class="nx">formData</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="nx">key</span><span class="p">,</span> <span class="nx">value</span><span class="p">);</span>
+  <span class="p">}</span>
+  <span class="nx">formData</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span>
+    <span class="dl">'</span><span class="s1">file</span><span class="dl">'</span><span class="p">,</span>
+    <span class="k">new</span> <span class="nc">Blob</span><span class="p">([</span><span class="nx">fileBuffer</span><span class="p">],</span> <span class="p">{</span> <span class="na">type</span><span class="p">:</span> <span class="nx">mimeType</span> <span class="p">}),</span>
+    <span class="nx">path</span><span class="p">.</span><span class="nf">basename</span><span class="p">(</span><span class="nx">filePath</span><span class="p">)</span>
+  <span class="p">);</span>
+
+  <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span><span class="nx">uploadUrl</span><span class="p">,</span> <span class="nx">formData</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="p">{</span> <span class="dl">'</span><span class="s1">Content-Length</span><span class="dl">'</span><span class="p">:</span> <span class="nx">fileBuffer</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">.</span><span class="nf">toString</span><span class="p">()</span> <span class="p">},</span>
+    <span class="na">maxBodyLength</span><span class="p">:</span> <span class="kc">Infinity</span><span class="p">,</span>
+    <span class="na">maxContentLength</span><span class="p">:</span> <span class="kc">Infinity</span><span class="p">,</span>
+  <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="step-3-submit-the-post" href="#step-3-submit-the-post">
+  </a>
+  Step 3 — Submit the Post
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">async</span> <span class="kd">function</span> <span class="nf">submitRedditImagePost</span><span class="p">(</span>
+  <span class="nx">accessToken</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">subreddit</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">title</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">assetUrl</span><span class="p">:</span> <span class="kr">string</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">res</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span>
+    <span class="dl">'</span><span class="s1">https://oauth.reddit.com/api/submit</span><span class="dl">'</span><span class="p">,</span>
+    <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">({</span>
+      <span class="na">sr</span><span class="p">:</span>       <span class="nx">subreddit</span><span class="p">,</span>
+      <span class="na">kind</span><span class="p">:</span>     <span class="dl">'</span><span class="s1">image</span><span class="dl">'</span><span class="p">,</span>
+      <span class="na">title</span><span class="p">:</span>    <span class="nx">title</span><span class="p">,</span>
+      <span class="na">url</span><span class="p">:</span>      <span class="nx">assetUrl</span><span class="p">,</span>  <span class="c1">// use asset URL, NOT the CDN URL</span>
+      <span class="na">resubmit</span><span class="p">:</span> <span class="dl">'</span><span class="s1">true</span><span class="dl">'</span><span class="p">,</span>
+      <span class="na">api_type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">json</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">}),</span>
+    <span class="p">{</span>
+      <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">Authorization</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">accessToken</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/x-www-form-urlencoded</span><span class="dl">'</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">User-Agent</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">DotShare/3.1</span><span class="dl">'</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">}</span>
+  <span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">postUrl</span> <span class="o">=</span> <span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">?.</span><span class="nx">json</span><span class="p">?.</span><span class="nx">data</span><span class="p">?.</span><span class="nx">url</span><span class="p">;</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">postUrl</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">errors</span> <span class="o">=</span> <span class="nx">res</span><span class="p">.</span><span class="nx">data</span><span class="p">?.</span><span class="nx">json</span><span class="p">?.</span><span class="nx">errors</span><span class="p">;</span>
+    <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span>
+      <span class="nx">errors</span><span class="p">?.</span><span class="nx">length</span>
+        <span class="p">?</span> <span class="s2">`Reddit: </span><span class="p">${</span><span class="nx">errors</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]}</span><span class="s2">`</span>
+        <span class="p">:</span> <span class="dl">'</span><span class="s1">Reddit: no post URL in response</span><span class="dl">'</span>
+    <span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nx">postUrl</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The three traps summarized:</strong></p>
+
+<ol>
+<li>FormData field order — fields before file or S3 returns 403</li>
+<li>Missing <code>Content-Length</code> — AWS returns 400, message says "malformed body"</li>
+<li>CDN URL vs asset URL — <code>i.redd.it/ID</code> is unpopulated at submit time, use the S3 action URL</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="7-reddit-field-name-sync" href="#7-reddit-field-name-sync">
+  </a>
+  7. Reddit Field Name Sync
+</h2>
+
+<p>Found this while fixing the S3 pipeline. The WebView was sending field names the backend didn't recognize — and the post text wasn't being sent at all.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ BEFORE</span>
+<span class="nf">send</span><span class="p">(</span><span class="dl">'</span><span class="s1">shareToReddit</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+  <span class="na">subreddit</span><span class="p">:</span> <span class="nf">val</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditSubreddit</span><span class="dl">'</span><span class="p">),</span> <span class="c1">// ❌ handler expects 'redditSubreddit'</span>
+  <span class="na">title</span><span class="p">:</span>     <span class="nf">val</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditTitle</span><span class="dl">'</span><span class="p">),</span>     <span class="c1">// ❌ handler expects 'redditTitle'</span>
+  <span class="na">flair</span><span class="p">:</span>     <span class="p">...,</span>                    <span class="c1">// ❌ handler expects 'redditFlairId'</span>
+  <span class="na">postType</span><span class="p">:</span>  <span class="p">...,</span>                    <span class="c1">// ❌ handler expects 'redditPostType'</span>
+  <span class="c1">// ❌ 'post' (the text) missing entirely</span>
+<span class="p">});</span>
+
+<span class="c1">// ✅ AFTER</span>
+<span class="nf">send</span><span class="p">(</span><span class="dl">'</span><span class="s1">shareToReddit</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+  <span class="na">post</span><span class="p">:</span>            <span class="nx">textarea</span><span class="p">?.</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">()</span> <span class="o">??</span> <span class="dl">''</span><span class="p">,</span>
+  <span class="na">redditSubreddit</span><span class="p">:</span> <span class="nf">val</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditSubreddit</span><span class="dl">'</span><span class="p">),</span>
+  <span class="na">redditTitle</span><span class="p">:</span>     <span class="nf">val</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditTitle</span><span class="dl">'</span><span class="p">),</span>
+  <span class="na">redditFlairId</span><span class="p">:</span>   <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLSelectElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditFlair</span><span class="dl">'</span><span class="p">)?.</span><span class="nx">value</span> <span class="o">??</span> <span class="dl">''</span><span class="p">,</span>
+  <span class="na">redditPostType</span><span class="p">:</span>  <span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="o">&lt;</span><span class="nx">HTMLInputElement</span><span class="o">&gt;</span><span class="p">(</span>
+                     <span class="dl">'</span><span class="s1">input[name="redditPostType"]:checked</span><span class="dl">'</span>
+                   <span class="p">)?.</span><span class="nx">value</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">self</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">redditSpoiler</span><span class="p">:</span>   <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLInputElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">redditSpoiler</span><span class="dl">'</span><span class="p">)?.</span><span class="nx">checked</span> <span class="o">??</span> <span class="kc">false</span><span class="p">,</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="8-unused-variable-cleanup" href="#8-unused-variable-cleanup">
+  </a>
+  8. Unused Variable Cleanup
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ BEFORE</span>
+<span class="kd">const</span> <span class="nx">btnShare</span>    <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-share</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">btnGenerate</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-generate-ai</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">btnSchedule</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-schedule</span><span class="dl">'</span><span class="p">);</span> <span class="c1">// never used → ESLint error</span>
+<span class="kd">const</span> <span class="nx">btnMedia</span>    <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-attach-media</span><span class="dl">'</span><span class="p">);</span>
+
+<span class="c1">// ✅ AFTER</span>
+<span class="kd">const</span> <span class="nx">btnShare</span>    <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-share</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">btnGenerate</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-generate-ai</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">btnMedia</span>    <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLButtonElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">btn-attach-media</span><span class="dl">'</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Scheduling stays in the HTML as a disabled "Coming Soon" button — listener is commented out pending v3.2.</p>
+
+
+<hr>
+
+<h2>
+  <a name="v31-summary" href="#v31-summary">
+  </a>
+  v3.1 Summary
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Status feedback</td>
+<td>VS Code popups</td>
+<td>Inline toast engine</td>
+</tr>
+<tr>
+<td>File preview</td>
+<td>Disappears on upload</td>
+<td>Stable ✅</td>
+</tr>
+<tr>
+<td>Character limits</td>
+<td>Display only</td>
+<td>Enforced + visual feedback</td>
+</tr>
+<tr>
+<td>Reddit images</td>
+<td>Broken (S3 errors)</td>
+<td>Full pipeline working ✅</td>
+</tr>
+<tr>
+<td>Reddit fields</td>
+<td>Mismatched</td>
+<td>Synchronized ✅</td>
+</tr>
+<tr>
+<td>ESLint</td>
+<td>1 unused var warning</td>
+<td>0 warnings ✅</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h3>
+  <a name="see-it-in-action" href="#see-it-in-action">
+  </a>
+  See It in Action
+</h3>
+
+<p><strong>LinkedIn posting demo:</strong><br>
+  <iframe src="https://www.youtube.com/embed/cHPtzNBK9ZY" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p><strong>Telegram posting demo:</strong><br>
+  <iframe src="https://www.youtube.com/embed/XpqMji5FPtI" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p><strong>Bluesky posting demo:</strong><br>
+  <iframe src="https://www.youtube.com/embed/R3ZJqlyOZbM" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="install-dotshare" href="#install-dotshare">
+  </a>
+  Install DotShare
+</h2>
+
+<p><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></p>
+
+<p><a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX (VSCodium / Gitpod</a></p>
+
+<p><a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">GitHub — star, fork, contribute</a></p>
+
+
+<hr>
+
+<p>v3.2 "The Media Expansion" — up to 4 images per post, per-thumbnail previews, JIT compression, secure WebView URIs — breakdown coming next.</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-v31-toast-engine-race-condition-fix-and-surviving-reddits-s3-upload-pipeline-d8b" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotshare-v31-toast-engine-race-condition-fix-and-surviving-reddits-s3-upload-pipeline-d8b#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

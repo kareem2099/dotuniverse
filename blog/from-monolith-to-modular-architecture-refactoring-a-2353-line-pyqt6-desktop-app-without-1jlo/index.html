@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>From Monolith to Modular Architecture: Refactoring a 2,353-Line PyQt6 Desktop App Without Regressions — FreeRave</title>
+<meta name="description" content="How we transformed DotGhostBoard from a monolithic desktop app into a decoupled, test-driven...">
+<link rel="canonical" href="https://dev.to/freerave/from-monolith-to-modular-architecture-refactoring-a-2353-line-pyqt6-desktop-app-without-1jlo">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/from-monolith-to-modular-architecture-refactoring-a-2353-line-pyqt6-desktop-app-without-1jlo">
+<meta property="og:title" content="From Monolith to Modular Architecture: Refactoring a 2,353-Line PyQt6 Desktop App Without Regressions — FreeRave">
+<meta property="og:description" content="How we transformed DotGhostBoard from a monolithic desktop app into a decoupled, test-driven...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbg7xvm75rv4vu96ts2sm.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbg7xvm75rv4vu96ts2sm.png" alt="">
+  <h1 class="post-title">From Monolith to Modular Architecture: Refactoring a 2,353-Line PyQt6 Desktop App Without Regressions</h1>
+  <div class="post-meta">
+    <time datetime="2026-09-16T15:04:44Z">16 September 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#architecture</span><span class="post-tag">#opensource</span><span class="post-tag">#softwareengineering</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-we-transformed-dotghostboard-from-a-monolithic-desktop-app-into-a-decoupled-testdriven-modular-architecture-decomposing-monolithic-classes-isolating-sqlite-and-adding-86-tests-with-zero-regressions" href="#how-we-transformed-dotghostboard-from-a-monolithic-desktop-app-into-a-decoupled-testdriven-modular-architecture-decomposing-monolithic-classes-isolating-sqlite-and-adding-86-tests-with-zero-regressions">
+  </a>
+  How we transformed DotGhostBoard from a monolithic desktop app into a decoupled, test-driven modular architecture — decomposing monolithic classes, isolating SQLite, and adding 86 tests with zero regressions.
+</h2>
+
+<p>A 2,353-line <code>Dashboard</code> class is rarely just a large file. It is usually a symptom that storage, business logic, security, synchronization, and UI behavior have all collapsed into the same boundary.</p>
+
+<p>That was the state of <strong><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">DotGhostBoard</a></strong> v1.5 — an open-source, privacy-first clipboard manager for Linux built with Python and PyQt6.</p>
+
+<p>What began as a snappy, native desktop tool had accumulated layers of complexity: local AES-GCM encryption, dynamic database queries inside widget click handlers, regex secret detectors on keystrokes, and peer-to-peer LAN sync. Modifying a single button callback risked tripping up the entire Qt event loop.</p>
+
+<p>To prepare the codebase for its upcoming v2.0 milestone (native Wayland protocol support, end-to-end device sync, and extensible plugins), we undertook a comprehensive four-phase refactoring initiative.</p>
+
+<p>The outcome:</p>
+
+<ul>
+<li><strong><code>ui/dashboard.py</code> shrank from 2,353 to 1,535 lines (-35% LOC).</strong></li>
+<li><strong>The automated test suite expanded from 220 to 306 tests across 25 modules (+39% tests).</strong></li>
+<li><strong>The entire refactor passed the test suite with zero detected user-facing regressions.</strong></li>
+</ul>
+
+<p>Here is the exact architectural blueprint, design patterns, and lessons learned.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-before-architecture-the-desktop-app-debt-trap" href="#the-before-architecture-the-desktop-app-debt-trap">
+  </a>
+  🛑 The "Before" Architecture: The Desktop App Debt Trap
+</h2>
+
+<p>Desktop applications built with GUI frameworks like Qt, Tkinter, or wxWidgets are notoriously susceptible to the <strong>monolithic "Blob" antipattern</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[ THE MONOLITHIC ARCHITECTURE ]
+┌──────────────────────────────────────────────────────────────────┐
+│ Dashboard (ui/dashboard.py) — 2,353 Lines                        │
+│  - Raw SQL queries (`cursor.execute(...)`)                       │
+│  - AES-GCM crypto encryption/decryption                          │
+│  - Card widget lifecycle &amp; pagination                            │
+│  - LAN socket broadcasting                                       │
+│  - Password prompt modals &amp; session key caching                  │
+└──────────────┬──────────────────┬─────────────────┬──────────────┘
+               │                  │                 │
+      Direct Storage Calls   Qt Event Loop    Tightly Bound Polling
+               ▼                  ▼                 ▼
+     [ Monolithic SQLite ]   [ UI Signals ]   [ QClipboard Event ]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three critical pain points made future feature work fragile:</p>
+
+<ol>
+<li>
+<strong>The 2,353-Line Monolithic Dashboard</strong>: Button callbacks were directly reading from SQLite, instantiating cipher suites, managing session timers, and firing off network broadcasts.</li>
+<li>
+<strong>The 1,100-Line Storage Monolith (<code>core/storage.py</code>)</strong>: One file handled connection lifecycle, schema migrations, clip CRUD, tag management, collection associations, and peer credentials.</li>
+<li>
+<strong>Platform-Tied Clipboard Listener</strong>: Capturing clipboard data was tied directly to PyQt's <code>QClipboard.dataChanged</code> event loop. Headless unit testing without an X11 display server was difficult, and supporting Wayland's native <code>wlr-data-control</code> protocol was functionally impossible.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="the-core-architectural-principle" href="#the-core-architectural-principle">
+  </a>
+  🎯 The Core Architectural Principle
+</h2>
+
+<p>To untangle this, we established a strict rule of separation:</p>
+
+<blockquote>
+<p><strong>Controllers coordinate UI behavior. Services own business rules. Repositories own persistence. Backends own platform integration.</strong><br>
+</p>
+</blockquote>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>UI (Widgets / Dialogs)
+      │
+      ▼
+Controllers (ui/controllers/ - QObject Behavioral glue)
+      │
+      ▼
+Services (core/services/ - Headless business logic)
+      │
+      ▼
+Repositories (core/storage/repositories/ - Domain data access)
+      │
+      ▼
+Database (core/storage/database.py - SQLite context &amp; migrations)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="phase-1-modularizing-storage-with-the-repository-amp-facade-patterns" href="#phase-1-modularizing-storage-with-the-repository-amp-facade-patterns">
+  </a>
+  Phase 1: Modularizing Storage with the Repository &amp; Facade Patterns
+</h2>
+
+<p>Rather than allowing UI components to issue raw SQL queries, we decomposed <code>core/storage.py</code> into a focused package:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>core/storage/
+├── __init__.py           # 100% Backward-compatible Facade
+├── database.py           # Context-managed connection layer &amp; test paths
+├── migrations.py         # Transactional schema migration engine
+└── repositories/
+    ├── clips.py          # CRUD, AES-256-GCM encryption, image deduplication
+    ├── tags.py           # Normalization, tag extraction, rename/delete
+    ├── collections.py    # Grouping, filtering, cascade rules
+    ├── peers.py          # LAN device trust &amp; credentials
+    └── stats.py          # Aggregations &amp; performance metrics
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-backwardcompatible-facade-pattern" href="#the-backwardcompatible-facade-pattern">
+  </a>
+  The Backward-Compatible Facade Pattern
+</h3>
+
+<p>A common blunder when refactoring persistence is forcing a sweeping rewrite across every caller at once. </p>
+
+<p>To keep Git diffs manageable and avoid breaking other branches, <code>core/storage/__init__.py</code> serves as a facade, re-exporting original function signatures:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/storage/__init__.py (Facade)
+</span><span class="kn">from</span> <span class="n">.database</span> <span class="kn">import</span> <span class="n">get_db</span><span class="p">,</span> <span class="n">init_db</span><span class="p">,</span> <span class="n">close_db</span>
+<span class="kn">from</span> <span class="n">.repositories.clips</span> <span class="kn">import</span> <span class="n">save_clip</span><span class="p">,</span> <span class="n">get_clips</span><span class="p">,</span> <span class="n">delete_clip</span>
+<span class="kn">from</span> <span class="n">.repositories.tags</span> <span class="kn">import</span> <span class="n">get_all_tags</span><span class="p">,</span> <span class="n">normalize_tag</span>
+<span class="kn">from</span> <span class="n">.repositories.collections</span> <span class="kn">import</span> <span class="n">get_collections</span>
+
+<span class="c1"># Existing callers continued to function without changing an import!
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="transactional-schema-migrations" href="#transactional-schema-migrations">
+  </a>
+  Transactional Schema Migrations
+</h3>
+
+<p>We implemented an in-house, zero-dependency migration engine (<code>core/storage/migrations.py</code>):</p>
+
+<ul>
+<li>Every schema migration executes within an atomic transaction.</li>
+<li>Legacy schema detection auto-promotes pre-existing v1.5 databases.</li>
+<li>Includes downgrade guards to prevent older versions from corrupting newer schemas.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="phase-2-decoupling-the-clipboard-engine-with-protocols" href="#phase-2-decoupling-the-clipboard-engine-with-protocols">
+  </a>
+  Phase 2: Decoupling the Clipboard Engine with Protocols
+</h2>
+
+<p>Previously, the clipboard listener was embedded inside Qt widget callbacks. We extracted this into a headless policy engine:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[ Raw Clipboard Event ]
+          │
+          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 ClipboardPipeline (Pure Logic)              │
+│                                                             │
+│  1. Validation      ──► Ignore empty or malformed payloads  │
+│  2. App Whitelist   ──► Filter out sensitive applications   │
+│  3. Paranoia Filter ──► Check private browsing &amp; incognito  │
+│  4. Secret Detector ──► Scan for API keys, tokens, SSH keys │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+                    CaptureDecision (Action)
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+    [ SAVE_NORMAL ]    [ SECRET_CANDIDATE ]    [ IGNORE ]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="protocolbased-backends" href="#protocolbased-backends">
+  </a>
+  Protocol-Based Backends
+</h3>
+
+<p>By specifying a clean Python <code>typing.Protocol</code>, the pipeline doesn't care whether events originate from X11, Qt, or Wayland:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/clipboard/backend.py
+</span><span class="kn">from</span> <span class="n">typing</span> <span class="kn">import</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span> <span class="n">.events</span> <span class="kn">import</span> <span class="n">ClipboardEvent</span>
+
+<span class="k">class</span> <span class="nc">ClipboardBackend</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">callback</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">ClipboardEvent</span><span class="p">],</span> <span class="bp">None</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span> <span class="bp">...</span>
+    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span> <span class="bp">...</span>
+    <span class="k">def</span> <span class="nf">get_current_text</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span> <span class="bp">...</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Benefits:</strong></p>
+
+<ul>
+<li>We wrapped Qt's clipboard event handling into <code>QtClipboardBackend</code>.</li>
+<li>We introduced a lightweight <code>MockClipboardBackend</code> for unit tests, enabling headless test execution in under 4 seconds without Xvfb.</li>
+<li>
+<strong>Wayland readiness</strong>: The architecture is decoupled so a native Wayland backend can be introduced cleanly in v2.0.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="phase-3-domain-service-layer-amp-cryptographic-hardening" href="#phase-3-domain-service-layer-amp-cryptographic-hardening">
+  </a>
+  Phase 3: Domain Service Layer &amp; Cryptographic Hardening
+</h2>
+
+<p>Desktop apps frequently leak business logic into UI event listeners. For instance, calculating whether a snippet should trigger an "Auto-Pin" recommendation based on copy frequency was embedded inside a widget slot.</p>
+
+<p>We extracted pure Python service classes into <code>core/services/</code>:</p>
+
+<ul>
+<li>
+<code>HistoryService</code>: Manages pagination windows, debounced search, duplicate suppression, and copy thresholds (<code>PIN_SUGGESTION_THRESHOLD = 5</code>).</li>
+<li>
+<code>CollectionService</code>: Handles categorization rules and cascade unlinking.</li>
+<li>
+<code>SecurityService</code>: Manages master password verification, session lock timeouts, and key rotation.</li>
+<li>
+<code>SyncService</code>: Validates LAN peer trust handshakes.</li>
+</ul>
+
+<h3>
+  <a name="cryptographic-rigor-amp-envelope-encryption" href="#cryptographic-rigor-amp-envelope-encryption">
+  </a>
+  Cryptographic Rigor &amp; Envelope Encryption
+</h3>
+
+<p>DotGhostBoard features an encrypted storage mode (<strong>The Vault</strong>). We hardened key derivation and isolation:</p>
+
+<ol>
+<li>
+<strong>Two-Tier Key Derivation Chain</strong>:
+$$\text{Master Password} \xrightarrow{\text{PBKDF2-HMAC-SHA256 (600,000 iter + Salt)}} \text{Base Key} \xrightarrow{\text{HKDF-SHA256 (Domain Context)}} \text{Vault KEK}$$
+
+<ul>
+<li>Passwords first pass through <strong>PBKDF2-HMAC-SHA256</strong> with 600,000 iterations and a persistent 256-bit random salt.</li>
+<li>The resulting base key is then fed through <strong>HKDF-SHA256</strong> with domain context <code>b"dotghostboard:vault:v2"</code>. This guarantees that the Vault key is cryptographically independent from other application keys.</li>
+</ul>
+</li>
+<li>
+<strong>Physical Database Isolation &amp; Envelope Encryption</strong>:
+
+<ul>
+<li>Vault items live in a physically distinct SQLite database (<code>vault.db</code>).</li>
+<li>Items are encrypted using a fast Data Encryption Key (DEK). The DEK is encrypted with the Key Encryption Key (KEK).</li>
+<li>
+<strong>Instant Password Rotation</strong>: Changing the master password only requires re-wrapping the 32-byte DEK (a constant-time operation taking ~2ms in our local benchmarks), rather than re-encrypting gigabytes of history data.</li>
+</ul>
+</li>
+<li>
+<strong>Defense-in-Depth</strong>:
+
+<ul>
+<li>Added <code>secure_zero()</code> providing <strong>best-effort memory scrubbing</strong> for sensitive mutable <code>bytearray</code> buffers after cryptographic operations.</li>
+</ul>
+</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="phase-4-decomposing-the-2353line-monolithic-qt-dashboard" href="#phase-4-decomposing-the-2353line-monolithic-qt-dashboard">
+  </a>
+  Phase 4: Decomposing the 2,353-Line Monolithic Qt Dashboard
+</h2>
+
+<p>Decomposing the central <code>Dashboard</code> window was the most delicate step. </p>
+
+<p>Rather than letting the main window handle every event, we introduced <strong>Behavioral <code>QObject</code> Controllers</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>                    ┌────────────────────────┐
+                    │       Dashboard        │
+                    │  (ui/dashboard.py)     │
+                    │   Layouts &amp; Visuals    │
+                    └───────────┬────────────┘
+         ┌───────────────┬──────┴────────┬───────────────┐
+         ▼               ▼               ▼               ▼
+┌─────────────────┐ ┌──────────┐ ┌───────────────┐ ┌───────────┐
+│HistoryController│ │Collection│ │SecurityContr. │ │SyncContr. │
+│• Infinite scroll│ │• Sidebar │ │• Vault unlock │ │• LAN P2P  │
+│• Search debounce│ │• Drag/drop│ │• Secret reveal│ │• Pairing  │
+│• Card lifecycle │ │• Category│ │• Session timer│ │• Discovery│
+└─────────────────┘ └──────────┘ └───────────────┘ └───────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Each controller is a dedicated <code>QObject</code> wired through dependency injection:</p>
+
+<ul>
+<li>
+<code>HistoryController</code>: Manages card pagination, card lifecycle, and 150ms search query debouncing.</li>
+<li>
+<code>CollectionController</code>: Manages category navigation, drag-and-drop targeting, and folder CRUD dialogs.</li>
+<li>
+<code>SecurityController</code>: Oversees session lock/unlock events, secret masking, and unlock prompts.</li>
+<li>
+<code>SyncController</code>: Coordinates peer discovery listings, pairing dialogs, and network status styling.</li>
+</ul>
+
+<h3>
+  <a name="the-impact" href="#the-impact">
+  </a>
+  The Impact:
+</h3>
+
+<ul>
+<li>
+<strong><code>ui/dashboard.py</code> shrank by 818 lines</strong> (2,353 → 1,535 lines).</li>
+<li><strong>Zero raw SQL or crypto primitives remain in the UI layer.</strong></li>
+<li>Extracted <code>PinSuggestionToast</code> into its own reusable widget module (<code>ui/widgets/pin_toast.py</code>).</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="4-subtle-bugs-discovered-and-fixed-during-refactoring" href="#4-subtle-bugs-discovered-and-fixed-during-refactoring">
+  </a>
+  🐛 4 Subtle Bugs Discovered (and Fixed) During Refactoring
+</h2>
+
+<p>A comprehensive refactor with high test coverage inevitably unearths long-standing subtle bugs:</p>
+
+<h3>
+  <a name="1-the-recursive-clipboard-sync-loop" href="#1-the-recursive-clipboard-sync-loop">
+  </a>
+  1. The Recursive Clipboard Sync Loop
+</h3>
+
+<ul>
+<li>
+<strong>Issue</strong>: When a user clicked an existing snippet card in the GUI to copy it to their system clipboard, the clipboard watcher detected the change and triggered a LAN broadcast as if it were a new external capture, creating an infinite echo loop between paired devices.</li>
+<li>
+<strong>Fix</strong>: Enforced strict signal boundaries. The LAN sync broadcast is triggered <em>only</em> by physical captures originating from <code>Watcher</code>, never from internal UI card copy actions.</li>
+</ul>
+
+<h3>
+  <a name="2-the-on-inmemory-collection-calculation" href="#2-the-on-inmemory-collection-calculation">
+  </a>
+  2. The $O(N)$ In-Memory Collection Calculation
+</h3>
+
+<ul>
+<li>
+<strong>Issue</strong>: Populating collection card counts loaded the entire history table into Python and computed counts using list comprehensions.</li>
+<li>
+<strong>Fix</strong>: Replaced with a single SQL query utilizing <code>LEFT JOIN</code> and <code>COUNT(clips.id) GROUP BY collections.id</code>, slashing dashboard initialization time from ~210ms to under 8ms.</li>
+</ul>
+
+<h3>
+  <a name="3-n1-deletes-in-periodic-cleanup" href="#3-n1-deletes-in-periodic-cleanup">
+  </a>
+  3. N+1 Deletes in Periodic Cleanup
+</h3>
+
+<ul>
+<li>
+<strong>Issue</strong>: The routine cleaning old clips performed individual <code>DELETE FROM clips WHERE id = ?</code> calls inside a Python iteration.</li>
+<li>
+<strong>Fix</strong>: Refactored to bulk <code>DELETE FROM clips WHERE id IN (...)</code> executed inside a single transaction.</li>
+</ul>
+
+<h3>
+  <a name="4-encapsulation-leaks-in-session-management" href="#4-encapsulation-leaks-in-session-management">
+  </a>
+  4. Encapsulation Leaks in Session Management
+</h3>
+
+<ul>
+<li>
+<strong>Issue</strong>: Widgets were directly reading and mutating private session key attributes across controller instances.</li>
+<li>
+<strong>Fix</strong>: Replaced with a validated <code>set_session_key()</code> public method enforcing explicit lifecycle transitions.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="before-vs-after-metrics" href="#before-vs-after-metrics">
+  </a>
+  📊 Before vs. After: Metrics
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th style="text-align: left">Metric</th>
+<th style="text-align: center">Before (v1.5.7)</th>
+<th style="text-align: center">After (v1.6.0 Phantom)</th>
+<th style="text-align: center">Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left"><strong>Dashboard File Size</strong></td>
+<td style="text-align: center">2,353 lines</td>
+<td style="text-align: center">1,535 lines</td>
+<td style="text-align: center"><strong>-35% LOC (-818 lines)</strong></td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Storage Architecture</strong></td>
+<td style="text-align: center">1 Monolithic File</td>
+<td style="text-align: center">7 Decoupled Modules</td>
+<td style="text-align: center"><strong>Repository Pattern + Facade</strong></td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Automated Tests</strong></td>
+<td style="text-align: center">220 tests</td>
+<td style="text-align: center"><strong>306 tests</strong></td>
+<td style="text-align: center"><strong>+39% tests (+86 tests across 25 modules)</strong></td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Test Execution Time</strong></td>
+<td style="text-align: center">14.2s (with Qt displays)</td>
+<td style="text-align: center">3.8s (Mock Backends)</td>
+<td style="text-align: center"><strong>3.7x faster test execution</strong></td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>User-Facing Regressions</strong></td>
+<td style="text-align: center">Baseline</td>
+<td style="text-align: center"><strong>0 detected regressions</strong></td>
+<td style="text-align: center">Verified via test suite &amp; manual pass</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Wayland Readiness</strong></td>
+<td style="text-align: center">Qt-coupled</td>
+<td style="text-align: center"><strong>Protocol-abstracted</strong></td>
+<td style="text-align: center">Architecture prepared for native backend</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="how-we-measured" href="#how-we-measured">
+  </a>
+  📐 How We Measured
+</h2>
+
+<p>To ensure our metrics were empirical and reproducible:</p>
+
+<ul>
+<li>
+<strong>Lines of Code</strong>: Measured using <code>cloc</code> excluding comments, docstrings, and blank lines.</li>
+<li>
+<strong>Test Counts &amp; Speed</strong>: Measured via <code>pytest</code> run times on an identical Ubuntu 24.04 environment.</li>
+<li>
+<strong>Database Latencies</strong>: Profiled with <code>sqlite3</code> <code>EXPLAIN QUERY PLAN</code> and Python's <code>time.perf_counter_ns()</code>.</li>
+<li>
+<strong>Regression Verification</strong>: Confirmed across 306 automated unit/integration tests and a full manual smoke test on X11 and Wayland sessions.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="key-takeaways-for-refactoring-desktop-apps" href="#key-takeaways-for-refactoring-desktop-apps">
+  </a>
+  💡 Key Takeaways for Refactoring Desktop Apps
+</h2>
+
+<ol>
+<li>
+<strong>Do Not Start Refactoring Without a Fast Safety Net</strong>:
+Our initial 220-test suite gave us a fast safety net and exposed breaking changes as the refactor progressed. Build your test harness <em>before</em> you touch architecture.</li>
+<li>
+<strong>Use Facades to Keep PRs Manageable</strong>:
+Maintain backwards compatibility at module boundaries. Your refactoring doesn't need to break every import path simultaneously.</li>
+<li>
+<strong>Decouple Event Loops from Business Logic</strong>:
+Never let UI event loops govern application state. Pure Python classes with <code>Protocol</code> definitions make your business logic portable, maintainable, and lightning-fast to test.</li>
+<li>
+<strong>Isolate Signal Flow Early</strong>:
+GUI architectures crumble when signals cascade unpredictably. Define explicit component boundaries for what generates data versus what consumes it.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next" href="#whats-next">
+  </a>
+  🚀 What's Next?
+</h2>
+
+<p>With the architecture of <strong>DotGhostBoard v1.6.0 "Phantom"</strong> stabilized, we are actively developing the <strong>v2.0.0 "Cerberus"</strong> roadmap:</p>
+
+<ul>
+<li>Native Wayland clipboard engine (<code>wlr-data-control</code>).</li>
+<li>Authenticated peer-to-peer device sync.</li>
+<li>Extension and plugin system.</li>
+</ul>
+
+<h3>
+  <a name="links-amp-resources" href="#links-amp-resources">
+  </a>
+  🔗 Links &amp; Resources
+</h3>
+
+<ul>
+<li>📦 <strong>Download v1.6.0 "Phantom"</strong>: <a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.6.0" target="_blank" rel="noopener noreferrer">GitHub Release (AppImage, .deb, Arch)</a>
+</li>
+<li>🌐 <strong>OpenDesktop / Pling Store</strong>: <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard on OpenDesktop</a>
+</li>
+<li>⭐ <strong>Source Code &amp; Documentation</strong>: <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Have you ever refactored a monolithic desktop application? What patterns helped you untangle complex legacy UI code? Share your thoughts in the comments below!</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/from-monolith-to-modular-architecture-refactoring-a-2353-line-pyqt6-desktop-app-without-1jlo" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/from-monolith-to-modular-architecture-refactoring-a-2353-line-pyqt6-desktop-app-without-1jlo#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

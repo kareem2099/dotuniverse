@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Securing DotShare 3.3: Inside the Rust Media API (Magic Bytes, Atomic Quotas, &amp; Race Fixes) - Part 3 — FreeRave</title>
+<meta name="description" content="How we built a production-grade Cloudflare R2 upload pipeline in Rust — with layered...">
+<link rel="canonical" href="https://dev.to/freerave/i-hardened-a-rust-media-upload-api-with-magic-bytes-atomic-quotas-and-race-condition-fixes-part-5hi4">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-hardened-a-rust-media-upload-api-with-magic-bytes-atomic-quotas-and-race-condition-fixes-part-5hi4">
+<meta property="og:title" content="Securing DotShare 3.3: Inside the Rust Media API (Magic Bytes, Atomic Quotas, &amp; Race Fixes) - Part 3 — FreeRave">
+<meta property="og:description" content="How we built a production-grade Cloudflare R2 upload pipeline in Rust — with layered...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbefza5y2xxoj2f8vuxjh.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbefza5y2xxoj2f8vuxjh.png" alt="">
+  <h1 class="post-title">Securing DotShare 3.3: Inside the Rust Media API (Magic Bytes, Atomic Quotas, &amp; Race Fixes) - Part 3</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-27T10:14:16Z">27 May 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#rust</span><span class="post-tag">#security</span><span class="post-tag">#cloudflare</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-we-built-a-productiongrade-cloudflare-r2-upload-pipeline-in-rust-with-layered-security-an-atomic-quota-system-and-a-zerotrust-file-validation-strategy" href="#how-we-built-a-productiongrade-cloudflare-r2-upload-pipeline-in-rust-with-layered-security-an-atomic-quota-system-and-a-zerotrust-file-validation-strategy">
+  </a>
+  How we built a production-grade Cloudflare R2 upload pipeline in Rust — with layered security, an atomic quota system, and a zero-trust file validation strategy.
+</h2>
+
+<p>In <a href="https://dev.to/freerave/i-built-a-fail-fast-rust-scheduler-with-background-oauth-auto-refresh-part-2-314b">Part 2 of this series</a>, we enforced <strong>Strict Separation</strong> and <strong>Fail-Fast</strong> validation to prevent silent scheduling failures and auto-refresh OAuth tokens in the background.</p>
+
+<p>But our users still needed to attach images to their scheduled posts. And the moment you let users upload files to your server, you inherit one of the hardest problems in backend security: <strong>you can never trust what a user sends you.</strong></p>
+
+<p>Here is a deep dive into how we built the <code>POST /v1/media/upload</code> endpoint in Rust — with layered file validation, Cloudflare R2 storage, and an atomic quota system that closes a subtle but critical race condition.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-file-uploads-are-a-security-minefield" href="#the-problem-file-uploads-are-a-security-minefield">
+  </a>
+  The Problem: File Uploads Are a Security Minefield
+</h2>
+
+<p>Allowing file uploads without proper validation is one of the most common vectors for server compromise. The naive approach — checking the file extension or trusting the <code>Content-Type</code> header — is dangerously insufficient.</p>
+
+<p>A malicious user can trivially rename <code>exploit.php</code> to <code>photo.jpg</code> and send it with <code>Content-Type: image/jpeg</code>. A server that trusts that header will store an executable PHP file in what it thinks is an image directory.</p>
+
+<p>We needed a <strong>Zero-Trust</strong> validation pipeline. The rule: <strong>don't believe anything the client tells you. Verify everything from the raw binary.</strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-1-authentication-amp-body-size-at-the-router" href="#layer-1-authentication-amp-body-size-at-the-router">
+  </a>
+  Layer 1: Authentication &amp; Body Size at the Router
+</h2>
+
+<p>Before a single byte of the file payload is even parsed, two guards run at the Axum router level.</p>
+
+<p>The first is our existing Bearer JWT middleware — no valid token, no entry. The second is a global body size limit declared on the router itself:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/main.rs</span>
+
+<span class="k">use</span> <span class="nn">axum</span><span class="p">::</span><span class="nn">extract</span><span class="p">::</span><span class="n">DefaultBodyLimit</span><span class="p">;</span>
+
+<span class="k">let</span> <span class="n">app</span> <span class="o">=</span> <span class="nn">Router</span><span class="p">::</span><span class="nf">new</span><span class="p">()</span>
+    <span class="nf">.route</span><span class="p">(</span><span class="s">"/v1/media/upload"</span><span class="p">,</span> <span class="nf">post</span><span class="p">(</span><span class="nn">routes</span><span class="p">::</span><span class="nn">media</span><span class="p">::</span><span class="n">upload_media</span><span class="p">))</span>
+    <span class="c1">// ... other routes ...</span>
+    <span class="nf">.layer</span><span class="p">(</span><span class="nn">DefaultBodyLimit</span><span class="p">::</span><span class="nf">max</span><span class="p">(</span><span class="mi">10</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">));</span> <span class="c1">// 10 MB hard cap</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This <code>DefaultBodyLimit</code> layer rejects oversized requests at the framework level — before our handler allocates any memory for the file. It is the outermost wall.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-2-magic-bytes-validation-zerotrust-file-identity" href="#layer-2-magic-bytes-validation-zerotrust-file-identity">
+  </a>
+  Layer 2: Magic Bytes Validation (Zero-Trust File Identity)
+</h2>
+
+<p>Inside the handler, we apply a second, stricter file size check (5 MB) and then the core of our zero-trust strategy: <strong>magic bytes validation</strong>.</p>
+
+<p>Every legitimate image file format begins with a known binary signature, called a "magic number," embedded in the first few bytes of the file. JPEG files always start with <code>FF D8 FF</code>. PNG files always start with <code>89 50 4E 47</code>. These cannot be faked without corrupting the file.</p>
+
+<p>Here is our implementation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/routes/media.rs</span>
+
+<span class="c1">// Allowed MIME types and their corresponding magic bytes</span>
+<span class="k">const</span> <span class="n">ALLOWED_TYPES</span><span class="p">:</span> <span class="o">&amp;</span><span class="p">[(</span><span class="o">&amp;</span><span class="nb">str</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="p">[</span><span class="nb">u8</span><span class="p">]],</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)]</span> <span class="o">=</span> <span class="o">&amp;</span><span class="p">[</span>
+    <span class="p">(</span><span class="s">"image/jpeg"</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="p">[</span><span class="mi">0xff</span><span class="p">,</span> <span class="mi">0xd8</span><span class="p">,</span> <span class="mi">0xff</span><span class="p">]],</span> <span class="s">"jpg"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s">"image/png"</span><span class="p">,</span>  <span class="o">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="p">[</span><span class="mi">0x89</span><span class="p">,</span> <span class="mi">0x50</span><span class="p">,</span> <span class="mi">0x4e</span><span class="p">,</span> <span class="mi">0x47</span><span class="p">]],</span> <span class="s">"png"</span><span class="p">),</span>
+    <span class="p">(</span><span class="s">"image/webp"</span><span class="p">,</span> <span class="o">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="p">[</span><span class="mi">0x52</span><span class="p">,</span> <span class="mi">0x49</span><span class="p">,</span> <span class="mi">0x46</span><span class="p">,</span> <span class="mi">0x46</span><span class="p">]],</span> <span class="s">"webp"</span><span class="p">),</span> <span class="c1">// RIFF header</span>
+    <span class="p">(</span><span class="s">"image/gif"</span><span class="p">,</span>  <span class="o">&amp;</span><span class="p">[</span><span class="o">&amp;</span><span class="p">[</span><span class="mi">0x47</span><span class="p">,</span> <span class="mi">0x49</span><span class="p">,</span> <span class="mi">0x46</span><span class="p">,</span> <span class="mi">0x38</span><span class="p">]],</span> <span class="s">"gif"</span><span class="p">),</span>
+<span class="p">];</span>
+
+<span class="k">fn</span> <span class="nf">validate_magic_bytes</span><span class="p">(</span><span class="n">buffer</span><span class="p">:</span> <span class="o">&amp;</span><span class="p">[</span><span class="nb">u8</span><span class="p">],</span> <span class="n">mime_type</span><span class="p">:</span> <span class="o">&amp;</span><span class="nb">str</span><span class="p">)</span> <span class="k">-&gt;</span> <span class="nb">Option</span><span class="o">&lt;&amp;</span><span class="k">'static</span> <span class="nb">str</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">allowed_mime</span><span class="p">,</span> <span class="n">magics</span><span class="p">,</span> <span class="n">ext</span><span class="p">)</span> <span class="k">in</span> <span class="n">ALLOWED_TYPES</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="o">*</span><span class="n">allowed_mime</span> <span class="o">==</span> <span class="n">mime_type</span> <span class="p">{</span>
+            <span class="k">for</span> <span class="n">magic</span> <span class="k">in</span> <span class="o">*</span><span class="n">magics</span> <span class="p">{</span>
+                <span class="k">if</span> <span class="n">buffer</span><span class="nf">.starts_with</span><span class="p">(</span><span class="o">*</span><span class="n">magic</span><span class="p">)</span> <span class="p">{</span>
+                    <span class="k">return</span> <span class="nf">Some</span><span class="p">(</span><span class="n">ext</span><span class="p">);</span> <span class="c1">// Return the verified extension</span>
+                <span class="p">}</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="nb">None</span> <span class="c1">// Content-Type claimed a valid MIME but binary doesn't match — reject</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This function does two things at once. First, it checks that the claimed <code>Content-Type</code> is on our whitelist. Second, it verifies that the actual binary content matches the claimed format. A renamed executable will fail this check because its binary signature will never match <code>FF D8 FF</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-3-uuidbased-storage-keys-path-traversal-prevention" href="#layer-3-uuidbased-storage-keys-path-traversal-prevention">
+  </a>
+  Layer 3: UUID-Based Storage Keys (Path Traversal Prevention)
+</h2>
+
+<p>Even after validating the file content, we never use the client-supplied filename to construct the storage key. A filename like <code>../../../etc/passwd</code> — known as a <strong>Path Traversal</strong> attack — could theoretically escape the intended storage directory.</p>
+
+<p>Our solution is to discard the original filename entirely and generate a random UUID as the storage key:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// The raw client filename is intentionally discarded.</span>
+<span class="c1">// UUID-based key — fully immune to path traversal.</span>
+<span class="k">let</span> <span class="n">file_name</span> <span class="o">=</span> <span class="nd">format!</span><span class="p">(</span><span class="s">"dotsuite/scheduled_posts/{}.{}"</span><span class="p">,</span> <span class="nn">Uuid</span><span class="p">::</span><span class="nf">new_v4</span><span class="p">(),</span> <span class="n">ext</span><span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The extension comes from our <code>validate_magic_bytes</code> function — not from the client. The full storage path is entirely server-generated. The user's filename never touches the storage layer.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-4-atomic-quota-enforcement-closing-the-race-condition" href="#layer-4-atomic-quota-enforcement-closing-the-race-condition">
+  </a>
+  Layer 4: Atomic Quota Enforcement (Closing the Race Condition)
+</h2>
+
+<p>This is where it gets subtle. Our initial quota check looked reasonable:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// ❌ The naive (broken) approach</span>
+<span class="k">let</span> <span class="n">current</span> <span class="o">=</span> <span class="n">user</span><span class="py">.images_used</span><span class="p">;</span> <span class="c1">// Read from DB</span>
+<span class="k">if</span> <span class="n">current</span> <span class="o">&gt;=</span> <span class="n">image_quota</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="n">quota_exceeded_error</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="c1">// ... upload the file ...</span>
+<span class="n">db</span><span class="nf">.increment_images_used</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="k">.await</span><span class="p">;</span> <span class="c1">// Write to DB</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The flaw:</strong> there is a window between the read and the write. If two upload requests arrive simultaneously from the same user whose quota counter is at <code>limit - 1</code>, both will read <code>current &lt; limit</code>, both will pass the check, and both will upload — incrementing the counter to <code>limit + 1</code>. The quota is silently bypassed.</p>
+
+<p>We had already solved this exact pattern in our <code>schedule_post</code> route using MongoDB's <code>find_one_and_update</code> — an atomic operation that combines the check and the increment in a single database command. We applied the same fix here:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// src/routes/media.rs</span>
+
+<span class="c1">// ── Atomic quota check + slot reservation ────────────────────────────────</span>
+<span class="c1">// find_one_and_update eliminates the race condition: the check and the</span>
+<span class="c1">// increment are a single atomic MongoDB operation, not two separate ones.</span>
+<span class="k">let</span> <span class="n">quota_filter</span> <span class="o">=</span> <span class="k">if</span> <span class="n">user</span><span class="py">.tier</span> <span class="o">==</span> <span class="nn">Tier</span><span class="p">::</span><span class="n">Free</span> <span class="p">{</span>
+    <span class="nn">mongodb</span><span class="p">::</span><span class="nn">bson</span><span class="p">::</span><span class="nd">doc!</span> <span class="p">{</span>
+        <span class="s">"_id"</span><span class="p">:</span> <span class="n">user_id</span><span class="p">,</span>
+        <span class="s">"$expr"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"$lt"</span><span class="p">:</span> <span class="p">[</span><span class="s">"$images_used"</span><span class="p">,</span> <span class="n">image_quota</span> <span class="k">as</span> <span class="nb">i64</span><span class="p">]</span> <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="c1">// Paid tiers have no hard cap — we still track for analytics.</span>
+    <span class="nn">mongodb</span><span class="p">::</span><span class="nn">bson</span><span class="p">::</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"_id"</span><span class="p">:</span> <span class="n">user_id</span> <span class="p">}</span>
+<span class="p">};</span>
+
+<span class="k">let</span> <span class="n">reserved</span> <span class="o">=</span> <span class="n">users_col</span>
+    <span class="nf">.find_one_and_update</span><span class="p">(</span>
+        <span class="n">quota_filter</span><span class="p">,</span>
+        <span class="nn">mongodb</span><span class="p">::</span><span class="nn">bson</span><span class="p">::</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"$inc"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"images_used"</span><span class="p">:</span> <span class="mi">1</span> <span class="p">}</span> <span class="p">},</span>
+    <span class="p">)</span>
+    <span class="k">.await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="k">if</span> <span class="n">reserved</span><span class="nf">.is_none</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Forbidden</span><span class="p">(</span><span class="nd">format!</span><span class="p">(</span>
+        <span class="s">"Image upload quota reached ({}/{} uploads). Upgrade to Basic for unlimited uploads."</span><span class="p">,</span>
+        <span class="n">user</span><span class="py">.images_used</span><span class="p">,</span> <span class="n">image_quota</span>
+    <span class="p">)));</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The database becomes the single source of truth. No two concurrent requests can both pass the quota gate because MongoDB guarantees the atomicity of <code>findOneAndUpdate</code> at the document level.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-5-the-r2-upload-amp-quota-rollback" href="#layer-5-the-r2-upload-amp-quota-rollback">
+  </a>
+  Layer 5: The R2 Upload &amp; Quota Rollback
+</h2>
+
+<p>After the quota slot is reserved, we upload to Cloudflare R2 via the AWS S3-compatible SDK. But there is one more edge case: what if the R2 upload fails <em>after</em> we have already incremented the quota counter? The slot was reserved but no file was stored — the user's quota is penalised for a failure that wasn't their fault.</p>
+
+<p>To handle this cleanly, we perform a <strong>rollback</strong> on R2 failure:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="k">if</span> <span class="k">let</span> <span class="nf">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">=</span> <span class="n">upload_result</span> <span class="p">{</span>
+    <span class="nn">tracing</span><span class="p">::</span><span class="nd">error!</span><span class="p">(</span><span class="s">"Failed to upload to R2: {:?}"</span><span class="p">,</span> <span class="n">e</span><span class="p">);</span>
+
+    <span class="c1">// Rollback: return the slot so the quota isn't wasted.</span>
+    <span class="k">let</span> <span class="n">rollback</span> <span class="o">=</span> <span class="n">users_col</span>
+        <span class="nf">.update_one</span><span class="p">(</span>
+            <span class="nn">mongodb</span><span class="p">::</span><span class="nn">bson</span><span class="p">::</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"_id"</span><span class="p">:</span> <span class="n">user_id</span> <span class="p">},</span>
+            <span class="nn">mongodb</span><span class="p">::</span><span class="nn">bson</span><span class="p">::</span><span class="nd">doc!</span> <span class="p">{</span> <span class="s">"$inc"</span><span class="p">:</span> <span class="p">{</span> <span class="s">"images_used"</span><span class="p">:</span> <span class="o">-</span><span class="mi">1i32</span> <span class="p">}</span> <span class="p">},</span>
+        <span class="p">)</span>
+        <span class="k">.await</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="k">let</span> <span class="nf">Err</span><span class="p">(</span><span class="n">rb_err</span><span class="p">)</span> <span class="o">=</span> <span class="n">rollback</span> <span class="p">{</span>
+        <span class="nn">tracing</span><span class="p">::</span><span class="nd">error!</span><span class="p">(</span>
+            <span class="s">"Failed to rollback images_used for user {}: {}"</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="p">,</span> <span class="n">rb_err</span>
+        <span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nf">Err</span><span class="p">(</span><span class="nn">AppError</span><span class="p">::</span><span class="nf">Internal</span><span class="p">(</span><span class="nn">anyhow</span><span class="p">::</span><span class="nd">anyhow!</span><span class="p">(</span>
+        <span class="s">"Failed to upload media to cloud storage"</span>
+    <span class="p">)));</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The rollback is best-effort — we log a critical error if it fails, but we do not surface the rollback failure to the client.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-complete-security-stack" href="#the-complete-security-stack">
+  </a>
+  The Complete Security Stack
+</h2>
+
+<p>Here is what runs on every single upload request, in order:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Mechanism</th>
+<th>Rejects</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Bearer JWT middleware</td>
+<td>Unauthenticated requests</td>
+</tr>
+<tr>
+<td>2</td>
+<td>
+<code>DefaultBodyLimit</code> (10 MB)</td>
+<td>Oversized requests before parsing</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Handler check (5 MB)</td>
+<td>Files within the body but over the per-file limit</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Magic bytes validation</td>
+<td>Wrong MIME type, renamed executables, corrupted files</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Atomic <code>find_one_and_update</code>
+</td>
+<td>Quota-exceeded requests (race-condition-free)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>UUID storage key</td>
+<td>Path traversal attacks</td>
+</tr>
+<tr>
+<td>7</td>
+<td>R2 upload + rollback</td>
+<td>Storage failures without wasting quota</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>None of these layers is sufficient alone. Together, they form a defence-in-depth pipeline where each layer assumes the previous one could have been bypassed.</p>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>Building a production-grade file upload endpoint is deceptively complex. The surface-level logic — receive file, save to storage — takes an hour. The hardening takes days.</p>
+
+<p>The three biggest lessons from this build:</p>
+
+<ol>
+<li><p><strong>Never trust <code>Content-Type</code>.</strong> A header is a claim, not a proof. Always read the raw binary signature of the file.</p></li>
+<li><p><strong>A quota check and a quota increment must be one atomic operation.</strong> Two database calls — even milliseconds apart — create a race window that determined users will find and exploit.</p></li>
+<li><p><strong>Reserve resources before the expensive operation, and roll back on failure.</strong> Incrementing the quota counter before the R2 upload, with a decrement on failure, is always safer than incrementing after a success that might never be recorded.</p></li>
+</ol>
+
+<p>The <code>POST /v1/media/upload</code> endpoint is now a vault. In Part 4, we will build the Next.js scheduling UI that calls it.</p>
+
+<p><em>(If you haven't read the previous deep dives, check out the full <a href="https://dev.to/freerave/series/40071">Ship on Schedule Series</a>.)</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-hardened-a-rust-media-upload-api-with-magic-bytes-atomic-quotas-and-race-condition-fixes-part-5hi4" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/i-hardened-a-rust-media-upload-api-with-magic-bytes-atomic-quotas-and-race-condition-fixes-part-5hi4#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotScramble Part 2: Ed25519 License Signing, Machine Fingerprinting, and a 7-Day Offline Grace Period — FreeRave</title>
+<meta name="description" content="How DotScramble protects its Pro tier using asymmetric cryptography — public key verification, a...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotscramble-part-2-ed25519-license-signing-machine-fingerprinting-and-a-7-day-offline-3i8p">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotscramble-part-2-ed25519-license-signing-machine-fingerprinting-and-a-7-day-offline-3i8p">
+<meta property="og:title" content="Building DotScramble Part 2: Ed25519 License Signing, Machine Fingerprinting, and a 7-Day Offline Grace Period — FreeRave">
+<meta property="og:description" content="How DotScramble protects its Pro tier using asymmetric cryptography — public key verification, a...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fmejccumwq1b8vjor6elh.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fmejccumwq1b8vjor6elh.png" alt="">
+  <h1 class="post-title">Building DotScramble Part 2: Ed25519 License Signing, Machine Fingerprinting, and a 7-Day Offline Grace Period</h1>
+  <div class="post-meta">
+    <time datetime="2026-06-27T14:27:48Z">27 June 2026</time> · 11 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#security</span><span class="post-tag">#cryptography</span><span class="post-tag">#privacy</span></div>
+  </div>
+  <article class="post-body">
+<p>How DotScramble protects its Pro tier using asymmetric cryptography — public key verification, a weighted hardware fingerprint, server-side activation limits, and a background recheck thread.</p>
+
+
+<hr>
+
+<blockquote>
+<p><strong>Series recap:</strong> DotScramble is a desktop privacy tool that blurs, pixelates, and redacts sensitive regions in images. <a href="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob">Part 1</a> covered the core image processing pipeline and metadata spoofing. This post covers the licensing system — specifically, how I built something that actually works without being trivially crackable.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-threat-model" href="#the-threat-model">
+  </a>
+  The Threat Model
+</h2>
+
+<p>Before writing a single line of licensing code, I had to define what I'm actually protecting against.</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Attack</th>
+<th>Realistic?</th>
+<th>What I'm defending against</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Copy/paste the <code>.py</code> file to another machine</td>
+<td>Very likely</td>
+<td>Machine fingerprinting</td>
+</tr>
+<tr>
+<td>Share one key across unlimited machines</td>
+<td>Likely</td>
+<td>Server-side activation limits</td>
+</tr>
+<tr>
+<td>Modify <code>is_max_activated = True</code> in source</td>
+<td>Trivial in Python</td>
+<td>Cython binary compilation</td>
+</tr>
+<tr>
+<td>Forge a license token offline</td>
+<td>Requires private key</td>
+<td>Ed25519 asymmetric signing</td>
+</tr>
+<tr>
+<td>Use the app without internet forever</td>
+<td>Easy</td>
+<td>7-day offline grace period + background recheck</td>
+</tr>
+<tr>
+<td>Roll back the system clock to extend a token</td>
+<td>Clever</td>
+<td>Clock rollback detection</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The goal wasn't to make DotScramble uncrackable — determined attackers can always get around software licensing. The goal was to make it <em>not worth the effort</em> for casual use, while keeping it completely frictionless for legitimate users.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-token-format" href="#the-token-format">
+  </a>
+  The Token Format
+</h2>
+
+<p>Every activated machine gets a <strong>signed license token</strong> — a compact, self-contained credential that the app can verify locally without any network call.</p>
+
+<p>The format is two Base64URL segments joined by a dot:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>&lt;base64url(JSON payload)&gt;.&lt;base64url(Ed25519 signature)&gt;
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The payload looks like this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"mid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"a3f1b2c9d4e5f6a7b8c9d0e1f2a3b4c5"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"FreeRave"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"plan"</span><span class="p">:</span><span class="w"> </span><span class="s2">"max"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"exp"</span><span class="p">:</span><span class="w"> </span><span class="mi">1782000000</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<ul>
+<li>
+<code>mid</code> — the machine ID (more on this below)</li>
+<li>
+<code>name</code> — shown in the welcome message on activation</li>
+<li>
+<code>plan</code> — <code>"max"</code> for Pro tier</li>
+<li>
+<code>exp</code> — Unix timestamp when the token expires</li>
+</ul>
+
+<p>The server signs this payload with its <strong>Ed25519 private key</strong> and sends the complete token to the client. The client verifies it using a <strong>hardcoded public key</strong> — which can only verify, never forge.</p>
+
+
+<hr>
+
+<h2>
+  <a name="why-ed25519-over-hmac" href="#why-ed25519-over-hmac">
+  </a>
+  Why Ed25519 Over HMAC?
+</h2>
+
+<p>The classic alternative is HMAC-SHA256: generate a secret key, share it with the client, use it to sign tokens. The problem is obvious — if the key is in the client binary, it can be extracted and used to generate unlimited fake tokens offline.</p>
+
+<p>Ed25519 solves this by design:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Private key  →  only on the server  →  signs tokens
+Public key   →  hardcoded in the app  →  verifies tokens, cannot forge
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Forging a valid signature without the private key requires breaking Ed25519 — computationally infeasible. The worst a reverse engineer can do with the public key is verify tokens, which is the same thing the app does.</p>
+
+<p>The public key in <code>license_manager.py</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">_ED25519_PUBLIC_KEY_B64</span> <span class="o">=</span> <span class="sh">"</span><span class="s">DQ0zJAi1S0c+NUhOP3050au9k5/fYwLU45ayTZIFVuI=</span><span class="sh">"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>32 bytes. That's the entire security boundary between the app and unlimited offline activation.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-verification-function" href="#the-verification-function">
+  </a>
+  The Verification Function
+</h2>
+
+<p>The full verification runs locally on every startup and every activation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_verify_token</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.asymmetric.ed25519</span> <span class="kn">import</span> <span class="n">Ed25519PublicKey</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="n">token</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="s">.</span><span class="sh">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="p">{}</span>
+        <span class="n">payload_b64</span><span class="p">,</span> <span class="n">sig_b64</span> <span class="o">=</span> <span class="n">parts</span>
+
+        <span class="c1"># Safe dynamic padding — prevents decoder crashes on tokens
+</span>        <span class="c1"># with non-multiple-of-4 base64 lengths
+</span>        <span class="k">def</span> <span class="nf">_b64dec</span><span class="p">(</span><span class="n">s</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base64</span><span class="p">.</span><span class="nf">urlsafe_b64decode</span><span class="p">(</span><span class="n">s</span> <span class="o">+</span> <span class="sh">'</span><span class="s">=</span><span class="sh">'</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="nf">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">%</span> <span class="mi">4</span><span class="p">))</span>
+
+        <span class="n">payload_bytes</span> <span class="o">=</span> <span class="nf">_b64dec</span><span class="p">(</span><span class="n">payload_b64</span><span class="p">)</span>
+        <span class="n">sig_bytes</span>     <span class="o">=</span> <span class="nf">_b64dec</span><span class="p">(</span><span class="n">sig_b64</span><span class="p">)</span>
+
+        <span class="n">pub_raw</span>    <span class="o">=</span> <span class="n">base64</span><span class="p">.</span><span class="nf">b64decode</span><span class="p">(</span><span class="n">_ED25519_PUBLIC_KEY_B64</span><span class="p">)</span>
+        <span class="n">public_key</span> <span class="o">=</span> <span class="n">Ed25519PublicKey</span><span class="p">.</span><span class="nf">from_public_bytes</span><span class="p">(</span><span class="n">pub_raw</span><span class="p">)</span>
+        <span class="n">public_key</span><span class="p">.</span><span class="nf">verify</span><span class="p">(</span><span class="n">sig_bytes</span><span class="p">,</span> <span class="n">payload_bytes</span><span class="p">)</span>    <span class="c1"># raises on invalid sig
+</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">payload_bytes</span><span class="p">.</span><span class="nf">decode</span><span class="p">())</span>
+
+        <span class="c1"># Check expiry
+</span>        <span class="k">if</span> <span class="n">payload</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">exp</span><span class="sh">"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">time</span><span class="p">.</span><span class="nf">time</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="p">{}</span>
+
+        <span class="c1"># Check machine binding
+</span>        <span class="k">if</span> <span class="n">payload</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">mid</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span> <span class="o">!=</span> <span class="n">self</span><span class="p">.</span><span class="nf">generate_machine_id</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="p">{}</span>
+
+        <span class="k">return</span> <span class="bp">True</span><span class="p">,</span> <span class="n">payload</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span><span class="p">,</span> <span class="p">{}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three checks, in order:</p>
+
+<ol>
+<li>
+<strong>Signature valid</strong> — <code>Ed25519PublicKey.verify()</code> raises an exception on any tampered payload</li>
+<li>
+<strong>Not expired</strong> — server controls token lifetime via <code>exp</code>
+</li>
+<li>
+<strong>Machine matches</strong> — the <code>mid</code> in the token must equal this machine's fingerprint</li>
+</ol>
+
+<p>All three must pass. Fail any one, the token is rejected and the local activation is cleared.</p>
+
+<blockquote>
+<p><strong>The <code>_b64dec</code> padding trick:</strong> Standard Base64 requires padding to a multiple of 4 characters. URL-safe Base64 (used in JWTs and similar) often strips it. The expression <code>'=' * (-len(s) % 4)</code> adds exactly the right number of <code>=</code> characters — 0 if already padded, 1, 2, or 3 otherwise. It's a modular arithmetic trick that avoids an if/else chain.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="machine-fingerprinting" href="#machine-fingerprinting">
+  </a>
+  Machine Fingerprinting
+</h2>
+
+<p>The machine ID is a 32-character hex string derived from hardware factors. It needs to be:</p>
+
+<ul>
+<li>
+<strong>Stable</strong> — survive reboots, VPN changes, hostname changes</li>
+<li>
+<strong>Unique enough</strong> — distinguish different machines</li>
+<li>
+<strong>Cross-platform</strong> — work on Linux, Windows, macOS
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">generate_machine_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">factors</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="c1"># Platform-specific hardware ID — the most stable identifier
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">platform</span><span class="p">.</span><span class="nf">system</span><span class="p">()</span> <span class="o">==</span> <span class="sh">"</span><span class="s">Linux</span><span class="sh">"</span><span class="p">:</span>
+            <span class="n">mid_path</span> <span class="o">=</span> <span class="sh">"</span><span class="s">/etc/machine-id</span><span class="sh">"</span>
+            <span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">mid_path</span><span class="p">):</span>
+                <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">mid_path</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">mid</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">.</span><span class="nf">read</span><span class="p">().</span><span class="nf">strip</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">platform</span><span class="p">.</span><span class="nf">system</span><span class="p">()</span> <span class="o">==</span> <span class="sh">"</span><span class="s">Windows</span><span class="sh">"</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="n">winreg</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">winreg</span><span class="p">.</span><span class="nc">OpenKey</span><span class="p">(</span>
+                <span class="n">winreg</span><span class="p">.</span><span class="n">HKEY_LOCAL_MACHINE</span><span class="p">,</span>
+                <span class="sa">r</span><span class="sh">"</span><span class="s">SOFTWARE\Microsoft\Cryptography</span><span class="sh">"</span>
+            <span class="p">)</span>
+            <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">mid</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">winreg</span><span class="p">.</span><span class="nc">QueryValueEx</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="sh">"</span><span class="s">MachineGuid</span><span class="sh">"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">elif</span> <span class="n">platform</span><span class="p">.</span><span class="nf">system</span><span class="p">()</span> <span class="o">==</span> <span class="sh">"</span><span class="s">Darwin</span><span class="sh">"</span><span class="p">:</span>
+            <span class="kn">import</span> <span class="n">subprocess</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">subprocess</span><span class="p">.</span><span class="nf">check_output</span><span class="p">(</span>
+                <span class="p">[</span><span class="sh">"</span><span class="s">ioreg</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-rd1</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-c</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">IOPlatformExpertDevice</span><span class="sh">"</span><span class="p">],</span>
+                <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">DEVNULL</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">out</span><span class="p">.</span><span class="nf">decode</span><span class="p">().</span><span class="nf">splitlines</span><span class="p">():</span>
+                <span class="k">if</span> <span class="sh">"</span><span class="s">IOPlatformUUID</span><span class="sh">"</span> <span class="ow">in</span> <span class="n">line</span><span class="p">:</span>
+                    <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">mid</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">line</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sh">'"'</span><span class="p">)[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+                    <span class="k">break</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># Secondary factors — used if primary is unavailable
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">cpu</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="nf">str</span><span class="p">(</span><span class="n">os</span><span class="p">.</span><span class="nf">cpu_count</span><span class="p">()</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">os</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">platform</span><span class="p">.</span><span class="nf">system</span><span class="p">()</span>
+
+    <span class="c1"># MAC address — only if it's real hardware, not randomized
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="n">mac_int</span> <span class="o">=</span> <span class="n">_uuid</span><span class="p">.</span><span class="nf">getnode</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">mac_int</span> <span class="o">&gt;&gt;</span> <span class="mi">40</span><span class="p">)</span> <span class="o">&amp;</span> <span class="mi">1</span><span class="p">:</span>   <span class="c1"># bit 40 = 1 means locally administered (randomized)
+</span>            <span class="n">factors</span><span class="p">[</span><span class="sh">"</span><span class="s">mac</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="nf">hex</span><span class="p">(</span><span class="n">mac_int</span><span class="p">)[</span><span class="mi">2</span><span class="p">:].</span><span class="nf">upper</span><span class="p">().</span><span class="nf">zfill</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># Sort keys for determinism, hash the concatenation
+</span>    <span class="n">factor_str</span> <span class="o">=</span> <span class="sh">"</span><span class="s">|</span><span class="sh">"</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s">:</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="sh">"</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="nf">sorted</span><span class="p">(</span><span class="n">factors</span><span class="p">.</span><span class="nf">items</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="p">.</span><span class="nf">sha256</span><span class="p">(</span><span class="n">factor_str</span><span class="p">.</span><span class="nf">encode</span><span class="p">()).</span><span class="nf">hexdigest</span><span class="p">()[:</span><span class="mi">32</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The key design choices:</p>
+
+<p><strong><code>/etc/machine-id</code> on Linux</strong> is written once during OS installation by <code>systemd</code>. It survives everything short of a full OS reinstall. It's the most stable machine identifier available on Linux.</p>
+
+<p><strong><code>MachineGuid</code> on Windows</strong> is equivalent — written during OS installation, stored in the registry under <code>HKLM\SOFTWARE\Microsoft\Cryptography</code>.</p>
+
+<p><strong>The MAC address randomization check:</strong> Modern Linux kernels and privacy-focused configurations use MAC address randomization. Bit 40 of the MAC address is the "locally administered" bit — if it's set, the MAC was generated randomly and changes on every boot. Including a random MAC in the fingerprint would break activation after every reboot. The check <code>(mac_int &gt;&gt; 40) &amp; 1</code> skips it when it's randomized.</p>
+
+<p><strong><code>sorted(factors.items())</code></strong> — dict ordering in Python 3.7+ is insertion-ordered, but explicitly sorting by key makes the fingerprint deterministic regardless of which factors are available. If <code>/etc/machine-id</code> is missing (e.g., in a container), the hash still produces the same result each run as long as the same secondary factors are present.</p>
+
+<p>The final hash is truncated to 32 hex characters — 128 bits of machine identity, which is more than enough to distinguish machines while keeping the payload compact.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-activation-flow" href="#the-activation-flow">
+  </a>
+  The Activation Flow
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>User clicks "Activate Pro"
+        │
+        ▼
+LocalAuthManager starts an ephemeral HTTP server on 127.0.0.1:0
+(port 0 = OS assigns a free port atomically — no TOCTOU race)
+        │
+        ▼
+Browser opens: https://dotsuite.vercel.app/en/dashboard/dotscramble/auth?port=PORT&amp;state=STATE_TOKEN
+        │
+        ▼
+User logs in and clicks "Activate"
+        │
+        ▼
+Web dashboard POSTs { key, state } to http://127.0.0.1:PORT/callback
+        │
+        ▼
+AuthHandler verifies state token (CSRF protection)
+        │
+        ▼
+LicenseManager.verify_and_activate(key) called
+        │
+        ▼
+Server receives: POST /v1/license/activate
+  Authorization: Bearer &lt;api_key&gt;
+  Body: { "machine_id": "a3f1b2..." }
+        │
+        ▼
+Server signs token, returns { "license_token": "...", "name": "FreeRave" }
+        │
+        ▼
+Client verifies token locally (_verify_token)
+        │
+        ▼
+Token + API key saved to SQLite
+Background recheck thread started
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The local HTTP server is a security boundary. The web dashboard can't directly call Python functions — it goes through an HTTP POST, which lets us:</p>
+
+<ol>
+<li>Validate the CSRF state token (prevents any other page from activating on behalf of the user)</li>
+<li>Cap the payload size at 4096 bytes (prevents local OOM DoS)</li>
+<li>Use <code>secrets.compare_digest()</code> for the state token comparison (constant-time, prevents timing attacks)
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">verify_state</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">state</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">state_token</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">return</span> <span class="n">secrets</span><span class="p">.</span><span class="nf">compare_digest</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">state_token</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>secrets.compare_digest()</code> is not paranoia here — the state token arrives over localhost HTTP, and comparing strings with <code>==</code> leaks timing information about how many characters match before the first mismatch. For a 32-character random token, this isn't a practical attack, but it's the correct primitive and costs nothing.</p>
+
+
+<hr>
+
+<h2>
+  <a name="storing-the-token" href="#storing-the-token">
+  </a>
+  Storing the Token
+</h2>
+
+<p>Once verified, three values are written to SQLite:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">dotsuite_api_key</span><span class="sh">"</span><span class="p">,</span> <span class="n">api_key</span><span class="p">,</span> <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">license_token</span><span class="sh">"</span><span class="p">,</span>    <span class="n">token</span><span class="p">,</span>   <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">is_max_activated</span><span class="sh">"</span><span class="p">,</span> <span class="bp">True</span><span class="p">,</span>    <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">last_license_check_time</span><span class="sh">"</span><span class="p">,</span> <span class="n">time</span><span class="p">.</span><span class="nf">time</span><span class="p">(),</span> <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The database uses <code>INSERT OR REPLACE</code> (upsert) with a <code>setting_type</code> column so license settings can be queried or cleared as a group.</p>
+
+<p>On the next startup, the manager reads the cached token and re-verifies it locally — no network required:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">_license_token</span><span class="p">:</span>
+    <span class="n">last_verified</span> <span class="o">=</span> <span class="nf">float</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">get_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">last_license_check_time</span><span class="sh">"</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+    <span class="n">current_time</span>  <span class="o">=</span> <span class="n">time</span><span class="p">.</span><span class="nf">time</span><span class="p">()</span>
+
+    <span class="c1"># Clock rollback detection
+</span>    <span class="k">if</span> <span class="n">current_time</span> <span class="o">&lt;</span> <span class="n">last_verified</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">logger</span><span class="p">.</span><span class="nf">error</span><span class="p">(</span><span class="sh">"</span><span class="s">System clock rollback detected on startup!</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_clear_local</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">valid</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_verify_token</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_license_token</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_is_max</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">last_license_check_time</span><span class="sh">"</span><span class="p">,</span> <span class="n">current_time</span><span class="p">,</span> <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_schedule_background_recheck</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_clear_local</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The clock rollback check</strong> is subtle. If a user sets their system clock back before the token expiry date, local verification would still pass (the token isn't expired from the perspective of the past timestamp). Storing <code>last_license_check_time</code> and comparing against <code>time.time()</code> catches this — if the current time is <em>before</em> the last check time, something is wrong.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-background-recheck-thread" href="#the-background-recheck-thread">
+  </a>
+  The Background Recheck Thread
+</h2>
+
+<p>Local verification is fast and works offline, but it can't detect revoked keys. A key that was refunded, chargebacked, or explicitly revoked would still pass local verification until its token expires.</p>
+
+<p>The solution: a daemon thread that re-checks with the server every 24 hours.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_schedule_background_recheck</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">stop_recheck_event</span><span class="p">.</span><span class="nf">clear</span><span class="p">()</span>
+    <span class="n">t</span> <span class="o">=</span> <span class="n">threading</span><span class="p">.</span><span class="nc">Thread</span><span class="p">(</span>
+        <span class="n">target</span><span class="o">=</span><span class="n">self</span><span class="p">.</span><span class="n">_recheck_loop</span><span class="p">,</span>
+        <span class="n">daemon</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="sh">"</span><span class="s">license-recheck</span><span class="sh">"</span>
+    <span class="p">)</span>
+    <span class="n">t</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>
+
+<span class="k">def</span> <span class="nf">_recheck_loop</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">stop_recheck_event</span><span class="p">.</span><span class="nf">is_set</span><span class="p">():</span>
+        <span class="c1"># Wait 24 hours, or until stopped
+</span>        <span class="n">is_stopped</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">stop_recheck_event</span><span class="p">.</span><span class="nf">wait</span><span class="p">(</span><span class="n">_RECHECK_HOURS</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">is_stopped</span> <span class="ow">or</span> <span class="n">self</span><span class="p">.</span><span class="n">stop_recheck_event</span><span class="p">.</span><span class="nf">is_set</span><span class="p">():</span>
+            <span class="k">break</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_silent_recheck</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Using <code>Event.wait(timeout)</code> instead of <code>time.sleep()</code> means the thread can be cleanly interrupted on deactivation or app close — <code>stop_recheck_event.set()</code> wakes it immediately.</p>
+
+<p>The recheck itself is silent:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_silent_recheck</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="k">with</span> <span class="n">self</span><span class="p">.</span><span class="n">lock</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">_is_max</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">current_key</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_api_key</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">machine_id</span>    <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">generate_machine_id</span><span class="p">()</span>
+        <span class="n">payload_bytes</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">({</span><span class="sh">"</span><span class="s">machine_id</span><span class="sh">"</span><span class="p">:</span> <span class="n">machine_id</span><span class="p">}).</span><span class="nf">encode</span><span class="p">()</span>
+        <span class="n">req</span> <span class="o">=</span> <span class="n">urllib</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="nc">Request</span><span class="p">(</span>
+            <span class="n">_RECHECK_URL</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">payload_bytes</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span>
+                <span class="sh">"</span><span class="s">Authorization</span><span class="sh">"</span><span class="p">:</span> <span class="sa">f</span><span class="sh">"</span><span class="s">Bearer </span><span class="si">{</span><span class="n">current_key</span><span class="si">}</span><span class="sh">"</span><span class="p">,</span>
+                <span class="sh">"</span><span class="s">Content-Type</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">application/json</span><span class="sh">"</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">with</span> <span class="n">urllib</span><span class="p">.</span><span class="n">request</span><span class="p">.</span><span class="nf">urlopen</span><span class="p">(</span><span class="n">req</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span> <span class="k">as</span> <span class="n">resp</span><span class="p">:</span>
+            <span class="n">data</span>      <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">resp</span><span class="p">.</span><span class="nf">read</span><span class="p">().</span><span class="nf">decode</span><span class="p">())</span>
+            <span class="n">new_token</span> <span class="o">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">license_token</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span>
+
+        <span class="n">valid</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_verify_token</span><span class="p">(</span><span class="n">new_token</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">valid</span><span class="p">:</span>
+            <span class="c1"># Refresh the cached token
+</span>            <span class="k">with</span> <span class="n">self</span><span class="p">.</span><span class="n">lock</span><span class="p">:</span>
+                <span class="n">self</span><span class="p">.</span><span class="n">_license_token</span> <span class="o">=</span> <span class="n">new_token</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">license_token</span><span class="sh">"</span><span class="p">,</span> <span class="n">new_token</span><span class="p">,</span> <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span><span class="sh">"</span><span class="s">last_license_check_time</span><span class="sh">"</span><span class="p">,</span> <span class="n">time</span><span class="p">.</span><span class="nf">time</span><span class="p">(),</span> <span class="sh">"</span><span class="s">license</span><span class="sh">"</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_clear_local</span><span class="p">()</span>   <span class="c1"># Token failed — deactivate silently
+</span>
+    <span class="k">except</span> <span class="n">urllib</span><span class="p">.</span><span class="n">error</span><span class="p">.</span><span class="n">HTTPError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">e</span><span class="p">.</span><span class="n">code</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">401</span><span class="p">,</span> <span class="mi">403</span><span class="p">,</span> <span class="mi">404</span><span class="p">):</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_clear_local</span><span class="p">()</span>   <span class="c1"># Key revoked — deactivate silently
+</span>        <span class="c1"># Other errors (500, network timeout) — do nothing, try again next cycle
+</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>   <span class="c1"># Offline — grace period continues
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The error handling is intentional:</p>
+
+<ul>
+<li>
+<strong>401/403/404</strong> — the server explicitly rejected the key (revoked, deleted, or not found). Deactivate immediately.</li>
+<li>
+<strong>5xx / timeout / no network</strong> — server might be temporarily down. Don't deactivate. The user has 7 days of offline grace before the token expires.</li>
+<li>
+<strong>Any other exception</strong> — same as above, fail open.</li>
+</ul>
+
+<p>This gives legitimate users a 7-day offline window while still detecting revoked keys as soon as connectivity is restored.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-raw-ismaxactivated-endraw-property" href="#the-raw-ismaxactivated-endraw-property">
+  </a>
+  The <code>is_max_activated</code> Property
+</h2>
+
+<p>Every feature gate in the UI calls this single property:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nd">@property</span>
+<span class="k">def</span> <span class="nf">is_max_activated</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="c1"># Extremely fast in-memory query
+</span>    <span class="c1"># prevents frame drops in preview sliders
+</span>    <span class="k">with</span> <span class="n">self</span><span class="p">.</span><span class="n">lock</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">_is_max</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is intentionally the simplest possible thing. No token re-verification, no database reads, no disk I/O — just a boolean behind a mutex. The reasoning: this property is called on every frame of the real-time preview slider. Token re-verification takes 0.5–2ms (cryptographic operation). At 60fps, that's up to 120ms/second of crypto overhead — enough to cause visible stuttering.</p>
+
+<p>The heavy verification happens once on startup and once per recheck cycle, then the result is cached in memory.</p>
+
+<p>Where it's used in <code>main_window.py</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Feature gating at detection mode switch
+</span><span class="k">def</span> <span class="nf">on_detection_change</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">mode</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">detection_mode</span><span class="p">.</span><span class="nf">get</span><span class="p">()</span>
+    <span class="n">pro_only_modes</span> <span class="o">=</span> <span class="p">[</span><span class="sh">'</span><span class="s">target_text</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">text</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">body</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">license_plate</span><span class="sh">'</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">pro_only_modes</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">license_manager</span><span class="p">.</span><span class="n">is_max_activated</span><span class="p">:</span>
+        <span class="n">QMessageBox</span><span class="p">.</span><span class="nf">information</span><span class="p">(</span>
+            <span class="n">self</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">Pro Feature</span><span class="sh">"</span><span class="p">,</span>
+            <span class="sa">f</span><span class="sh">"</span><span class="s">The </span><span class="sh">'</span><span class="si">{</span><span class="n">mode_display</span><span class="si">}</span><span class="sh">'</span><span class="s"> detection mode is a Pro feature.</span><span class="se">\n\n</span><span class="sh">"</span>
+            <span class="sa">f</span><span class="sh">"</span><span class="s">Upgrade to DotScramble Pro for advanced AI models.</span><span class="sh">"</span>
+        <span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">detection_mode</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="sh">"</span><span class="s">face</span><span class="sh">"</span><span class="p">)</span>   <span class="c1"># Reset to free tier
+</span>
+<span class="c1"># Feature gating at save time
+</span><span class="n">is_max</span>     <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">license_manager</span><span class="p">.</span><span class="n">is_max_activated</span>
+<span class="n">should_scrub</span> <span class="o">=</span> <span class="n">is_max</span> <span class="ow">and</span> <span class="n">self</span><span class="p">.</span><span class="n">scrub_exif</span><span class="p">.</span><span class="nf">get</span><span class="p">()</span>
+<span class="n">should_spoof</span> <span class="o">=</span> <span class="n">is_max</span> <span class="ow">and</span> <span class="n">self</span><span class="p">.</span><span class="n">spoof_metadata</span><span class="p">.</span><span class="nf">get</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">should_scrub</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="protecting-the-source-with-cython" href="#protecting-the-source-with-cython">
+  </a>
+  Protecting the Source with Cython
+</h2>
+
+<p>Python source is trivially readable. <code>is_max_activated</code> can be patched in two keystrokes:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Original
+</span><span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">_is_max</span>
+
+<span class="c1"># Cracked version
+</span><span class="k">return</span> <span class="bp">True</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The defense: compile <code>license_manager.py</code> to a native <code>.so</code> extension using Cython. The <code>setup_license.py</code> script does this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="kn">from</span> <span class="n">setuptools</span> <span class="kn">import</span> <span class="n">setup</span><span class="p">,</span> <span class="n">Extension</span>
+<span class="kn">from</span> <span class="n">Cython.Build</span> <span class="kn">import</span> <span class="n">cythonize</span>
+
+<span class="n">extensions</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="nc">Extension</span><span class="p">(</span>
+        <span class="sh">"</span><span class="s">src.managers.license_manager</span><span class="sh">"</span><span class="p">,</span>
+        <span class="n">sources</span><span class="o">=</span><span class="p">[</span><span class="sh">"</span><span class="s">src/managers/license_manager.py</span><span class="sh">"</span><span class="p">],</span>
+        <span class="n">extra_compile_args</span><span class="o">=</span><span class="p">[</span><span class="sh">"</span><span class="s">-O2</span><span class="sh">"</span><span class="p">],</span>  <span class="c1"># Strip debug symbols
+</span>    <span class="p">)</span>
+<span class="p">]</span>
+
+<span class="nf">setup</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="sh">"</span><span class="s">dotscramble_license</span><span class="sh">"</span><span class="p">,</span>
+    <span class="n">ext_modules</span><span class="o">=</span><span class="nf">cythonize</span><span class="p">(</span>
+        <span class="n">extensions</span><span class="p">,</span>
+        <span class="n">compiler_directives</span><span class="o">=</span><span class="p">{</span>
+            <span class="sh">"</span><span class="s">embedsignature</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>   <span class="c1"># No readable function signatures
+</span>            <span class="sh">"</span><span class="s">emit_code_comments</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>  <span class="c1"># No source hints in the binary
+</span>            <span class="sh">"</span><span class="s">language_level</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">3</span><span class="sh">"</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">boundscheck</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">wraparound</span><span class="sh">"</span><span class="p">:</span> <span class="bp">True</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">),</span>
+    <span class="n">zip_safe</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Build command:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>python setup_license.py build_ext <span class="nt">--inplace</span>
+<span class="c"># → src/managers/license_manager.cpython-313-x86_64-linux-gnu.so</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>After building, the <code>.py</code> source is removed from the distribution. The app imports from the <code>.so</code> exactly the same way — Python's import system finds the compiled extension automatically.</p>
+
+<p>The resulting binary is a real shared library. Patching it requires disassembling machine code and finding the return instruction — orders of magnitude harder than editing a <code>.py</code> file. Not impossible, but the effort-to-reward ratio is high enough that most people will just buy a license.</p>
+
+<blockquote>
+<p><strong>Note:</strong> The compiled <code>.so</code> is platform-specific — <code>cpython-313-x86_64-linux-gnu.so</code> only runs on Linux x86_64 with CPython 3.13. Targeting Windows and macOS requires separate build steps on each platform, which is a solved problem for any CI pipeline.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-lifecycle" href="#the-full-lifecycle">
+  </a>
+  The Full Lifecycle
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>First run (no license)
+├── _is_max = False
+├── Free tier features available
+└── "Activate Pro" triggers browser flow
+
+Activation
+├── LocalAuthManager starts ephemeral HTTP server
+├── Browser → dotsuite.vercel.app/auth → user logs in
+├── Dashboard POSTs { key, state } to 127.0.0.1:PORT/callback
+├── CSRF state verified (secrets.compare_digest)
+├── verify_and_activate(key) sends machine_id to API server
+├── Server signs token with Ed25519 private key
+├── Client verifies token locally (signature + expiry + machine)
+├── Token cached in SQLite
+└── Background recheck thread started
+
+Every startup (with cached token)
+├── Clock rollback check
+├── Local token verification (signature + expiry + machine)
+├── _is_max = True if valid
+└── Recheck thread started
+
+Every 24 hours (background thread)
+├── POST machine_id to /v1/license/recheck
+├── Server returns fresh token (extends expiry)
+├── Local verification of new token
+├── Cache updated
+└── On HTTP 401/403/404 → _clear_local() → instant deactivation
+
+Deactivation
+├── stop_recheck_event.set() → thread wakes and exits
+├── DELETE /v1/license/deactivate (frees the activation slot)
+└── _clear_local() → all local state wiped
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="what-doesnt-work-by-design" href="#what-doesnt-work-by-design">
+  </a>
+  What Doesn't Work (By Design)
+</h2>
+
+<p>I explicitly chose <strong>not</strong> to implement:</p>
+
+<p><strong>Online-only mode</strong> — requiring a network connection on every launch would be a poor user experience. Planes, trains, conferences with bad WiFi, corporate proxies. The 7-day grace period handles all of these.</p>
+
+<p><strong>Hardware lock to MAC address only</strong> — MAC addresses are trivially spoofed. Using <code>/etc/machine-id</code> and <code>MachineGuid</code> as the primary identifier is more robust.</p>
+
+<p><strong>Obfuscating the public key</strong> — pointless. The public key is designed to be public. Hiding it in a string scrambler doesn't add security — it just makes the code messier.</p>
+
+<p><strong>Aggressive telemetry</strong> — the only data sent to the server is the machine ID and the API key. No usage statistics, no file names, no behavioral data. DotScramble is a privacy tool — phoning home with analytics would be self-contradictory.</p>
+
+
+<hr>
+
+<h2>
+  <a name="key-takeaways" href="#key-takeaways">
+  </a>
+  Key Takeaways
+</h2>
+
+<p><strong>On Ed25519 vs HMAC:</strong> Use asymmetric signing whenever the verifier (client) is untrusted. If the client holds a shared secret, it can forge. If it only holds a public key, it can only verify.</p>
+
+<p><strong>On machine fingerprinting:</strong> Prefer OS-level identifiers (<code>/etc/machine-id</code>, <code>MachineGuid</code>) over network-layer identifiers (MAC, IP). The latter change too often to be reliable anchors.</p>
+
+<p><strong>On background threads:</strong> <code>Event.wait(timeout)</code> is better than <code>time.sleep()</code> for long-polling threads. It wakes immediately on <code>event.set()</code>, so shutdown is clean and instantaneous.</p>
+
+<p><strong>On feature gates:</strong> Keep the hot path — the boolean check called per-frame — as fast as possible. Cache everything. Do the expensive work (crypto, network) once in background.</p>
+
+<p><strong>On source protection:</strong> Cython is not DRM. It raises the bar significantly against casual tampering, but a determined reverse engineer can still disassemble the <code>.so</code>. The actual security comes from the Ed25519 signature — you can read every byte of the binary and still can't forge a valid token.</p>
+
+
+<hr>
+
+<p><em>Part 3 covers what happened when I tried to make the UI actually good — a PyQt6 → PySide6 migration forced by a GPL license conflict, three separate Wayland window management bugs, building a custom animated file picker, and implementing non-blocking batch processing.</em></p>
+
+<p><em><a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">OpenDesktop</a> · <a href="https://ko-fi.com/freerave" target="_blank" rel="noopener noreferrer">Ko-fi</a> · <a href="https://buymeacoffee.com/freerave" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a></em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotscramble-part-2-ed25519-license-signing-machine-fingerprinting-and-a-7-day-offline-3i8p" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotscramble-part-2-ed25519-license-signing-machine-fingerprinting-and-a-7-day-offline-3i8p#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

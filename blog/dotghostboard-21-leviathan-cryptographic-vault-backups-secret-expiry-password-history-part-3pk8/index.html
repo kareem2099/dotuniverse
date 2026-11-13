@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotGhostBoard 2.1 'Leviathan' — Cryptographic Vault Backups, Secret Expiry &amp; Password History (Part 2) — FreeRave</title>
+<meta name="description" content="A deep-dive into DotGhostBoard 2.1's security layer: AES-256-GCM .vault backup packages with...">
+<link rel="canonical" href="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8">
+<meta property="og:title" content="DotGhostBoard 2.1 'Leviathan' — Cryptographic Vault Backups, Secret Expiry &amp; Password History (Part 2) — FreeRave">
+<meta property="og:description" content="A deep-dive into DotGhostBoard 2.1's security layer: AES-256-GCM .vault backup packages with...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fwxyysdilzgvs1wji9tp0.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fwxyysdilzgvs1wji9tp0.png" alt="">
+  <h1 class="post-title">DotGhostBoard 2.1 'Leviathan' — Cryptographic Vault Backups, Secret Expiry &amp; Password History (Part 2)</h1>
+  <div class="post-meta">
+    <time datetime="2026-10-06T13:20:28Z">6 October 2026</time> · 10 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#opensource</span><span class="post-tag">#python</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deepdive-into-dotghostboard-21s-security-layer-aes256gcm-vault-backup-packages-with-aad-header-authentication-csprng-password-generation-with-keyspace-entropy-secret-expiration-tracking-and-encrypted-version-history-with-safe-revert" href="#a-deepdive-into-dotghostboard-21s-security-layer-aes256gcm-vault-backup-packages-with-aad-header-authentication-csprng-password-generation-with-keyspace-entropy-secret-expiration-tracking-and-encrypted-version-history-with-safe-revert">
+  </a>
+  A deep-dive into DotGhostBoard 2.1's security layer: AES-256-GCM .vault backup packages with AAD header authentication, CSPRNG password generation with keyspace entropy, secret expiration tracking, and encrypted version history with safe revert.
+</h2>
+
+<p>Most local password managers have a backup problem: export to unencrypted CSV and you have a plaintext credential dump sitting on your disk. Use proprietary cloud sync and you've handed your secrets to a third party. Neither is acceptable.</p>
+
+<p>In <strong><a href="https://dev.to/freerave/dotghostboard-21-leviathan-smart-clipboard-tagging-contextual-actions-on-linux-part-1-5gb8">Part 1</a></strong>, we covered the productivity layer of DotGhostBoard 2.1 — smart auto-tagging and contextual clipboard actions running locally in under 1ms for typical payloads (&lt; 5KB).</p>
+
+<p>This part is about security architecture: what happens when you need to safely move, store, expire, and rotate credentials.</p>
+
+<p>Here's what we're covering:</p>
+
+<ul>
+<li>Standalone <code>.vault</code> Encrypted Backup Packages (with AAD header authentication)</li>
+<li>CSPRNG Password &amp; Token Generator with Live Keyspace Entropy</li>
+<li>Secret Expiry Tracking &amp; Dynamic Warning Badges</li>
+<li>Encrypted Password Version History with Safe Revert</li>
+<li>Vault-to-Dashboard Plaintext Sweep &amp; Its Practical Boundaries</li>
+<li>Unified UX Polish &amp; Ergonomics</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="1-encrypted-vault-backups-the-raw-vault-endraw-package-format" href="#1-encrypted-vault-backups-the-raw-vault-endraw-package-format">
+  </a>
+  1. Encrypted Vault Backups: The <code>.vault</code> Package Format
+</h2>
+
+<p>The goal was simple: export your entire Vault as a single portable file that contains <strong>zero unencrypted secret bytes</strong> — safe to copy to a USB drive, upload to a personal server, or store offsite.</p>
+
+<p>The result is the <code>.vault</code> format (<code>core/security/vault/backup.py</code>), a compact binary package:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>+---------------+---------------+---------------+---------------+---------------+
+| Magic Header  | Version       | Salt          | Nonce         | Payload + Tag |
+| "DGBV"        | 0x01          | 16 bytes      | 12 bytes      | Ciphertext +  |
+| (4 bytes)     | (1 byte)      | os.urandom    | AES-GCM       | 16B GCM Tag   |
++---------------+---------------+---------------+---------------+---------------+
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-cryptographic-stack" href="#the-cryptographic-stack">
+  </a>
+  The Cryptographic Stack
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Implementation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cipher</td>
+<td>AES-256-GCM (authenticated encryption with AAD)</td>
+</tr>
+<tr>
+<td>Key derivation</td>
+<td>PBKDF2-HMAC-SHA256, 100,000 rounds</td>
+</tr>
+<tr>
+<td>Salt</td>
+<td>16-byte random, per-export (<code>os.urandom(16)</code>)</td>
+</tr>
+<tr>
+<td>Nonce</td>
+<td>12-byte random, per-export (<code>os.urandom(12)</code>)</td>
+</tr>
+<tr>
+<td>Associated Data (AAD)</td>
+<td>5-byte header (<code>MAGIC + VERSION</code>) authenticated into the GCM tag</td>
+</tr>
+<tr>
+<td>Authentication</td>
+<td>128-bit GCM tag — tampering with ciphertext, nonce, or header fails cleanly</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Here's the core export logic, lightly abbreviated:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/security/vault/backup.py (simplified)
+</span><span class="kn">import</span> <span class="n">os</span><span class="p">,</span> <span class="n">json</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.kdf.pbkdf2</span> <span class="kn">import</span> <span class="n">PBKDF2HMAC</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives</span> <span class="kn">import</span> <span class="n">hashes</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.ciphers.aead</span> <span class="kn">import</span> <span class="n">AESGCM</span>
+
+<span class="n">MAGIC</span>   <span class="o">=</span> <span class="sa">b</span><span class="sh">"</span><span class="s">DGBV</span><span class="sh">"</span>
+<span class="n">VERSION</span> <span class="o">=</span> <span class="sa">b</span><span class="sh">"</span><span class="se">\x01</span><span class="sh">"</span>
+<span class="n">KDF_ITER</span> <span class="o">=</span> <span class="mi">100_000</span>
+
+<span class="k">def</span> <span class="nf">export_vault</span><span class="p">(</span><span class="n">secrets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">],</span> <span class="n">passphrase</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="n">salt</span>  <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="nf">urandom</span><span class="p">(</span><span class="mi">16</span><span class="p">)</span>
+    <span class="n">nonce</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="nf">urandom</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="n">header_aad</span> <span class="o">=</span> <span class="n">MAGIC</span> <span class="o">+</span> <span class="n">VERSION</span>
+
+    <span class="c1"># Derive 256-bit key from passphrase
+</span>    <span class="n">kdf</span> <span class="o">=</span> <span class="nc">PBKDF2HMAC</span><span class="p">(</span><span class="n">hashes</span><span class="p">.</span><span class="nc">SHA256</span><span class="p">(),</span> <span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">salt</span><span class="o">=</span><span class="n">salt</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="n">KDF_ITER</span><span class="p">)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">kdf</span><span class="p">.</span><span class="nf">derive</span><span class="p">(</span><span class="n">passphrase</span><span class="p">.</span><span class="nf">encode</span><span class="p">())</span>
+
+    <span class="c1"># Serialize payload entirely in-memory — never touches disk
+</span>    <span class="n">plaintext</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">secrets</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="bp">False</span><span class="p">).</span><span class="nf">encode</span><span class="p">()</span>
+
+    <span class="c1"># AES-256-GCM: encrypt payload and authenticate format header via AAD
+</span>    <span class="n">ciphertext</span> <span class="o">=</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">key</span><span class="p">).</span><span class="nf">encrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">plaintext</span><span class="p">,</span> <span class="n">header_aad</span><span class="p">)</span>
+
+    <span class="c1"># Return complete package (16-byte GCM tag is appended to ciphertext by AESGCM)
+</span>    <span class="k">return</span> <span class="n">header_aad</span> <span class="o">+</span> <span class="n">salt</span> <span class="o">+</span> <span class="n">nonce</span> <span class="o">+</span> <span class="n">ciphertext</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And importing reverses the process — with AEAD integrity verification happening <em>before</em> any payload parsing or database operations:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">import_vault</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">passphrase</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="n">MAGIC</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="nc">ValueError</span><span class="p">(</span><span class="sh">"</span><span class="s">Not a valid .vault file</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">5</span> <span class="ow">or</span> <span class="n">data</span><span class="p">[</span><span class="mi">4</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="nc">ValueError</span><span class="p">(</span><span class="sh">"</span><span class="s">Unsupported .vault backup version</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="n">header_aad</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="mi">5</span><span class="p">]</span>
+    <span class="n">salt</span><span class="p">,</span> <span class="n">nonce</span><span class="p">,</span> <span class="n">ciphertext</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">5</span><span class="p">:</span><span class="mi">21</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="mi">21</span><span class="p">:</span><span class="mi">33</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="mi">33</span><span class="p">:]</span>
+
+    <span class="n">kdf</span> <span class="o">=</span> <span class="nc">PBKDF2HMAC</span><span class="p">(</span><span class="n">hashes</span><span class="p">.</span><span class="nc">SHA256</span><span class="p">(),</span> <span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">salt</span><span class="o">=</span><span class="n">salt</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="n">KDF_ITER</span><span class="p">)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">kdf</span><span class="p">.</span><span class="nf">derive</span><span class="p">(</span><span class="n">passphrase</span><span class="p">.</span><span class="nf">encode</span><span class="p">())</span>
+
+    <span class="c1"># Decrypt and authenticate: raises InvalidTag if ciphertext, passphrase,
+</span>    <span class="c1"># or header bytes (MAGIC/VERSION) were tampered with
+</span>    <span class="n">plaintext</span> <span class="o">=</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">key</span><span class="p">).</span><span class="nf">decrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">ciphertext</span><span class="p">,</span> <span class="n">header_aad</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">plaintext</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="why-associated-authenticated-data-aad" href="#why-associated-authenticated-data-aad">
+  </a>
+  Why Associated Authenticated Data (AAD)?
+</h3>
+
+<p>Passing <code>MAGIC + VERSION</code> as AAD cryptographically binds the cleartext header to the payload's 128-bit authentication tag. Without AAD, an attacker could flip the version byte undetected by the cipher until application-level parsing. With AAD, modifying even a single bit in the header or ciphertext triggers an immediate <code>InvalidTag</code> rejection by the cipher.</p>
+
+<h3>
+  <a name="what-gets-exported" href="#what-gets-exported">
+  </a>
+  What Gets Exported
+</h3>
+
+<p>Everything: active secrets, categories, creation/update timestamps, expiration dates, and the last 3 encrypted version history entries. Full Vault state in one file.</p>
+
+<p>Built-in duplicate skipping (<code>overwrite_existing=False</code>) on import means re-importing an old backup won't create duplicates in your live Vault.</p>
+
+<blockquote>
+<p><strong>On PBKDF2 iteration count:</strong> 100,000 rounds is a responsive baseline across diverse Linux hardware, including low-power ARM boards. Argon2id support and user-configurable iteration scaling are on the v2.2 roadmap.</p>
+</blockquote>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fl55vaetpohpdzyfb3my6.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fl55vaetpohpdzyfb3my6.png" alt="DotGhostBoard 2.1 Encrypted Vault Backup Dialog" loading="lazy" width="799" height="401"></a><br>
+<em>Figure 1: Standalone .vault backup export dialog showing PBKDF2 passphrase derivation, AES-256-GCM encryption parameters, and live Vault drawer state.</em></p>
+
+<hr>
+<h2>
+  <a name="2-csprng-password-amp-token-generator" href="#2-csprng-password-amp-token-generator">
+  </a>
+  2. CSPRNG Password &amp; Token Generator
+</h2>
+
+<p>Generating credentials inside a clipboard manager means you stay in one tool. No tab-switching to a web generator, no pasting between windows.</p>
+
+<p>The generator is embedded directly inside the Add/Edit Secret dialog (<code>ui/vault/secret_dialog.py</code>):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[ ⚡ Generate Password / Token ]
+├── CSPRNG Source: Python secrets module (/dev/urandom)
+├── Character Pools: [✓] a-z  [✓] A-Z  [✓] 0-9  [✓] Symbols
+├── Length Slider: 8 ──────────●─────── 64  (default: 20)
+├── Token Presets: Hex | UUIDv4 | Base64 | Bearer | URL-Safe
+└── Entropy Meter: [████████████████████] 131.1 bits — Fort Knox
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-entropy-calculation" href="#the-entropy-calculation">
+  </a>
+  The Entropy Calculation
+</h3>
+
+<p>Instead of an arbitrary "password strength checklist," we display <strong>theoretical keyspace entropy</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>H = L × log₂(N)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Where:</p>
+
+<ul>
+<li>
+<code>L</code> = character length</li>
+<li>
+<code>N</code> = active pool size (e.g., a-z + A-Z + 0-9 + symbols = 94 characters)
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/vault/secret_dialog.py (simplified)
+</span><span class="kn">import</span> <span class="n">math</span>
+
+<span class="k">def</span> <span class="nf">keyspace_entropy</span><span class="p">(</span><span class="n">length</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">pool_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Theoretical bits of entropy for a uniformly random credential.</span><span class="sh">"""</span>
+    <span class="k">if</span> <span class="n">pool_size</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.0</span>
+    <span class="k">return</span> <span class="n">length</span> <span class="o">*</span> <span class="n">math</span><span class="p">.</span><span class="nf">log2</span><span class="p">(</span><span class="n">pool_size</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">entropy_label</span><span class="p">(</span><span class="n">bits</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">bits</span> <span class="o">&lt;</span> <span class="mi">40</span><span class="p">:</span>   <span class="k">return</span> <span class="sh">"</span><span class="s">Weak</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="n">bits</span> <span class="o">&lt;</span> <span class="mi">60</span><span class="p">:</span>   <span class="k">return</span> <span class="sh">"</span><span class="s">Moderate</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="n">bits</span> <span class="o">&lt;</span> <span class="mi">80</span><span class="p">:</span>   <span class="k">return</span> <span class="sh">"</span><span class="s">Strong</span><span class="sh">"</span>
+    <span class="k">return</span> <span class="sh">"</span><span class="s">Fort Knox</span><span class="sh">"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The meter updates live as you drag the slider or toggle character pools. A 20-character password using the full 94-character pool yields <strong>131.1 bits</strong> of keyspace entropy (20 × log₂(94)) — comfortably above the 80–128-bit range generally considered strong for random credentials.</p>
+
+<blockquote>
+<p><strong>Keyspace entropy across the stack:</strong> Both the auto-tagger in Part 1 and the generator here use the same keyspace entropy formula (H = L × log₂(N)). The difference is in application: the auto-tagger <em>estimates</em> the character pool of existing clipboard text to detect high-entropy tokens, while the generator <em>computes</em> the exact strength of newly generated passwords from user-selected pools.</p>
+</blockquote>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgfxt41u34xsh6bvwvtsj.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgfxt41u34xsh6bvwvtsj.png" alt="DotGhostBoard 2.1 Cryptographic Password Generator &amp; Live Entropy Meter" loading="lazy" width="503" height="695"></a><br>
+<em>Figure 2: Built-in CSPRNG Password &amp; Token Generator showing character pool toggles, 20-character length slider, and live keyspace entropy evaluation (Strong ~131 bits).</em></p>
+
+<hr>
+<h2>
+  <a name="3-secret-expiry-tracking-amp-dynamic-badges" href="#3-secret-expiry-tracking-amp-dynamic-badges">
+  </a>
+  3. Secret Expiry Tracking &amp; Dynamic Badges
+</h2>
+
+<p>Temporary credentials — staging tokens, contractor access keys, short-lived API secrets — have an expiration date. Most password managers ignore this.</p>
+
+<p>DotGhostBoard 2.1 tracks expiry directly in the Vault model (<code>core/security/vault/models.py</code>) and surfaces it visually on each secret card (<code>ui/vault/secret_card.py</code>).</p>
+<h3>
+  <a name="setting-an-expiry-date" href="#setting-an-expiry-date">
+  </a>
+  Setting an Expiry Date
+</h3>
+
+<p>In the Add/Edit dialog, you can:</p>
+
+<ul>
+<li>Pick a <strong>preset duration</strong>: 30 days, 90 days, 180 days, 1 year.</li>
+<li>Or pick an <strong>exact date</strong> via a <code>QDateEdit</code> calendar picker.</li>
+</ul>
+
+<p>The date is stored as an ISO 8601 timestamp string in SQLite. The expiry logic lives in a shared mixin:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/security/vault/models.py
+</span>
+<span class="kn">from</span> <span class="n">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span> <span class="n">typing</span> <span class="kn">import</span> <span class="n">Optional</span>
+
+<span class="k">class</span> <span class="nc">_ExpiryMixin</span><span class="p">:</span>
+    <span class="n">expires_at</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_expired</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">expires_at</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">exp</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">fromisoformat</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">expires_at</span><span class="p">)</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">(</span><span class="n">exp</span><span class="p">.</span><span class="n">tzinfo</span><span class="p">)</span> <span class="k">if</span> <span class="n">exp</span><span class="p">.</span><span class="n">tzinfo</span> <span class="k">else</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">now</span> <span class="o">&gt;</span> <span class="n">exp</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="c1"># Corrupted timestamp: treated as non-expiring rather than raising in the UI
+</span>            <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">days_remaining</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">expires_at</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">exp</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">fromisoformat</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">expires_at</span><span class="p">)</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">(</span><span class="n">exp</span><span class="p">.</span><span class="n">tzinfo</span><span class="p">)</span> <span class="k">if</span> <span class="n">exp</span><span class="p">.</span><span class="n">tzinfo</span> <span class="k">else</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+            <span class="nf">return </span><span class="p">(</span><span class="n">exp</span> <span class="o">-</span> <span class="n">now</span><span class="p">).</span><span class="n">days</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">None</span>
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span> <span class="nc">VaultItem</span><span class="p">(</span><span class="n">_ExpiryMixin</span><span class="p">):</span> <span class="bp">...</span>
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">class</span> <span class="nc">VaultSummary</span><span class="p">(</span><span class="n">_ExpiryMixin</span><span class="p">):</span> <span class="bp">...</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Both <code>VaultItem</code> (full DB record) and <code>VaultSummary</code> (UI listing) inherit the same expiry logic through the mixin — written once, tested once.</p>
+
+<h3>
+  <a name="visual-status-badges" href="#visual-status-badges">
+  </a>
+  Visual Status Badges
+</h3>
+
+<p>The secret card renders the appropriate badge at render time:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Badge</th>
+<th>Condition</th>
+<th>Appearance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>⛔ EXPIRED</code></td>
+<td><code>is_expired == True</code></td>
+<td>Red badge</td>
+</tr>
+<tr>
+<td><code>⚠️ 0d–7d left</code></td>
+<td>
+<code>days_remaining &lt;= 7</code> (e.g., <code>⚠️ 3d left</code>, or <code>⚠️ 0d left</code> when less than 24 hours remain)</td>
+<td>Amber badge</td>
+</tr>
+<tr>
+<td><code>⏳ 2027-03-01</code></td>
+<td>Active, &gt; 7 days remaining</td>
+<td>Blue pill</td>
+</tr>
+<tr>
+<td><em>(none)</em></td>
+<td>No expiry set</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fzjkxkbbwfx97vo7gvikd.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fzjkxkbbwfx97vo7gvikd.png" alt="DotGhostBoard 2.1 Secret Expiry Status Badges" loading="lazy" width="395" height="306"></a></p>
+
+<p><em>Figure 3: Secret cards displaying dynamic status badges including expired credentials and upcoming renewal countdowns.</em></p>
+
+
+<hr>
+
+<h2>
+  <a name="4-encrypted-password-version-history-amp-safe-revert" href="#4-encrypted-password-version-history-amp-safe-revert">
+  </a>
+  4. Encrypted Password Version History &amp; Safe Revert
+</h2>
+
+<p>Rotating a production credential is risky. If the new key fails, you need the old one — immediately. DotGhostBoard 2.1 solves this with <strong>Encrypted Version History</strong>.</p>
+
+<h3>
+  <a name="how-it-works" href="#how-it-works">
+  </a>
+  How It Works
+</h3>
+
+<p>Every time you update an existing secret, the current ciphertext is archived before the new one is written:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/security/vault/service.py (simplified)
+</span>
+<span class="k">def</span> <span class="nf">update_secret</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">secret_text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">save_history</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="bp">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_require_unlocked</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">save_history</span><span class="p">:</span>
+        <span class="c1"># 1. Fetch current encrypted record before replacing
+</span>        <span class="n">existing</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_repo</span><span class="p">.</span><span class="nf">get_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">and</span> <span class="n">existing</span><span class="p">.</span><span class="n">ciphertext</span><span class="p">:</span>
+            <span class="c1"># 2. Archive previous ciphertext to history (capped at 3 newest)
+</span>            <span class="n">self</span><span class="p">.</span><span class="n">_repo</span><span class="p">.</span><span class="nf">add_history_entry</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">existing</span><span class="p">.</span><span class="n">ciphertext</span><span class="p">,</span> <span class="n">max_entries</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+    <span class="c1"># 3. Encrypt and store the new secret version
+</span>    <span class="n">new_ciphertext</span> <span class="o">=</span> <span class="nf">encrypt</span><span class="p">(</span><span class="n">secret_text</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">_repo</span><span class="p">.</span><span class="nf">update_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">ciphertext</span><span class="o">=</span><span class="n">new_ciphertext</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Key points:</p>
+
+<ul>
+<li>
+<strong>Max 3 versions</strong> — capped in SQLite, avoiding unbounded storage growth.</li>
+<li>
+<strong>Encrypted at rest</strong> — history entries use the same DEK as the live secret. Plaintext never hits disk.</li>
+<li>
+<strong>Decrypted in memory only</strong> — when you open the History Viewer, decryption happens in RAM and is discarded on close.</li>
+</ul>
+
+<h3>
+  <a name="the-history-viewer-amp-safe-revert" href="#the-history-viewer-amp-safe-revert">
+  </a>
+  The History Viewer (📜) &amp; Safe Revert
+</h3>
+
+<p>Clicking the <code>📜</code> icon on any secret card opens the modal:</p>
+
+<ul>
+<li>Version index and creation timestamp for each entry.</li>
+<li>
+<code>👁️ Reveal</code> / <code>🙈 Hide</code> toggle with monospace masking.</li>
+<li>
+<strong>Copy</strong> button — protected by DotGhostBoard's 30-second automatic clipboard scrub.</li>
+<li>
+<strong>↺ Revert to this</strong> — restores the selected version as the active secret.</li>
+</ul>
+
+<p>Behind the scenes, revert calls:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">self</span><span class="p">.</span><span class="nf">update_secret</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">secret_text</span><span class="o">=</span><span class="n">plaintext</span><span class="p">,</span> <span class="n">save_history</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This neatly preserves the active secret you just replaced into history, allowing you to toggle back and forth safely without data loss. When a secret is deleted, SQLite cascades and purges all historical entries in the same transaction.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fph2t177u2a1giemvqig2.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fph2t177u2a1giemvqig2.png" alt="DotGhostBoard 2.1 Encrypted Password Version History &amp; Safe Revert" loading="lazy" width="559" height="661"></a><br>
+<em>Figure 4: Password version history modal showing archived credential states, reveal toggle, and one-click atomic revert.</em></p>
+
+<hr>
+<h2>
+  <a name="5-vaulttodashboard-plaintext-sweep" href="#5-vaulttodashboard-plaintext-sweep">
+  </a>
+  5. Vault-to-Dashboard Plaintext Sweep
+</h2>
+
+<p>Here's a subtle security gap:</p>
+
+<p>You add a secret to the Vault. But before you did, you copied it to your clipboard — meaning an unencrypted copy was recorded in your general clipboard history.</p>
+
+<p>Later, you delete the secret from the Vault. If the clipboard history remains untouched, your secret is gone from the encrypted vault but still sitting in plaintext in the general history database.</p>
+
+<p>DotGhostBoard 2.1 closes this gap with a <strong>Coordinated Plaintext Sweep</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/vault/vault_controller.py (simplified)
+</span>
+<span class="k">def</span> <span class="nf">delete_secret</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="c1"># 1. Temporarily decrypt secret in-memory to discover history traces
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="n">plaintext</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_service</span><span class="p">.</span><span class="nf">reveal_secret</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="n">plaintext</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="c1"># 2. Delete from encrypted Vault database
+</span>    <span class="n">success</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_service</span><span class="p">.</span><span class="nf">delete_secret</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+
+    <span class="c1"># 3. If deleted, sweep matching plaintext entries from clipboard history
+</span>    <span class="k">if</span> <span class="n">success</span> <span class="ow">and</span> <span class="n">plaintext</span><span class="p">:</span>
+        <span class="n">history_matches</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_history_repo</span><span class="p">.</span><span class="nf">find_by_content</span><span class="p">(</span><span class="n">plaintext</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">history_matches</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_history_repo</span><span class="p">.</span><span class="nf">delete</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">])</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">history_item_removed</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">])</span>  <span class="c1"># removes card from UI
+</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">secrets_changed</span><span class="p">.</span><span class="nf">emit</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">success</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>history_item_removed</code> signal coordinates the UI: the Vault controller emits it, and the HistoryController receives it to cleanly remove the card from the UI. No tight coupling, no shared database transactions — just Qt signals.</p>
+
+<h3>
+  <a name="practical-boundary-exact-match-vs-substrings" href="#practical-boundary-exact-match-vs-substrings">
+  </a>
+  Practical Boundary: Exact Match vs. Substrings
+</h3>
+
+<p>The sweep performs an exact match (<code>find_by_content(plaintext)</code>). If you copied the credential with trailing whitespace, a trailing newline, or embedded inside a larger terminal command line (e.g. <code>curl -H "Authorization: Bearer &lt;key&gt;"</code>), the exact sweep will not catch the enclosing entry.</p>
+
+<p>We deliberately chose this conservative exact match: running broad substring searches across the entire clipboard history could easily result in destructive false-positive deletions of unrelated notes or commands.</p>
+
+
+<hr>
+
+<h2>
+  <a name="6-unified-design-system-amp-ux-polish" href="#6-unified-design-system-amp-ux-polish">
+  </a>
+  6. Unified Design System &amp; UX Polish
+</h2>
+
+<p>Security tools only work if developers actually use them. Friction kills adoption. In 2.1, we focused on tightening common interactions:</p>
+
+<ul>
+<li>
+<strong>Component Unification (<code>PasswordInputWidget</code>):</strong> We extracted password input handling and the visibility toggle into a single reusable widget. Both the session <code>LockScreen</code> and the <code>VaultUnlockDialog</code> now share identical keyboard behavior, input styling, and state management rather than maintaining divergent Qt implementations.</li>
+<li>
+<strong>Drawer Ergonomics:</strong> The slide-out Vault drawer (<code>ui/vault/vault_panel.py</code>) was restructured into a clear two-row toolbar (title/status row + action controls row) with an expanded 380px width for better readability. First-time users see an empty-state onboarding card outlining shortcuts and clipboard auto-scrub policies rather than a blank panel.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fysuuvwbuew71rimd2yod.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fysuuvwbuew71rimd2yod.png" alt="DotGhostBoard 2.1 Vault Drawer &amp; Action Toolbar" loading="lazy" width="380" height="1008"></a></p>
+
+<p><em>Figure 5: Expanded 380px Vault drawer featuring a two-row action toolbar and structured onboarding empty-state.</em></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgibhaox0g71dmc63kj8t.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgibhaox0g71dmc63kj8t.png" alt="DotGhostBoard 2.1 Unified PasswordInputWidget" loading="lazy" width="519" height="315"></a></p>
+
+<p><em>Figure 6: Unified PasswordInputWidget on the Session Lock screen with integrated eye toggle and focus handling.</em></p>
+
+
+<hr>
+
+<h2>
+  <a name="testing-amp-code-quality" href="#testing-amp-code-quality">
+  </a>
+  Testing &amp; Code Quality
+</h2>
+
+<p><strong>523 automated tests. 100% passing.</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>======================== 523 passed in ~100s ========================
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The test matrix covers:</p>
+
+<ul>
+<li>Cryptographic roundtrips with AAD tampering verification</li>
+<li>SQLite transaction isolation for version history and cascade deletes</li>
+<li>UI event loops via headless Xvfb (tested against both Openbox and Qtile 0.36.0)</li>
+<li>Expiry logic edge cases (timezone-aware vs. naive datetimes, malformed strings)</li>
+<li>Plaintext sweep signal propagation across the Vault ↔ Dashboard boundary</li>
+</ul>
+
+<p>Zero Flake8 errors. <code>ui/dashboard.py</code> enforces a hard <code>&lt;= 500 LOC</code> limit — all specialized logic delegates to controllers and mixins.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-amp-known-limitations" href="#whats-next-amp-known-limitations">
+  </a>
+  What's Next &amp; Known Limitations
+</h2>
+
+<p>A few honest limitations, on the record:</p>
+
+<ul>
+<li>
+<strong>Wayland compatibility:</strong> DotGhostBoard relies on X11/EWMH for clipboard capture and hotkeys. We're investigating <code>wlr-data-control</code> protocol support for Wayland. No ETA yet, but it's our most-requested architecture evolution.</li>
+<li>
+<strong>KDF hardening:</strong> 100,000 PBKDF2 rounds is our current baseline. User-configurable iteration counts (targeting OWASP's 600,000 recommendation) and Argon2id evaluation are on the v2.2 roadmap.</li>
+<li>
+<strong>Backup format version negotiation:</strong> v2.1 introduces the single-byte version header; upcoming releases will support forward-compatible schema migrations.</li>
+<li>
+<strong>Substring Plaintext Sweeps:</strong> Exploring optional flagged heuristics for wiping shell history snippets containing expired tokens.</li>
+<li>
+<strong>CLI Vault queries:</strong> Scriptable, authenticated <code>dotghost vault list</code> and <code>dotghost vault get &lt;title&gt;</code> commands are planned for v2.2.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-dotghostboard-21" href="#try-dotghostboard-21">
+  </a>
+  📦 Try DotGhostBoard 2.1
+</h2>
+
+<p>100% free and open-source — <strong>Apache-2.0 License.</strong></p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">kareem2099/DotGhostBoard</a>
+</li>
+<li>
+<strong>OpenDesktop / KDE Store:</strong> <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard on OpenDesktop</a>
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>git clone https://github.com/kareem2099/DotGhostBoard.git
+<span class="nb">cd </span>DotGhostBoard
+
+python3 <span class="nt">-m</span> venv venv <span class="o">&amp;&amp;</span> <span class="nb">source </span>venv/bin/activate
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+
+python3 main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="keyboard-shortcuts" href="#keyboard-shortcuts">
+  </a>
+  Keyboard Shortcuts
+</h3>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Shortcut</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Ctrl+Alt+V</code></td>
+<td>Summon / hide Dashboard (migrates to active workspace)</td>
+</tr>
+<tr>
+<td><code>Ctrl+Alt+Space</code></td>
+<td>Floating Spotlight Quick Search</td>
+</tr>
+<tr>
+<td><code>Ctrl+Shift+V</code></td>
+<td>Open / close The Vault encrypted drawer</td>
+</tr>
+<tr>
+<td><code>Ctrl+F</code></td>
+<td>Focus search bar inside Dashboard</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<p>Questions about the vault format, the key derivation choices, or the history revert logic? Drop them below — happy to go deeper on any of it. 👻🔒</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 2
+    · <a href="https://dev.to/freerave/dotghostboard-21-leviathan-cryptographic-vault-backups-secret-expiry-password-history-part-3pk8#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

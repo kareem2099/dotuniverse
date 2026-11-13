@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Making VS Code &quot;Read My Mind&quot;: Building Smart Context Awareness — FreeRave</title>
+<meta name="description" content="We've all been there. You open a project, and for a split second, you freeze. &quot;Wait, is this npm run...">
+<link rel="canonical" href="https://dev.to/freerave/making-vs-code-read-my-mind-building-smart-context-awareness-2pdi">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/making-vs-code-read-my-mind-building-smart-context-awareness-2pdi">
+<meta property="og:title" content="Making VS Code &quot;Read My Mind&quot;: Building Smart Context Awareness — FreeRave">
+<meta property="og:description" content="We've all been there. You open a project, and for a split second, you freeze. &quot;Wait, is this npm run...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fz8dp2ga8i2z2ud7wihof.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">Making VS Code &quot;Read My Mind&quot;: Building Smart Context Awareness</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-10T11:00:00Z">10 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#productivity</span><span class="post-tag">#showdev</span><span class="post-tag">#freerave</span></div>
+  </div>
+  <article class="post-body">
+<p>We've all been there. You open a project, and for a split second, you freeze. "Wait, is this npm run dev, yarn start, or docker-compose up?"</p>
+
+<p>Context switching is a productivity killer. As developers, we spend too much time remembering how to run the project instead of actually running it.</p>
+
+<p>The Solution: Smart Context Awareness 🛠️<br>
+I've been building a VS Code extension called DotCommand, and today I finally cracked the code on its biggest feature yet: Smart Context Awareness.</p>
+
+<p>The goal was simple: Don't make me search for commands. Show me what I need based on the files I have.</p>
+
+<p>Detects package.json? → Show NPM commands (install, run script).</p>
+
+<p>Detects Dockerfile? → Show Docker commands (build, run).</p>
+
+<p>Detects .git? → Show Git workflow.</p>
+
+<p>The "Behind the Scenes" Struggle 🐛<br>
+It sounds simple, but the implementation was tricky.</p>
+
+<p>I initially built a ContextDetector class that scanned the workspace. It worked, but it was slow. So, I added a caching layer (30 seconds).</p>
+
+<p>The Bug: I would create a package.json file, and... nothing happened. The UI wouldn't update until the cache expired. It felt laggy and "dumb."</p>
+
+<p>The Fix: I had to rewire the FileSystemWatcher events to aggressively invalidate the cache and force a UI refresh the millisecond a critical file (like package.json) is created or deleted.</p>
+
+<p>Now? It feels instant. ⚡</p>
+
+<p>See it in action 🎥</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1menc2bubjb43m8ib7mj.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1menc2bubjb43m8ib7mj.png" alt=" " loading="lazy" width="800" height="877"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7nvvoww767dpfsd11a19.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7nvvoww767dpfsd11a19.png" alt=" " loading="lazy" width="800" height="877"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7wcj3p20rfjrb75lrc77.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7wcj3p20rfjrb75lrc77.png" alt=" " loading="lazy" width="800" height="877"></a></p>
+
+<p>Bonus: Dynamic Git Branches<br>
+I didn't stop at just file detection. I also hated typing branch names manually. So, I added a Dynamic Input system. Now, when you run a command like git checkout, it spawns a native VS Code dropdown populated with your actual local branches.</p>
+
+<p>Try it out?<br>
+I'm building this in public and would love your feedback. Does this solve a real pain point for you?</p>
+
+<p><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotcommand" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.dotcommand</a></p>
+
+<p>Happy Coding! 🚀</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/making-vs-code-read-my-mind-building-smart-context-awareness-2pdi" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/making-vs-code-read-my-mind-building-smart-context-awareness-2pdi#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

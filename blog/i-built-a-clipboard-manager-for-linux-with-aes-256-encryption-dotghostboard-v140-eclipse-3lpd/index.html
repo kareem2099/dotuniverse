@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Clipboard Manager for Linux with AES-256 Encryption — DotGhostBoard v1.4.0 Eclipse — FreeRave</title>
+<meta name="description" content="A deep dive into building Eclipse — the security layer of DotGhostBoard: AES-256-GCM encryption,...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-clipboard-manager-for-linux-with-aes-256-encryption-dotghostboard-v140-eclipse-3lpd">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-clipboard-manager-for-linux-with-aes-256-encryption-dotghostboard-v140-eclipse-3lpd">
+<meta property="og:title" content="I Built a Clipboard Manager for Linux with AES-256 Encryption — DotGhostBoard v1.4.0 Eclipse — FreeRave">
+<meta property="og:description" content="A deep dive into building Eclipse — the security layer of DotGhostBoard: AES-256-GCM encryption,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9jxp9wxjtvm75zdx7dce.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F9jxp9wxjtvm75zdx7dce.png" alt="">
+  <h1 class="post-title">I Built a Clipboard Manager for Linux with AES-256 Encryption — DotGhostBoard v1.4.0 Eclipse</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-29T09:00:00Z">29 March 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#linux</span><span class="post-tag">#security</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>A deep dive into building Eclipse — the security layer of DotGhostBoard: AES-256-GCM encryption, master password lock screen, stealth mode, secure delete, and app filtering. Full code walkthrough.</p>
+
+
+<hr>
+
+<h2>
+  <a name="watch-the-1minute-overview-youtube-li5kzoaflzc-" href="#watch-the-1minute-overview-youtube-li5kzoaflzc-">
+  </a>
+  Watch the 1-minute overview:   <iframe src="https://www.youtube.com/embed/li5kzOAfLzc" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+
+</h2>
+
+<h2>
+  <a name="dotghostboard-v140-eclipse" href="#dotghostboard-v140-eclipse">
+  </a>
+  👻 DotGhostBoard v1.4.0 — Eclipse
+</h2>
+
+<blockquote>
+<p><strong>TL;DR</strong> — I built a clipboard manager for Linux (PyQt6 + SQLite) and just shipped its security layer: AES-256-GCM encryption, a master password lock screen, per-item secret toggle, stealth mode, secure file deletion, and app-level capture filtering. Zero telemetry. Zero Electron. 100% Python.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="background-why-another-clipboard-manager" href="#background-why-another-clipboard-manager">
+  </a>
+  Background — Why Another Clipboard Manager?
+</h2>
+
+<p>Every clipboard manager I tried on Kali was either too heavy (Electron), too basic, or required a network connection. I wanted something that:</p>
+
+<ul>
+<li>Runs lean on Kali Linux with no browser runtime</li>
+<li>Captures text, images, and video paths automatically</li>
+<li>Has a proper <strong>security layer</strong> — not just a toggle</li>
+</ul>
+
+<p>So I built <strong>DotGhostBoard</strong> as part of my <strong>DotSuite</strong> toolkit. It's been through four versions:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Codename</th>
+<th>Focus</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1.0</td>
+<td>Ghost</td>
+<td>Core capture + SQLite + dark UI</td>
+</tr>
+<tr>
+<td>v1.1</td>
+<td>Phantom</td>
+<td>Global hotkey + autostart</td>
+</tr>
+<tr>
+<td>v1.2</td>
+<td>Specter</td>
+<td>Image thumbnails + video preview</td>
+</tr>
+<tr>
+<td>v1.3</td>
+<td>Wraith</td>
+<td>Tags, collections, multi-select</td>
+</tr>
+<tr>
+<td><strong>v1.4</strong></td>
+<td><strong>Eclipse</strong></td>
+<td><strong>Security — encryption, lock, stealth</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="whats-in-eclipse" href="#whats-in-eclipse">
+  </a>
+  What's in Eclipse
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>v1.4.0 Eclipse
+├── 🔐 AES-256-GCM encryption engine
+├── 🔑 Master password (PBKDF2-SHA256, 600K iterations)
+├── 🔒 Lock screen — frameless, Escape-proof
+├── 👁 Per-item secret toggle (right-click → Mark as Secret)
+├── ⏱ Auto-lock after N minutes of inactivity
+├── 👁 Stealth mode — hide from taskbar + Alt+Tab
+├── 🗑 Secure delete — multi-pass byte overwrite
+└── 🛡 App filter — whitelist / blacklist by process name
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8i1rm33lv86lm2aup0pq.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8i1rm33lv86lm2aup0pq.gif" alt="Animated GIF showing the DotGhostBoard main dashboard on Kali Linux, featuring a dark neon UI with various clipboard items like text, images, and pinned cards" loading="lazy" width="800" height="450" data-animated="true"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-crypto-engine" href="#the-crypto-engine">
+  </a>
+  The Crypto Engine
+</h2>
+
+<p>The hardest design decision was <strong>key management</strong>. I didn't want to store the password anywhere — only a verifier that proves the password is correct.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/crypto.py
+</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.ciphers.aead</span> <span class="kn">import</span> <span class="n">AESGCM</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.kdf.pbkdf2</span> <span class="kn">import</span> <span class="n">PBKDF2HMAC</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives</span> <span class="kn">import</span> <span class="n">hashes</span>
+<span class="kn">import</span> <span class="n">os</span><span class="p">,</span> <span class="n">base64</span>
+
+<span class="n">_NONCE_SIZE</span> <span class="o">=</span> <span class="mi">12</span>     <span class="c1"># GCM standard (96-bit)
+</span><span class="n">_KDF_ITER</span>   <span class="o">=</span> <span class="mi">600_000</span>
+
+
+<span class="k">def</span> <span class="nf">derive_key</span><span class="p">(</span><span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">PBKDF2-HMAC-SHA256 — same password + same salt = same key.</span><span class="sh">"""</span>
+    <span class="n">salt</span> <span class="o">=</span> <span class="nf">_load_or_create_salt</span><span class="p">()</span>   <span class="c1"># 256-bit, stored at ~/.config/dotghostboard/eclipse.salt
+</span>    <span class="n">kdf</span>  <span class="o">=</span> <span class="nc">PBKDF2HMAC</span><span class="p">(</span>
+        <span class="n">algorithm</span><span class="o">=</span><span class="n">hashes</span><span class="p">.</span><span class="nc">SHA256</span><span class="p">(),</span>
+        <span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+        <span class="n">salt</span><span class="o">=</span><span class="n">salt</span><span class="p">,</span>
+        <span class="n">iterations</span><span class="o">=</span><span class="n">_KDF_ITER</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">kdf</span><span class="p">.</span><span class="nf">derive</span><span class="p">(</span><span class="n">password</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">encrypt</span><span class="p">(</span><span class="n">plaintext</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">AES-256-GCM → base64url token safe for SQLite TEXT columns.</span><span class="sh">"""</span>
+    <span class="n">nonce</span>      <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="nf">urandom</span><span class="p">(</span><span class="n">_NONCE_SIZE</span><span class="p">)</span>
+    <span class="n">ciphertext</span> <span class="o">=</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">key</span><span class="p">).</span><span class="nf">encrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">plaintext</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">),</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="p">.</span><span class="nf">urlsafe_b64encode</span><span class="p">(</span><span class="n">nonce</span> <span class="o">+</span> <span class="n">ciphertext</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">"</span><span class="s">ascii</span><span class="sh">"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">decrypt</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Raises ValueError on wrong key or tampered data.</span><span class="sh">"""</span>
+    <span class="n">raw</span>   <span class="o">=</span> <span class="n">base64</span><span class="p">.</span><span class="nf">urlsafe_b64decode</span><span class="p">(</span><span class="n">token</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">"</span><span class="s">ascii</span><span class="sh">"</span><span class="p">))</span>
+    <span class="n">nonce</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[:</span><span class="n">_NONCE_SIZE</span><span class="p">]</span>
+    <span class="n">ct</span>    <span class="o">=</span> <span class="n">raw</span><span class="p">[</span><span class="n">_NONCE_SIZE</span><span class="p">:]</span>
+    <span class="k">return</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">key</span><span class="p">).</span><span class="nf">decrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">ct</span><span class="p">,</span> <span class="bp">None</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Wire format:</strong> <code>[ 12-byte nonce ][ ciphertext ][ 16-byte GCM auth tag ]</code> — all base64url-encoded. The GCM tag means any tampering is detected on decryption, not silently ignored.</p>
+
+<h3>
+  <a name="password-verification-without-storing-the-password" href="#password-verification-without-storing-the-password">
+  </a>
+  Password Verification Without Storing the Password
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">_VERIFY_TOKEN</span> <span class="o">=</span> <span class="sh">"</span><span class="s">DOTGHOST_ECLIPSE_OK</span><span class="sh">"</span>
+
+<span class="k">def</span> <span class="nf">save_master_password</span><span class="p">(</span><span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="n">key</span>   <span class="o">=</span> <span class="nf">derive_key</span><span class="p">(</span><span class="n">password</span><span class="p">)</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="nf">encrypt</span><span class="p">(</span><span class="n">_VERIFY_TOKEN</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>   <span class="c1"># store encrypted sentinel
+</span>    <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">_VERIFY_FILE</span><span class="p">,</span> <span class="sh">"</span><span class="s">w</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">f</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">verify_password</span><span class="p">(</span><span class="n">password</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">_VERIFY_FILE</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+        <span class="n">stored</span> <span class="o">=</span> <span class="n">f</span><span class="p">.</span><span class="nf">read</span><span class="p">().</span><span class="nf">strip</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nf">decrypt</span><span class="p">(</span><span class="n">stored</span><span class="p">,</span> <span class="nf">derive_key</span><span class="p">(</span><span class="n">password</span><span class="p">))</span> <span class="o">==</span> <span class="n">_VERIFY_TOKEN</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The raw password is <strong>never stored</strong> — not even hashed. Only an encrypted sentinel string lives on disk. Delete <code>eclipse.salt</code> and the ciphertext becomes permanently unrecoverable.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-lock-screen" href="#the-lock-screen">
+  </a>
+  The Lock Screen
+</h2>
+
+<p>I wanted it to feel like a real lock screen — not just a dialog you can dismiss.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/lock_screen.py (key parts)
+</span>
+<span class="k">class</span> <span class="nc">LockScreen</span><span class="p">(</span><span class="n">QDialog</span><span class="p">):</span>
+    <span class="n">MAX_ATTEMPTS</span> <span class="o">=</span> <span class="mi">5</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">setup</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="bp">False</span><span class="p">):</span>
+        <span class="nf">super</span><span class="p">().</span><span class="nf">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setWindowFlags</span><span class="p">(</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">Dialog</span> <span class="o">|</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">WindowStaysOnTopHint</span> <span class="o">|</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">FramelessWindowHint</span>   <span class="c1"># no title bar
+</span>        <span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setModal</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">keyPressEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="c1"># Escape cannot close a lock screen
+</span>        <span class="k">if</span> <span class="n">event</span><span class="p">.</span><span class="nf">key</span><span class="p">()</span> <span class="o">!=</span> <span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Escape</span><span class="p">:</span>
+            <span class="nf">super</span><span class="p">().</span><span class="nf">keyPressEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">closeEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="c1"># Window manager X button is also blocked
+</span>        <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">_key</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">event</span><span class="p">.</span><span class="nf">ignore</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nf">super</span><span class="p">().</span><span class="nf">closeEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three layers of protection:</p>
+
+<ol>
+<li>
+<code>FramelessWindowHint</code> — no title bar, no close button</li>
+<li>
+<code>keyPressEvent</code> — Escape key swallowed</li>
+<li>
+<code>closeEvent</code> — WM close ignored until password accepted</li>
+</ol>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn1w5st6vid1dz5uq25hi.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn1w5st6vid1dz5uq25hi.png" alt="Screenshot of the DotGhostBoard Master Password lock screen, showing a sleek frameless dialog with a blurred background and a secure password input field." loading="lazy" width="800" height="453"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="peritem-secret-toggle" href="#peritem-secret-toggle">
+  </a>
+  Per-Item Secret Toggle
+</h2>
+
+<p>This was the UX challenge. I didn't want to encrypt everything automatically — that would be aggressive and confusing. Instead, the user right-clicks any text card:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/dashboard.py — context menu
+</span>
+<span class="k">def</span> <span class="nf">_on_card_context_menu</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">card</span><span class="p">:</span> <span class="n">ItemCard</span><span class="p">):</span>
+    <span class="n">menu</span> <span class="o">=</span> <span class="nc">QMenu</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+
+    <span class="c1"># Only show encryption options if master password is set
+</span>    <span class="c1"># and item is a text card
+</span>    <span class="k">if</span> <span class="nf">has_master_password</span><span class="p">()</span> <span class="ow">and</span> <span class="n">card</span><span class="p">.</span><span class="n">item_type</span> <span class="o">==</span> <span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">:</span>
+        <span class="n">menu</span><span class="p">.</span><span class="nf">addSeparator</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">card</span><span class="p">.</span><span class="n">is_secret</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="nc">QAction</span><span class="p">(</span><span class="sh">"</span><span class="s">🔓  Remove Encryption</span><span class="sh">"</span><span class="p">,</span> <span class="n">self</span><span class="p">)</span>
+            <span class="n">action</span><span class="p">.</span><span class="n">triggered</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">self</span><span class="p">.</span><span class="nf">_decrypt_card</span><span class="p">(</span><span class="n">card</span><span class="p">.</span><span class="n">item_id</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="nc">QAction</span><span class="p">(</span><span class="sh">"</span><span class="s">🔐  Mark as Secret</span><span class="sh">"</span><span class="p">,</span> <span class="n">self</span><span class="p">)</span>
+            <span class="n">action</span><span class="p">.</span><span class="n">triggered</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">self</span><span class="p">.</span><span class="nf">_encrypt_card</span><span class="p">(</span><span class="n">card</span><span class="p">.</span><span class="n">item_id</span><span class="p">))</span>
+        <span class="n">menu</span><span class="p">.</span><span class="nf">addAction</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+    <span class="n">menu</span><span class="p">.</span><span class="nf">exec</span><span class="p">(</span><span class="n">card</span><span class="p">.</span><span class="nf">mapToGlobal</span><span class="p">(</span><span class="n">pos</span><span class="p">))</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When encrypted, the card shows an amber overlay — content is completely hidden:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Feqy7ur32h03bbnnoq0wy.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Feqy7ur32h03bbnnoq0wy.gif" alt="A demonstration of the Eclipse encryption feature where a user right-clicks a clipboard item to mark it as secret, instantly hiding its content behind an amber encrypted overlay." loading="lazy" width="800" height="450"></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/widgets.py — the encrypted card face
+</span>
+<span class="k">def</span> <span class="nf">_build_secret_overlay</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">QWidget</span><span class="p">:</span>
+    <span class="n">overlay</span> <span class="o">=</span> <span class="nc">QFrame</span><span class="p">()</span>
+    <span class="n">overlay</span><span class="p">.</span><span class="nf">setObjectName</span><span class="p">(</span><span class="sh">"</span><span class="s">SecretOverlay</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">overlay</span><span class="p">.</span><span class="nf">setStyleSheet</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+        QFrame#SecretOverlay {
+            background: rgba(255, 153, 0, 0.05);
+            border: 1px dashed #ff990055;
+            border-radius: 6px;
+        }
+    </span><span class="sh">"""</span><span class="p">)</span>
+    <span class="n">overlay</span><span class="p">.</span><span class="nf">setFixedHeight</span><span class="p">(</span><span class="mi">56</span><span class="p">)</span>
+    <span class="c1"># ... lock icon + hint label
+</span>    <span class="k">return</span> <span class="n">overlay</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Clicking <strong>👁 Reveal</strong> fires a signal up to Dashboard, which decrypts using the session key and pushes the plaintext back down:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Dashboard receives the reveal request:
+</span><span class="k">def</span> <span class="nf">_on_reveal_requested</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">_active_key</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sh">"</span><span class="s">⚠ Session is locked — unlock first.</span><span class="sh">"</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="n">plaintext</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">decrypt_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">_active_key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">plaintext</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">[</span><span class="n">item_id</span><span class="p">].</span><span class="nf">reveal_content</span><span class="p">(</span><span class="n">plaintext</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ItemCard shows the plaintext:
+</span><span class="k">def</span> <span class="nf">reveal_content</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">plaintext</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_revealed_label</span><span class="p">.</span><span class="nf">setText</span><span class="p">(</span><span class="n">plaintext</span><span class="p">[:</span><span class="mi">120</span><span class="p">]</span> <span class="o">+</span> <span class="sh">"</span><span class="s">…</span><span class="sh">"</span> <span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">plaintext</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">120</span> <span class="k">else</span> <span class="n">plaintext</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_overlay_widget</span><span class="p">.</span><span class="nf">hide</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_revealed_label</span><span class="p">.</span><span class="nf">show</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_is_revealed</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_secret_btn</span><span class="p">.</span><span class="nf">setText</span><span class="p">(</span><span class="sh">"</span><span class="s">🔒 Lock</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When the session locks, <strong>all revealed cards re-hide automatically</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Dashboard._lock():
+</span><span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">values</span><span class="p">():</span>
+    <span class="n">card</span><span class="p">.</span><span class="nf">on_session_locked</span><span class="p">()</span>   <span class="c1"># re-hides revealed content
+</span>
+<span class="c1"># ItemCard.on_session_locked():
+</span><span class="k">def</span> <span class="nf">on_session_locked</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">is_secret</span> <span class="ow">and</span> <span class="n">self</span><span class="p">.</span><span class="n">_is_revealed</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_revealed_label</span><span class="p">.</span><span class="nf">hide</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_revealed_label</span><span class="p">.</span><span class="nf">setText</span><span class="p">(</span><span class="sh">""</span><span class="p">)</span>   <span class="c1"># clear plaintext from memory
+</span>        <span class="n">self</span><span class="p">.</span><span class="n">_overlay_widget</span><span class="p">.</span><span class="nf">show</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="autolock-inactivity-timer" href="#autolock-inactivity-timer">
+  </a>
+  Auto-Lock Inactivity Timer
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Dashboard.__init__:
+</span><span class="n">self</span><span class="p">.</span><span class="n">_auto_lock_timer</span> <span class="o">=</span> <span class="nc">QTimer</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_auto_lock_timer</span><span class="p">.</span><span class="nf">setSingleShot</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_auto_lock_timer</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_lock</span><span class="p">)</span>
+
+<span class="c1"># Reset on any user interaction:
+</span><span class="k">def</span> <span class="nf">mousePressEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">_reset_auto_lock</span><span class="p">()</span>
+    <span class="nf">super</span><span class="p">().</span><span class="nf">mousePressEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">_reset_auto_lock</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">minutes</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_settings</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">auto_lock_minutes</span><span class="sh">"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">minutes</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nf">has_master_password</span><span class="p">():</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_auto_lock_timer</span><span class="p">.</span><span class="nf">start</span><span class="p">(</span><span class="n">minutes</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_auto_lock_timer</span><span class="p">.</span><span class="nf">stop</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Simple and reliable — a single-shot QTimer that resets on every mouse/keyboard event.</p>
+
+
+<hr>
+
+<h2>
+  <a name="stealth-mode" href="#stealth-mode">
+  </a>
+  Stealth Mode
+</h2>
+
+<p>Hide from taskbar and Alt+Tab without breaking the UI:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_set_stealth</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">enable</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="n">subprocess</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">wid</span> <span class="o">=</span> <span class="nf">hex</span><span class="p">(</span><span class="nf">int</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="nf">winId</span><span class="p">()))</span>
+        <span class="k">if</span> <span class="n">enable</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="p">.</span><span class="nf">run</span><span class="p">([</span>
+                <span class="sh">"</span><span class="s">xprop</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-id</span><span class="sh">"</span><span class="p">,</span> <span class="n">wid</span><span class="p">,</span>
+                <span class="sh">"</span><span class="s">-f</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">_NET_WM_STATE</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">32a</span><span class="sh">"</span><span class="p">,</span>
+                <span class="sh">"</span><span class="s">-set</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">_NET_WM_STATE</span><span class="sh">"</span><span class="p">,</span>
+                <span class="sh">"</span><span class="s">_NET_WM_STATE_SKIP_TASKBAR,_NET_WM_STATE_SKIP_PAGER</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">],</span> <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">subprocess</span><span class="p">.</span><span class="nf">run</span><span class="p">(</span>
+                <span class="p">[</span><span class="sh">"</span><span class="s">xprop</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-id</span><span class="sh">"</span><span class="p">,</span> <span class="n">wid</span><span class="p">,</span> <span class="sh">"</span><span class="s">-remove</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">_NET_WM_STATE</span><span class="sh">"</span><span class="p">],</span>
+                <span class="n">check</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="bp">True</span>
+            <span class="p">)</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This sets X11 <code>_NET_WM_STATE</code> hints directly via <code>xprop</code> — works on all EWMH-compliant window managers (GNOME, KDE, XFCE, i3 with gaps, etc.).</p>
+
+
+<hr>
+
+<h2>
+  <a name="secure-delete" href="#secure-delete">
+  </a>
+  Secure Delete
+</h2>
+
+<p>A plain <code>os.remove()</code> doesn't zero out disk sectors. Eclipse overwrites first:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/secure_delete.py
+</span>
+<span class="k">def</span> <span class="nf">secure_delete</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">passes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+    <span class="n">size</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">getsize</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="sh">"</span><span class="s">r+b</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">fh</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">pass_num</span> <span class="ow">in</span> <span class="nf">range</span><span class="p">(</span><span class="n">passes</span><span class="p">):</span>
+                <span class="n">fh</span><span class="p">.</span><span class="nf">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+                <span class="c1"># Alternate: random → zeros → random
+</span>                <span class="k">if</span> <span class="n">pass_num</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">fh</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="sa">b</span><span class="sh">"</span><span class="se">\x00</span><span class="sh">"</span> <span class="o">*</span> <span class="n">size</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">fh</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="n">os</span><span class="p">.</span><span class="nf">urandom</span><span class="p">(</span><span class="n">size</span><span class="p">))</span>
+                <span class="n">fh</span><span class="p">.</span><span class="nf">flush</span><span class="p">()</span>
+                <span class="n">os</span><span class="p">.</span><span class="nf">fsync</span><span class="p">(</span><span class="n">fh</span><span class="p">.</span><span class="nf">fileno</span><span class="p">())</span>   <span class="c1"># force kernel flush
+</span>
+    <span class="n">os</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">True</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>⚠️ <strong>Note on SSDs:</strong> Wear-levelling on SSDs means software overwrite can't guarantee forensic destruction. For maximum security, combine this with full-disk encryption (LUKS).</p>
+
+
+<hr>
+
+<h2>
+  <a name="app-filter-whitelist-blacklist" href="#app-filter-whitelist-blacklist">
+  </a>
+  App Filter — Whitelist / Blacklist
+</h2>
+
+<p>Don't capture from KeePassXC? Easy:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/app_filter.py
+</span>
+<span class="k">class</span> <span class="nc">AppFilter</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">should_capture</span><span class="p">(</span><span class="n">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">app_list</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>   <span class="c1"># no filter = capture everything
+</span>
+        <span class="n">identifiers</span> <span class="o">=</span> <span class="nf">get_active_app_identifiers</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">identifiers</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>   <span class="c1"># fail-open if xdotool unavailable
+</span>
+        <span class="n">matched</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_matches</span><span class="p">(</span><span class="n">identifiers</span><span class="p">)</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="n">matched</span> <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">mode</span> <span class="o">==</span> <span class="sh">"</span><span class="s">blacklist</span><span class="sh">"</span> <span class="k">else</span> <span class="n">matched</span>
+
+    <span class="k">def</span> <span class="nf">_matches</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">identifiers</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="c1"># Substring match: "keepass" matches "org.keepassxc.keepassxc"
+</span>        <span class="k">return</span> <span class="nf">any</span><span class="p">(</span>
+            <span class="n">app</span> <span class="ow">in</span> <span class="n">ident</span>
+            <span class="k">for</span> <span class="n">app</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">app_list</span>
+            <span class="k">for</span> <span class="n">ident</span> <span class="ow">in</span> <span class="n">identifiers</span>
+        <span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Process detection uses <code>xdotool</code> + <code>/proc/&lt;pid&gt;/comm</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">get_active_app_identifiers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">win_id</span> <span class="o">=</span> <span class="nf">_run</span><span class="p">([</span><span class="sh">"</span><span class="s">xdotool</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">getactivewindow</span><span class="sh">"</span><span class="p">])</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">win_id</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nf">set</span><span class="p">()</span>
+
+    <span class="n">pid</span> <span class="o">=</span> <span class="nf">_run</span><span class="p">([</span><span class="sh">"</span><span class="s">xdotool</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">getwindowpid</span><span class="sh">"</span><span class="p">,</span> <span class="n">win_id</span><span class="p">])</span>
+    <span class="n">identifiers</span> <span class="o">=</span> <span class="nf">set</span><span class="p">()</span>
+
+    <span class="c1"># Read process name from /proc
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">/proc/</span><span class="si">{</span><span class="n">pid</span><span class="si">}</span><span class="s">/comm</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="n">identifiers</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">f</span><span class="p">.</span><span class="nf">read</span><span class="p">().</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">())</span>
+    <span class="k">except</span> <span class="nb">OSError</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># Also check WM_CLASS for apps with wrappers
+</span>    <span class="n">wm_class</span> <span class="o">=</span> <span class="nf">_run</span><span class="p">([</span><span class="sh">"</span><span class="s">xprop</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-id</span><span class="sh">"</span><span class="p">,</span> <span class="n">win_id</span><span class="p">,</span> <span class="sh">"</span><span class="s">WM_CLASS</span><span class="sh">"</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">wm_class</span><span class="p">:</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="sa">r</span><span class="sh">'"</span><span class="s">([^</span><span class="sh">"</span><span class="s">]+)</span><span class="sh">"'</span><span class="p">,</span> <span class="n">wm_class</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="n">identifiers</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">match</span><span class="p">.</span><span class="nf">group</span><span class="p">(</span><span class="mi">1</span><span class="p">).</span><span class="nf">lower</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">identifiers</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="sqlite-schema-migration" href="#sqlite-schema-migration">
+  </a>
+  SQLite Schema Migration
+</h2>
+
+<p>Eclipse adds one column to the existing DB — backward compatible:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/storage.py — init_db()
+</span>
+<span class="c1"># Migration: add is_secret for Eclipse v1.4.0
+</span><span class="k">try</span><span class="p">:</span>
+    <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+        <span class="sh">"</span><span class="s">ALTER TABLE clipboard_items ADD COLUMN is_secret INTEGER DEFAULT 0</span><span class="sh">"</span>
+    <span class="p">)</span>
+<span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+    <span class="k">pass</span>  <span class="c1"># column already exists — safe to ignore
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And the encrypt/decrypt helpers work at the storage layer:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">encrypt_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Encrypt content in-place. Returns False if already encrypted.</span><span class="sh">"""</span>
+    <span class="kn">from</span> <span class="n">core.crypto</span> <span class="kn">import</span> <span class="n">encrypt</span> <span class="k">as</span> <span class="n">_encrypt</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span> <span class="ow">or</span> <span class="n">item</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">is_secret</span><span class="sh">"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">type</span><span class="sh">"</span><span class="p">]</span> <span class="o">!=</span> <span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="n">ciphertext</span> <span class="o">=</span> <span class="nf">_encrypt</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">],</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">UPDATE clipboard_items SET content = ?, is_secret = 1 WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">ciphertext</span><span class="p">,</span> <span class="n">item_id</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="bp">True</span>
+
+<span class="k">def</span> <span class="nf">decrypt_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Decrypt and return plaintext — does NOT modify DB.</span><span class="sh">"""</span>
+    <span class="kn">from</span> <span class="n">core.crypto</span> <span class="kn">import</span> <span class="n">decrypt</span> <span class="k">as</span> <span class="n">_decrypt</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">is_secret</span><span class="sh">"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">]</span>   <span class="c1"># not encrypted, pass through
+</span>    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nf">_decrypt</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">],</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">except</span> <span class="nb">ValueError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>   <span class="c1"># wrong key or corrupted
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-settings-ui" href="#the-settings-ui">
+  </a>
+  The Settings UI
+</h2>
+
+<p>Eclipse gets its own tab in the Settings dialog:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fh60131mgw5lv7n4bscfm.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fh60131mgw5lv7n4bscfm.png" alt="Screenshot of the Eclipse Security settings tab in DotGhostBoard, showing options for Master Password management, auto-lock inactivity timer, and the application-level capture filter configuration." loading="lazy" width="800" height="453"></a></p>
+
+<p>Three sections:</p>
+
+<ul>
+<li>
+<strong>🔑 Master Password</strong> — set / change / remove with current-password verification</li>
+<li>
+<strong>⏱ Auto-Lock</strong> — spinner 0–480 min</li>
+<li>
+<strong>🛡 App Filter</strong> — mode combo + editable process name list</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="about-tab" href="#about-tab">
+  </a>
+  About Tab
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fydb5hunuwibkl1wt88qm.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fydb5hunuwibkl1wt88qm.png" alt="Screenshot of the DotGhostBoard About tab, displaying version 1.4.0 Eclipse, developer credits for FreeRave, system environment details, and links to the project's GitHub and social channels." loading="lazy" width="800" height="453"></a></p>
+
+<p>The About tab shows version info, system info (live Python/Qt versions), MIT license, and all social/community links.</p>
+
+
+<hr>
+
+<h2>
+  <a name="test-coverage" href="#test-coverage">
+  </a>
+  Test Coverage
+</h2>
+
+<p>Eclipse ships with 28 unit tests:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>pytest tests/test_eclipse.py <span class="nt">-v</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight console"><code><span class="go">PASSED tests/test_eclipse.py::TestCrypto::test_encrypt_decrypt_roundtrip
+PASSED tests/test_eclipse.py::TestCrypto::test_encrypt_produces_different_tokens_each_call
+PASSED tests/test_eclipse.py::TestCrypto::test_wrong_key_raises_value_error
+PASSED tests/test_eclipse.py::TestCrypto::test_tampered_ciphertext_raises
+PASSED tests/test_eclipse.py::TestCrypto::test_encrypt_unicode_characters
+PASSED tests/test_eclipse.py::TestCrypto::test_master_password_flow
+PASSED tests/test_eclipse.py::TestCrypto::test_same_password_derives_same_key
+PASSED tests/test_eclipse.py::TestSecureDelete::test_file_is_gone_after_secure_delete
+PASSED tests/test_eclipse.py::TestSecureDelete::test_original_content_overwritten
+PASSED tests/test_eclipse.py::TestAppFilter::test_blacklist_blocks_matched_app
+PASSED tests/test_eclipse.py::TestAppFilter::test_whitelist_allows_matched_app
+PASSED tests/test_eclipse.py::TestAppFilter::test_detection_failure_fails_open
+PASSED tests/test_eclipse.py::TestStorageEclipse::test_encrypt_item_stores_ciphertext
+PASSED tests/test_eclipse.py::TestStorageEclipse::test_decrypt_item_returns_plaintext
+PASSED tests/test_eclipse.py::TestStorageEclipse::test_decrypt_wrong_key_returns_none
+... 13 more ...
+28 passed in 1.84s
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fej90gmtp7rmx2dtid7la.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fej90gmtp7rmx2dtid7la.png" alt="Terminal output showing 162 passed unit tests for DotGhostBoard, confirming the stability of core features including the encryption engine, media processing, and storage logic." loading="lazy" width="800" height="241"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="install-amp-run" href="#install-amp-run">
+  </a>
+  Install &amp; Run
+</h2>
+
+<h3>
+  <a name="option-1-download-a-release-recommended" href="#option-1-download-a-release-recommended">
+  </a>
+  Option 1 — Download a Release (Recommended)
+</h3>
+
+<p>DotGhostBoard ships pre-built binaries via <strong>GitHub Actions CI</strong> — every push to <code>main</code> automatically builds for 4 platforms:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ff0pgb96nls30chf6opku.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ff0pgb96nls30chf6opku.png" alt="Screenshot of the GitHub Actions CI/CD pipeline for DotGhostBoard, showing all four build jobs (AppImage, DEB, Windows EXE, macOS DMG) completed successfully with green checkmarks and downloadable artifacts." loading="lazy" width="800" height="231"></a></p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Format</th>
+<th>Size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🐧 Linux</td>
+<td><code>.AppImage</code></td>
+<td>~76 MB</td>
+</tr>
+<tr>
+<td>🐧 Linux</td>
+<td><code>.deb</code></td>
+<td>~60 MB</td>
+</tr>
+<tr>
+<td>🪟 Windows</td>
+<td><code>.exe</code></td>
+<td>~46 MB</td>
+</tr>
+<tr>
+<td>🍎 macOS</td>
+<td><code>.dmg</code></td>
+<td>~125 MB</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>Download from the <a href="https://github.com/kareem2099/DotGhostBoard/releases" target="_blank" rel="noopener noreferrer">Releases page</a> or grab the latest build artifacts directly from <a href="https://github.com/kareem2099/DotGhostBoard/actions" target="_blank" rel="noopener noreferrer">GitHub Actions</a>.</p>
+
+<p><strong>Linux AppImage (quickest):</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">chmod</span> +x DotGhostBoard-1.4.0-x86_64.AppImage
+./DotGhostBoard-1.4.0-x86_64.AppImage
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Linux .deb:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">sudo </span>dpkg <span class="nt">-i</span> dotghostboard_1.4.0_amd64.deb
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="option-2-opendesktoporg" href="#option-2-opendesktoporg">
+  </a>
+  Option 2 — OpenDesktop.org
+</h3>
+
+<p>DotGhostBoard is also published on <strong><a href="https://opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">OpenDesktop.org</a></strong> — the Linux app store used by KDE, GNOME, and OCS-compatible installers.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7bm3vy3stjmkpj6f17et.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7bm3vy3stjmkpj6f17et.png" alt="Screenshot of the DotGhostBoard application page on OpenDesktop.org, detailing the native clipboard manager for Linux with the MIT license and the neon ghost app icon." loading="lazy" width="800" height="422"></a></p>
+
+<p>You can install it directly from the OpenDesktop page using the <strong>OCS-Install</strong> button if your distro supports it.</p>
+
+
+<hr>
+
+<h3>
+  <a name="option-3-from-source" href="#option-3-from-source">
+  </a>
+  Option 3 — From Source
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>git clone https://github.com/kareem2099/DotGhostBoard
+<span class="nb">cd </span>DotGhostBoard
+python3 <span class="nt">-m</span> venv venv <span class="o">&amp;&amp;</span> <span class="nb">source </span>venv/bin/activate
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+python3 main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Requirements:</strong> Python 3.11+, PyQt6, Pillow, cryptography, xdotool<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">sudo </span>apt <span class="nb">install </span>xdotool   <span class="c"># Kali / Debian / Ubuntu</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v150-nexus" href="#whats-next-v150-nexus">
+  </a>
+  What's Next — v1.5.0 Nexus
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>v1.5.0 Nexus (planned)
+├── 📡 Local network sync (same WiFi)
+├── ☁  Optional cloud backup (S3 / Rclone)
+├── 📱 QR code share — scan from phone
+├── 🔌 REST API mode — localhost for scripts
+├── 💻 CLI companion — dotghost push / pop
+└── 🧩 Plugin system
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="links" href="#links">
+  </a>
+  Links
+</h2>
+
+<ul>
+<li>🐙 <strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard</a>
+</li>
+<li>🐛 <strong>Issues:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/issues" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard/issues</a>
+</li>
+<li>🖥 <strong>OpenDesktop:</strong> <a href="https://opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">https://opendesktop.org/p/2353623/</a>
+</li>
+<li>⚙️ <strong>CI Builds:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/actions" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard/actions</a>
+</li>
+<li>📝 <strong>medium:</strong> <a href="https://medium.com/@freerave" target="_blank" rel="noopener noreferrer">https://medium.com/@freerave</a>
+</li>
+<li>💼 <strong>LinkedIn:</strong> <a href="https://www.linkedin.com/in/freerave/" target="_blank" rel="noopener noreferrer">https://www.linkedin.com/in/freerave/</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>Built with PyQt6, SQLite, and the cryptography library. Part of the DotSuite toolkit by FreeRave.</em></p>
+
+<p><em>Star the repo if you find it useful ⭐</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-clipboard-manager-for-linux-with-aes-256-encryption-dotghostboard-v140-eclipse-3lpd" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-a-clipboard-manager-for-linux-with-aes-256-encryption-dotghostboard-v140-eclipse-3lpd#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

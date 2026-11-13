@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building an Automated, API-Driven Stats &amp; Version Synchronizer for VS Code Extensions with 24-Hour Smart Caching (dotUniverse v1.2.0) — FreeRave</title>
+<meta name="description" content="How I built a dual-path synchronization architecture for 7 VS Code extensions using VS...">
+<link rel="canonical" href="https://dev.to/freerave/building-an-automated-api-driven-stats-version-synchronizer-for-vs-code-extensions-with-24-hour-4inm">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-an-automated-api-driven-stats-version-synchronizer-for-vs-code-extensions-with-24-hour-4inm">
+<meta property="og:title" content="Building an Automated, API-Driven Stats &amp; Version Synchronizer for VS Code Extensions with 24-Hour Smart Caching (dotUniverse v1.2.0) — FreeRave">
+<meta property="og:description" content="How I built a dual-path synchronization architecture for 7 VS Code extensions using VS...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F27m56xjod0zbj1yadvyq.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F27m56xjod0zbj1yadvyq.png" alt="">
+  <h1 class="post-title">Building an Automated, API-Driven Stats &amp; Version Synchronizer for VS Code Extensions with 24-Hour Smart Caching (dotUniverse v1.2.0)</h1>
+  <div class="post-meta">
+    <time datetime="2026-09-28T14:01:29Z">28 September 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#javascript</span><span class="post-tag">#webdev</span><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-i-built-a-dualpath-synchronization-architecture-for-7-vs-code-extensions-using-vs-marketplace-amp-open-vsx-apis-24hour-client-caching-and-daily-zerodependency-github-actions" href="#how-i-built-a-dualpath-synchronization-architecture-for-7-vs-code-extensions-using-vs-marketplace-amp-open-vsx-apis-24hour-client-caching-and-daily-zerodependency-github-actions">
+  </a>
+  How I built a dual-path synchronization architecture for 7 VS Code extensions using VS Marketplace &amp; Open VSX APIs, 24-hour client caching, and daily zero-dependency GitHub Actions.
+</h2>
+
+<p>As an open-source creator building a growing ecosystem of developer tools, one repetitive chore kept draining my time: <strong>keeping metrics and version numbers in sync</strong>.</p>
+
+<p>My portfolio, <a href="https://universe.dotsuite.dev/" target="_blank" rel="noopener noreferrer"><strong>dotUniverse</strong></a>, showcases 20+ open-source tools—including 7 VS Code extensions published across both the <strong>Visual Studio Marketplace</strong> and the <strong>Eclipse Open VSX Registry</strong>.</p>
+
+<p>Every time I bumped a release or checked how many developers installed <a href="https://github.com/kareem2099/codetune" target="_blank" rel="noopener noreferrer">CodeTune</a>, <a href="https://github.com/kareem2099/dotcommand" target="_blank" rel="noopener noreferrer">dotcommand</a>, or <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">DotShare</a>, I had to:</p>
+
+<ol>
+<li>Log into multiple web dashboards.</li>
+<li>Manually calculate cross-platform sums.</li>
+<li>Edit HTML cards, version badges, and repository README tables by hand.</li>
+</ol>
+
+<p>Manual upkeep is tedious, error-prone, and quickly falls behind. I wanted an <strong>automated, dual-path synchronization architecture</strong>:</p>
+
+<ul>
+<li>
+<strong>At Runtime:</strong> Visitors see fresh, API-backed numbers and versions fetched directly from store APIs, cached intelligently on the client for 24 hours.</li>
+<li>
+<strong>At Build/Repository Time:</strong> Static fallbacks in <code>index.html</code> and markdown tables in <code>README.md</code> are automatically kept fresh via a scheduled, zero-dependency GitHub Action.</li>
+</ul>
+
+<p>Here is a deep dive into how I built this system using pure modern JavaScript, 24-hour client-side caching, and GitHub Actions CI/CD.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-architecture-dualpath-synchronization" href="#the-architecture-dualpath-synchronization">
+  </a>
+  🏛️ The Architecture: Dual-Path Synchronization
+</h2>
+
+<p>Instead of treating this as a simple "fetch data in JavaScript" problem, I designed a <strong>dual-path synchronization pipeline</strong> sharing a single source of truth:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>                  ┌──────────────────────────────┐
+                  │ Visual Studio Marketplace    │
+                  │   &amp; Open VSX Registry APIs   │
+                  └──────────────┬───────────────┘
+                                 │
+             ┌───────────────────┴───────────────────┐
+             │                                       │
+      [Runtime Path]                           [Build/CI Path]
+             │                                       │
+             ▼                                       ▼
+  extension-stats.js                     sync-extension-stats.mjs
+             │                                       │
+      ┌──────┴──────┐                         ┌──────┴──────┐
+      ▼             ▼                         ▼             ▼
+  24h Cache     Fresh DOM                 index.html    README.md
+ (localStorage) (No Flicker)              (Fallback)    (Markdown)
+                                                     │
+                                                     ▼
+                                              Git Commit &amp; Push
+                                              (Only on Changes)
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This decoupled design guarantees that:</p>
+
+<ol>
+<li>
+<strong>First-time and repeat visitors</strong> get an instant render from static markup or <code>localStorage</code> without waiting for API responses to render the initial content.</li>
+<li>
+<strong>Search engine crawlers</strong> and developers browsing the GitHub repository see accurate static numbers even without executing client-side JavaScript.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="the-challenge-two-stores-fragmented-metrics" href="#the-challenge-two-stores-fragmented-metrics">
+  </a>
+  🏗️ The Challenge: Two Stores, Fragmented Metrics
+</h2>
+
+<p>Tracking extensions across the VS Code ecosystem is fragmented:</p>
+
+<ul>
+<li>
+<strong>VS Code Marketplace</strong>: Owned by Microsoft. Its web interface displays a single "Installs" counter, but its underlying gallery API exposes separate metrics.</li>
+<li>
+<strong>Open VSX Registry</strong>: The vendor-neutral marketplace used by VSCodium, Gitpod, and Eclipse Theia. It provides a clean REST API with different metric structures.</li>
+</ul>
+
+<p>Crucially, <strong>both APIs support CORS with <code>access-control-allow-origin: *</code></strong>, allowing modern browsers to query them directly without requiring a proxy server.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-1-querying-store-apis-directly" href="#layer-1-querying-store-apis-directly">
+  </a>
+  🔍 Layer 1: Querying Store APIs Directly
+</h2>
+
+<h3>
+  <a name="1-batchquerying-visual-studio-marketplace" href="#1-batchquerying-visual-studio-marketplace">
+  </a>
+  1. Batch-Querying Visual Studio Marketplace
+</h3>
+
+<p>Instead of making 7 separate HTTP requests, Microsoft's Marketplace API allows querying multiple extensions in a single <code>POST</code> request to <code>_apis/public/gallery/extensionquery</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="k">async</span> <span class="kd">function</span> <span class="nf">fetchVsMarketplace</span><span class="p">(</span><span class="nx">extensions</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">body</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">filters</span><span class="p">:</span> <span class="p">[{</span>
+      <span class="na">criteria</span><span class="p">:</span> <span class="nx">extensions</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">ext</span> <span class="o">=&gt;</span> <span class="p">({</span> <span class="na">filterType</span><span class="p">:</span> <span class="mi">7</span><span class="p">,</span> <span class="na">value</span><span class="p">:</span> <span class="nx">ext</span><span class="p">.</span><span class="nx">vsId</span> <span class="p">}))</span>
+    <span class="p">}],</span>
+    <span class="na">flags</span><span class="p">:</span> <span class="mi">914</span> <span class="c1">// Requests statistics, versions, and metadata</span>
+  <span class="p">};</span>
+
+  <span class="kd">const</span> <span class="nx">res</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span><span class="dl">'</span><span class="s1">https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">method</span><span class="p">:</span> <span class="dl">'</span><span class="s1">POST</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+      <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/json</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">Accept</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/json;api-version=3.0-preview.1</span><span class="dl">'</span>
+    <span class="p">},</span>
+    <span class="na">body</span><span class="p">:</span> <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">(</span><span class="nx">body</span><span class="p">)</span>
+  <span class="p">});</span>
+
+  <span class="kd">const</span> <span class="nx">json</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">res</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+  <span class="kd">const</span> <span class="nx">map</span> <span class="o">=</span> <span class="p">{};</span>
+
+  <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">ext</span> <span class="k">of</span> <span class="nx">json</span><span class="p">?.</span><span class="nx">results</span><span class="p">?.[</span><span class="mi">0</span><span class="p">]?.</span><span class="nx">extensions</span> <span class="o">||</span> <span class="p">[])</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">stats</span> <span class="o">=</span> <span class="p">{};</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">s</span> <span class="k">of</span> <span class="nx">ext</span><span class="p">.</span><span class="nx">statistics</span> <span class="o">||</span> <span class="p">[])</span> <span class="p">{</span>
+      <span class="nx">stats</span><span class="p">[</span><span class="nx">s</span><span class="p">.</span><span class="nx">statisticName</span><span class="p">]</span> <span class="o">=</span> <span class="nx">s</span><span class="p">.</span><span class="nx">value</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Empirical verification: Microsoft Marketplace UI displays (install + downloadCount)</span>
+    <span class="kd">const</span> <span class="nx">installs</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">round</span><span class="p">((</span><span class="nx">stats</span><span class="p">.</span><span class="nx">install</span> <span class="o">||</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="nx">stats</span><span class="p">.</span><span class="nx">downloadCount</span> <span class="o">||</span> <span class="mi">0</span><span class="p">));</span>
+
+    <span class="c1">// The API returns the latest release first in versions[0]</span>
+    <span class="kd">const</span> <span class="nx">version</span> <span class="o">=</span> <span class="nx">ext</span><span class="p">.</span><span class="nx">versions</span><span class="p">?.[</span><span class="mi">0</span><span class="p">]?.</span><span class="nx">version</span> <span class="o">||</span> <span class="kc">null</span><span class="p">;</span>
+
+    <span class="nx">map</span><span class="p">[</span><span class="nx">ext</span><span class="p">.</span><span class="nx">extensionName</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">()]</span> <span class="o">=</span> <span class="p">{</span> <span class="nx">installs</span><span class="p">,</span> <span class="nx">version</span> <span class="p">};</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nx">map</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>💡 Empirical Verification on Marketplace Installs:</strong> Microsoft's API returns two separate download metrics: <code>install</code> (active installed instances) and <code>downloadCount</code> (package downloads/updates). Through empirical cross-referencing between the API response and the live web pages for all 7 extensions, the "Installs" figure shown on the Marketplace product page aligned with <code>(stats.install + stats.downloadCount)</code>. This was observed across the seven extensions tested during development; it should be treated as an empirical observation rather than a guaranteed API contract.</p>
+</blockquote>
+
+<h3>
+  <a name="2-querying-open-vsx-registry" href="#2-querying-open-vsx-registry">
+  </a>
+  2. Querying Open VSX Registry
+</h3>
+
+<p>Open VSX provides an open REST endpoint at <code>https://open-vsx.org/api/{namespace}/{extension}</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="k">async</span> <span class="kd">function</span> <span class="nf">fetchOpenVsx</span><span class="p">(</span><span class="nx">extensions</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">map</span> <span class="o">=</span> <span class="p">{};</span>
+  <span class="kd">const</span> <span class="nx">ovsxExts</span> <span class="o">=</span> <span class="nx">extensions</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nx">e</span> <span class="o">=&gt;</span> <span class="nx">e</span><span class="p">.</span><span class="nx">ovsxId</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">promises</span> <span class="o">=</span> <span class="nx">ovsxExts</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="k">async </span><span class="p">(</span><span class="nx">ext</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">try</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">res</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span><span class="s2">`https://open-vsx.org/api/</span><span class="p">${</span><span class="nx">ext</span><span class="p">.</span><span class="nx">ovsxId</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+      <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">res</span><span class="p">.</span><span class="nx">ok</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+      <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">res</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+      <span class="nx">map</span><span class="p">[</span><span class="nx">ext</span><span class="p">.</span><span class="nx">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="na">downloads</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">downloadCount</span> <span class="o">||</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="na">version</span><span class="p">:</span> <span class="nx">data</span><span class="p">.</span><span class="nx">version</span> <span class="o">||</span> <span class="kc">null</span>
+      <span class="p">};</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">console</span><span class="p">.</span><span class="nf">warn</span><span class="p">(</span><span class="s2">`Open VSX fetch failed for </span><span class="p">${</span><span class="nx">ext</span><span class="p">.</span><span class="nx">key</span><span class="p">}</span><span class="s2">:`</span><span class="p">,</span> <span class="nx">err</span><span class="p">);</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+
+  <span class="k">await</span> <span class="nb">Promise</span><span class="p">.</span><span class="nf">allSettled</span><span class="p">(</span><span class="nx">promises</span><span class="p">);</span>
+  <span class="k">return</span> <span class="nx">map</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="layer-2-the-clientside-module-raw-extensionstatsjs-endraw-" href="#layer-2-the-clientside-module-raw-extensionstatsjs-endraw-">
+  </a>
+  ⚡ Layer 2: The Client-Side Module (<code>extension-stats.js</code>)
+</h2>
+
+<p>In <a href="https://github.com/kareem2099/dotuniverse/tree/main/js/modules" target="_blank" rel="noopener noreferrer">dotUniverse's modular architecture</a>, we created <code>js/modules/extension-stats.js</code>.</p>
+
+<h3>
+  <a name="why-a-24hour-cache-is-essential" href="#why-a-24hour-cache-is-essential">
+  </a>
+  Why a 24-Hour Cache is Essential
+</h3>
+
+<p>Firing external API requests on every page refresh is bad engineering—it wastes bandwidth, risks third-party rate limits, and causes text flicker.</p>
+
+<p>Because developer tools are typically released over days or weeks, a <strong>24-hour cache TTL</strong> (<code>24 * 60 * 60 * 1000</code>) is a practical default: it reduces unnecessary API requests while keeping the displayed statistics reasonably fresh:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="k">export</span> <span class="kd">const</span> <span class="nx">ExtensionStats</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">CACHE_KEY</span><span class="p">:</span> <span class="dl">'</span><span class="s1">dotuniverse_ext_stats_v1</span><span class="dl">'</span><span class="p">,</span>
+  <span class="na">CACHE_TTL</span><span class="p">:</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">1000</span><span class="p">,</span> <span class="c1">// 24 hours (1 day)</span>
+
+  <span class="nf">init</span><span class="p">()</span> <span class="p">{</span>
+    <span class="c1">// 1. Instantly apply cached data to DOM (avoids visible flicker)</span>
+    <span class="kd">const</span> <span class="nx">cached</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getCached</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">cached</span> <span class="o">&amp;&amp;</span> <span class="nx">cached</span><span class="p">.</span><span class="nx">data</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">this</span><span class="p">.</span><span class="nf">applyToDOM</span><span class="p">(</span><span class="nx">cached</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="c1">// 2. Fetch in background only when the 24-hour window expires</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">cached</span> <span class="o">||</span> <span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span> <span class="o">-</span> <span class="nx">cached</span><span class="p">.</span><span class="nx">timestamp</span> <span class="o">&gt;</span> <span class="k">this</span><span class="p">.</span><span class="nx">CACHE_TTL</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">this</span><span class="p">.</span><span class="nf">refresh</span><span class="p">();</span>
+    <span class="p">}</span>
+  <span class="p">},</span>
+  <span class="c1">// ...</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="clean-dom-mutation-via-semantic-attributes" href="#clean-dom-mutation-via-semantic-attributes">
+  </a>
+  Clean DOM Mutation via Semantic Attributes
+</h3>
+
+<p>In <code>index.html</code>, each extension card includes a semantic <code>data-ext-name</code> identifier:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"ext-card"</span> <span class="na">data-ext-name=</span><span class="s">"codetune"</span><span class="nt">&gt;</span>
+  <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"ext-header"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"ext-name"</span><span class="nt">&gt;&lt;span</span> <span class="na">class=</span><span class="s">"prefix"</span><span class="nt">&gt;</span>Code<span class="nt">&lt;/span&gt;&lt;span</span> <span class="na">class=</span><span class="s">"suffix"</span><span class="nt">&gt;</span>Tune<span class="nt">&lt;/span&gt;&lt;/div&gt;</span>
+    <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"ext-version"</span><span class="nt">&gt;</span>v1.3.0<span class="nt">&lt;/span&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+  ...
+  <span class="nt">&lt;div</span> <span class="na">class=</span><span class="s">"ext-stores"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;a</span> <span class="err">...</span> <span class="na">class=</span><span class="s">"store-badge vs"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"store-info"</span><span class="nt">&gt;&lt;span</span> <span class="na">class=</span><span class="s">"store-name"</span><span class="nt">&gt;</span>VS Marketplace<span class="nt">&lt;/span&gt;&lt;span</span> <span class="na">class=</span><span class="s">"store-dl"</span><span class="nt">&gt;</span>737 installs<span class="nt">&lt;/span&gt;&lt;/span&gt;</span>
+    <span class="nt">&lt;/a&gt;</span>
+    <span class="nt">&lt;a</span> <span class="err">...</span> <span class="na">class=</span><span class="s">"store-badge ovsx"</span><span class="nt">&gt;</span>
+      <span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"store-info"</span><span class="nt">&gt;&lt;span</span> <span class="na">class=</span><span class="s">"store-name"</span><span class="nt">&gt;</span>Open VSX<span class="nt">&lt;/span&gt;&lt;span</span> <span class="na">class=</span><span class="s">"store-dl"</span><span class="nt">&gt;</span>1,500 downloads<span class="nt">&lt;/span&gt;&lt;/span&gt;</span>
+    <span class="nt">&lt;/a&gt;</span>
+  <span class="nt">&lt;/div&gt;</span>
+<span class="nt">&lt;/div&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When fresh metrics arrive:</p>
+
+<ol>
+<li>
+<code>.ext-version</code> updates to the store's current version (e.g. <code>v1.3.0</code>, <code>v2.2.1</code>, <code>v3.5.1</code>).</li>
+<li>Store badges update with formatted counts (e.g., <code>1,040 installs</code>, <code>6,000 downloads</code>).</li>
+<li>The grand total (<code>19,500+</code>) is calculated and smoothly updated in both the header stats and the hero banner.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="layer-3-automated-daily-cicd-synchronization" href="#layer-3-automated-daily-cicd-synchronization">
+  </a>
+  🤖 Layer 3: Automated Daily CI/CD Synchronization
+</h2>
+
+<p>To keep the repository <code>README.md</code> and static HTML in sync for users without JavaScript or search bots, we created a zero-dependency Node script: <code>scripts/sync-extension-stats.mjs</code>.</p>
+
+<p>Running this script fetches live data, parses <code>index.html</code> and <code>README.md</code>, updates markdown tables, Shields.io badges, and prints a formatted terminal overview:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>node scripts/sync-extension-stats.mjs
+
+🔄 Fetching live extension stats from VS Marketplace and Open VSX...
+
+📊 Live Extension Stats:
+┌─────────┬──────────────┬──────────┬────────────────┬──────────┬─────────────────┐
+│ <span class="o">(</span>index<span class="o">)</span> │ Extension    │ Version  │ VS Marketplace │ Open VSX │ Total Downloads │
+├─────────┼──────────────┼──────────┼────────────────┼──────────┼─────────────────┤
+│ 0       │ <span class="s1">'CodeTune'</span>   │ <span class="s1">'v1.3.0'</span> │ <span class="s1">'734'</span>          │ <span class="s1">'1,486'</span>  │ <span class="s1">'2,220'</span>         │
+│ 1       │ <span class="s1">'dotcommand'</span> │ <span class="s1">'v2.0.1'</span> │ <span class="s1">'778'</span>          │ <span class="s1">'970'</span>    │ <span class="s1">'1,748'</span>         │
+│ 2       │ <span class="s1">'DotEnvy'</span>    │ <span class="s1">'v2.2.1'</span> │ <span class="s1">'758'</span>          │ <span class="s1">'2,173'</span>  │ <span class="s1">'2,931'</span>         │
+│ 3       │ <span class="s1">'DotShare'</span>   │ <span class="s1">'v3.5.1'</span> │ <span class="s1">'1,040'</span>        │ <span class="s1">'5,987'</span>  │ <span class="s1">'7,027'</span>         │
+│ 4       │ <span class="s1">'DotFetch'</span>   │ <span class="s1">'v2.1.1'</span> │ <span class="s1">'470'</span>          │ <span class="s1">'2,766'</span>  │ <span class="s1">'3,236'</span>         │
+│ 5       │ <span class="s1">'DotReadme'</span>  │ <span class="s1">'v1.2.0'</span> │ <span class="s1">'364'</span>          │ <span class="s1">'1,719'</span>  │ <span class="s1">'2,083'</span>         │
+│ 6       │ <span class="s1">'DotSense'</span>   │ <span class="s1">'v1.3.0'</span> │ <span class="s1">'257'</span>          │ <span class="s1">'0'</span>      │ <span class="s1">'257'</span>           │
+└─────────┴──────────────┴──────────┴────────────────┴──────────┴─────────────────┘
+
+🏆 Grand Total Downloads: 19,502 <span class="o">(</span>Marketplace: 4,401, Open VSX: 15,101<span class="o">)</span>
+
+✅ index.html updated successfully.
+✅ README.md updated successfully.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>To run this hands-free, we added <code>.github/workflows/update-extension-stats.yml</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="na">name</span><span class="pi">:</span> <span class="s">Auto Update Extension Stats</span>
+
+<span class="na">on</span><span class="pi">:</span>
+  <span class="na">schedule</span><span class="pi">:</span>
+    <span class="c1"># Runs everyday at midnight UTC</span>
+    <span class="pi">-</span> <span class="na">cron</span><span class="pi">:</span> <span class="s1">'</span><span class="s">0</span><span class="nv"> </span><span class="s">0</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*'</span>
+  <span class="na">workflow_dispatch</span><span class="pi">:</span> <span class="c1"># Allows manual trigger from GitHub UI</span>
+
+<span class="na">permissions</span><span class="pi">:</span>
+  <span class="na">contents</span><span class="pi">:</span> <span class="s">write</span>
+
+<span class="na">jobs</span><span class="pi">:</span>
+  <span class="na">sync-stats</span><span class="pi">:</span>
+    <span class="na">runs-on</span><span class="pi">:</span> <span class="s">ubuntu-latest</span>
+    <span class="na">steps</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="na">uses</span><span class="pi">:</span> <span class="s">actions/checkout@v4</span>
+      <span class="pi">-</span> <span class="na">uses</span><span class="pi">:</span> <span class="s">actions/setup-node@v4</span>
+        <span class="na">with</span><span class="pi">:</span>
+          <span class="na">node-version</span><span class="pi">:</span> <span class="m">20</span>
+
+      <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Sync extension downloads and versions</span>
+        <span class="na">run</span><span class="pi">:</span> <span class="s">node scripts/sync-extension-stats.mjs</span>
+
+      <span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Commit and push changes if updated</span>
+        <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+          <span class="s">git config --global user.name "github-actions[bot]"</span>
+          <span class="s">git config --global user.email "github-actions[bot]@users.noreply.github.com"</span>
+          <span class="s">git add index.html README.md</span>
+          <span class="s">if git diff --staged --quiet; then</span>
+            <span class="s">echo "No changes detected."</span>
+          <span class="s">else</span>
+            <span class="s">git commit -m "chore: auto-update extension downloads and versions [skip ci]"</span>
+            <span class="s">git push</span>
+          <span class="s">fi</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>💡 Clean Commit History:</strong> The <code>git diff --staged --quiet</code> check ensures that GitHub Actions only commits when marketplace metrics or versions actually change. This keeps the Git history clean from empty daily noise.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-bigger-picture-building-in-public" href="#the-bigger-picture-building-in-public">
+  </a>
+  🚀 The Bigger Picture: Building in Public
+</h2>
+
+<p>Automating tool statistics ties directly into how I build in public. Alongside extensions, dotUniverse features an open <strong>Growth Challenge Tracker</strong> across 9 creator and developer platforms.</p>
+
+<p>Here is the current state for <strong>October 2026</strong>:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th style="text-align: left">Platform</th>
+<th style="text-align: center">Current (Now)</th>
+<th style="text-align: center">Target (Goal)</th>
+<th style="text-align: center">Remaining</th>
+<th style="text-align: center">Progress</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left">🚀 <strong>dev.to</strong>
+</td>
+<td style="text-align: center"><strong>3,986</strong></td>
+<td style="text-align: center"><strong>4,200</strong></td>
+<td style="text-align: center"><code>+214</code></td>
+<td style="text-align: center"><strong>95%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">💼 <strong>LinkedIn</strong>
+</td>
+<td style="text-align: center"><strong>709</strong></td>
+<td style="text-align: center"><strong>800</strong></td>
+<td style="text-align: center"><code>+91</code></td>
+<td style="text-align: center"><strong>89%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">🎵 <strong>TikTok</strong>
+</td>
+<td style="text-align: center"><strong>37</strong></td>
+<td style="text-align: center"><strong>60</strong></td>
+<td style="text-align: center"><code>+23</code></td>
+<td style="text-align: center"><strong>62%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">▶️ <strong>YouTube</strong>
+</td>
+<td style="text-align: center"><strong>30</strong></td>
+<td style="text-align: center"><strong>60</strong></td>
+<td style="text-align: center"><code>+30</code></td>
+<td style="text-align: center"><strong>50%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">✍️ <strong>Medium</strong>
+</td>
+<td style="text-align: center"><strong>6</strong></td>
+<td style="text-align: center"><strong>10</strong></td>
+<td style="text-align: center"><code>+4</code></td>
+<td style="text-align: center"><strong>60%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">📘 <strong>Facebook</strong>
+</td>
+<td style="text-align: center"><strong>15</strong></td>
+<td style="text-align: center"><strong>20</strong></td>
+<td style="text-align: center"><code>+5</code></td>
+<td style="text-align: center"><strong>75%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">📸 <strong>Instagram</strong>
+</td>
+<td style="text-align: center"><strong>7</strong></td>
+<td style="text-align: center"><strong>10</strong></td>
+<td style="text-align: center"><code>+3</code></td>
+<td style="text-align: center"><strong>70%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">𝕏 <strong>X / Twitter</strong>
+</td>
+<td style="text-align: center"><strong>18</strong></td>
+<td style="text-align: center"><strong>20</strong></td>
+<td style="text-align: center"><code>+2</code></td>
+<td style="text-align: center"><strong>90%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left">🦋 <strong>Bluesky</strong>
+</td>
+<td style="text-align: center"><strong>21</strong></td>
+<td style="text-align: center"><strong>30</strong></td>
+<td style="text-align: center"><code>+9</code></td>
+<td style="text-align: center"><strong>70%</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>On dev.to specifically, we recently passed <strong>15,400+ total views</strong>, <strong>93 published posts</strong>, <strong>97 reactions</strong>, and <strong>67 comments</strong>. </p>
+
+<p>Because dev.to is currently at 3,986 / 4,200, we explicitly commented out the celebratory <code>15-DAY RECORD</code> badge in the HTML until the 4,200 mark is officially crossed. Milestones are meaningful only when they are genuine!</p>
+
+
+<hr>
+
+<h2>
+  <a name="key-engineering-takeaways" href="#key-engineering-takeaways">
+  </a>
+  💡 Key Engineering Takeaways
+</h2>
+
+<ol>
+<li>
+<strong>Leverage Dual-Path Synchronization</strong>: Combining client-side background sync with scheduled CI/CD ensures that both web visitors and static repository viewers get consistently updated extension statistics.</li>
+<li>
+<strong>Explore Public API Capabilities</strong>: Both the Visual Studio Marketplace and Open VSX support CORS directly. Before introducing a custom serverless proxy, inspect the network headers first.</li>
+<li>
+<strong>Respect the Client Cache</strong>: A 24-hour <code>localStorage</code> TTL reduces visible flickering, avoids API-dependent initial rendering on repeat visits, respects third-party rate limits, and matches the realistic release frequency of developer tools.</li>
+<li>
+<strong>Conditional CI/CD Commits</strong>: Always check <code>git diff --staged --quiet</code> before committing automated bot changes to keep your repository history concise and meaningful.</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="project-links" href="#project-links">
+  </a>
+  🔗 Project Links
+</h2>
+
+<ul>
+<li>🌐 <strong>Live Website</strong>: <a href="https://universe.dotsuite.dev/" target="_blank" rel="noopener noreferrer">universe.dotsuite.dev</a>
+</li>
+<li>💻 <strong>GitHub Repository</strong>: <a href="https://github.com/kareem2099/dotuniverse" target="_blank" rel="noopener noreferrer">kareem2099/dotuniverse</a>
+</li>
+<li>📦 <strong>VS Code Extensions</strong>: Search for <code>FreeRave</code> on VS Code Marketplace or Open VSX!</li>
+</ul>
+
+<p><em>How do you automate metrics across your open-source repositories? Do you rely on static shields or live client-side queries? Let's discuss in the comments below!</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-an-automated-api-driven-stats-version-synchronizer-for-vs-code-extensions-with-24-hour-4inm" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/building-an-automated-api-driven-stats-version-synchronizer-for-vs-code-extensions-with-24-hour-4inm#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

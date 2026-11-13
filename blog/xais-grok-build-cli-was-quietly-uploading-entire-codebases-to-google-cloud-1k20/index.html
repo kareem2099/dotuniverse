@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>xAI's Grok Build CLI Was Quietly Uploading Entire Codebases to Google Cloud — FreeRave</title>
+<meta name="description" content="xAI's Grok Build CLI uploaded whole git repos — secrets included — to Google Cloud,...">
+<link rel="canonical" href="https://dev.to/freerave/xais-grok-build-cli-was-quietly-uploading-entire-codebases-to-google-cloud-1k20">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/xais-grok-build-cli-was-quietly-uploading-entire-codebases-to-google-cloud-1k20">
+<meta property="og:title" content="xAI's Grok Build CLI Was Quietly Uploading Entire Codebases to Google Cloud — FreeRave">
+<meta property="og:description" content="xAI's Grok Build CLI uploaded whole git repos — secrets included — to Google Cloud,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fcxhgsrjawqbamvqduuu5.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fcxhgsrjawqbamvqduuu5.png" alt="">
+  <h1 class="post-title">xAI's Grok Build CLI Was Quietly Uploading Entire Codebases to Google Cloud</h1>
+  <div class="post-meta">
+    <time datetime="2026-07-13T19:55:25Z">13 July 2026</time> · 12 min read
+    <div class="post-tags"><span class="post-tag">#security</span><span class="post-tag">#ai</span><span class="post-tag">#cybersecurity</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="xais-grok-build-cli-uploaded-whole-git-repos-secrets-included-to-google-cloud-bypassing-its-own-optout-heres-the-full-breakdown-plus-how-to-actually-verify-what-your-ai-cli-is-sending" href="#xais-grok-build-cli-uploaded-whole-git-repos-secrets-included-to-google-cloud-bypassing-its-own-optout-heres-the-full-breakdown-plus-how-to-actually-verify-what-your-ai-cli-is-sending">
+  </a>
+  xAI's Grok Build CLI uploaded whole git repos — secrets included — to Google Cloud, bypassing its own opt-out. Here's the full breakdown, plus how to actually verify what your AI CLI is sending.
+</h2>
+
+<p><em>A wire-level security analysis found that xAI's coding CLI was shipping whole git repositories — untouched files, unredacted secrets, and full commit history included — to a Google Cloud bucket that never showed up in any onboarding flow. Here's what's been verified, what's still murky, and what to do if you've run the tool — including how to verify this kind of thing yourself instead of trusting a settings page.</em></p>
+
+<p>If you've installed an AI coding CLI in the last few months, this is worth five minutes of your time — especially if that CLI was <strong>Grok Build</strong>, xAI's coding agent.</p>
+
+<blockquote>
+<p><strong>Update — July 13, 2026:</strong> Hours after this story spread, the official @SpaceXAI account posted that "no trace and code data is ever retained" for teams with Zero Data Retention (ZDR) enabled, and that the <code>/privacy</code> command in the CLI disables retention and deletes previously synced data for everyone else. Elon Musk followed up separately, saying all user data uploaded before now would be "completely and utterly deleted." Neither post is a formal security advisory, a scope disclosure, or a CVE — and critics have pointed out the stronger guarantee (ZDR) is an enterprise-only feature, while individual users have to know to run <code>/privacy</code> themselves. The sections below reflect what was known before this response; see the note at the end for how it changes things.</p>
+</blockquote>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F5ka90sud6y31vxninvdz.jpeg" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F5ka90sud6y31vxninvdz.jpeg" alt=" " loading="lazy" width="800" height="645"></a></p>
+
+<h2>
+  <a name="tldr" href="#tldr">
+  </a>
+  TL;DR
+</h2>
+
+<ul>
+<li>xAI's <strong>Grok Build CLI</strong> uploaded <strong>entire git repositories</strong> — every tracked file plus full commit history — to a Google Cloud Storage bucket called <code>grok-code-session-traces</code>, on a channel completely separate from normal AI inference traffic.</li>
+<li>On a ~12 GB test repository, the model itself needed about <strong>192 KB</strong> to do its job. The background uploader shipped <strong>5.1 GB</strong> — roughly <strong>27,800× more</strong> than the task required.</li>
+<li>A file the agent was told, in the prompt, not to touch still ended up in the uploaded bundle. So did fake secrets planted in a <code>.env</code> file, sent completely unredacted.</li>
+<li>Turning off <strong>"Improve the model"</strong> in settings did <strong>not</strong> stop the uploads.</li>
+<li>Roughly a day after the research went public, the behavior appears to have been switched off server-side. xAI has not published a formal advisory, but the official @SpaceXAI account and Elon Musk both responded publicly on July 13 — see the update note above.</li>
+</ul>
+
+<p>If you've pointed Grok Build at a repo with real credentials in it, treat this as a rotate-your-secrets-now situation. Here's the full breakdown.</p>
+
+<h2>
+  <a name="what-is-grok-build-and-why-it-matters" href="#what-is-grok-build-and-why-it-matters">
+  </a>
+  What Is Grok Build, and Why It Matters
+</h2>
+
+<p>Grok Build is xAI's CLI coding agent — the same category as Claude Code, Cursor's CLI, or GitHub Copilot CLI. You run it from inside a project directory, and it reads files, explains code, and makes edits, the way any AI pair-programmer does. xAI, folded into SpaceX after their February 2026 merger, has marketed the tool with "local-first" language — the kind of framing that implies your codebase mostly stays put.</p>
+
+<p>That's the exact claim this research undercuts.</p>
+
+<h2>
+  <a name="the-discovery" href="#the-discovery">
+  </a>
+  The Discovery
+</h2>
+
+<p>A security research outfit called <strong>cereblab</strong> ran Grok Build CLI version 0.2.93 behind a <code>mitmproxy</code> capture, intercepting every packet leaving the machine during real sessions. What surfaced was <strong>two separate, simultaneous data channels</strong>:</p>
+
+<ol>
+<li>
+<strong>The model-turn channel</strong> (<code>POST /v1/responses</code>) — the expected one. Whatever files the agent actually opens get sent as context so the model can respond. Standard behavior for any cloud coding assistant.</li>
+<li>
+<strong>The storage channel</strong> (<code>POST /v1/storage</code>) — a background process that packages your <strong>entire workspace as a git bundle</strong> and uploads it, independent of anything the agent touched.</li>
+</ol>
+
+<p>The second channel is the whole story. It isn't mentioned in Grok Build's install or quickstart materials, and it runs by default.</p>
+
+<h2>
+  <a name="the-numbers-that-made-this-go-viral" href="#the-numbers-that-made-this-go-viral">
+  </a>
+  The Numbers That Made This Go Viral
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Observed value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Test repository size</td>
+<td>~12 GB</td>
+</tr>
+<tr>
+<td>Model-turn channel (<code>/v1/responses</code>)</td>
+<td>~192 KB</td>
+</tr>
+<tr>
+<td>Storage channel (<code>/v1/storage</code>)</td>
+<td>5.1 GB across 73 chunks (~75 MB each), all HTTP 200</td>
+</tr>
+<tr>
+<td>Upload success rate</td>
+<td>100% — zero failed chunks</td>
+</tr>
+<tr>
+<td>Ratio, storage vs. model-turn</td>
+<td>~27,800×</td>
+</tr>
+<tr>
+<td>Destination</td>
+<td>
+<code>grok-code-session-traces</code> (Google Cloud Storage)</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>For a task that genuinely needed 192 KB of context, the tool moved over five gigabytes off the machine in the background, with every single chunk landing successfully. That gap is the whole story in one row of a table.</p>
+
+<h2>
+  <a name="proof-it-wasnt-just-files-the-ai-happened-to-read" href="#proof-it-wasnt-just-files-the-ai-happened-to-read">
+  </a>
+  Proof It Wasn't Just "Files the AI Happened to Read"
+</h2>
+
+<p>The obvious pushback — "of course a cloud coding agent sends your code somewhere, that's how it works" — doesn't survive the next test.</p>
+
+<p>Cereblab planted a canary file in a test repo and, directly in the prompt, told Grok Build to give a one-word acknowledgment and avoid opening anything. The model-turn channel behaved exactly as instructed — it never touched the canary. But when the researcher reconstructed the git bundle captured on the storage channel, the untouched file was in there anyway, marker intact, along with the repository's full commit history. There's now a public GitHub repo that lets anyone reproduce this on a disposable canary repo and their own account.</p>
+
+<p>That closes the loop: the storage upload isn't scoped to what the agent reads. It grabs the tracked contents of whatever directory you point it at.</p>
+
+<h2>
+  <a name="secrets-went-along-for-the-ride" href="#secrets-went-along-for-the-ride">
+  </a>
+  Secrets Went Along for the Ride
+</h2>
+
+<p>Cereblab also planted a fake <code>.env</code> file — a labeled canary API key plus mock database credentials. Both channels, the live model request and the background storage upload, transmitted it completely <strong>unredacted</strong>. No masking, no filtering, no warning shown to the user.</p>
+
+<p>If you've ever run Grok Build inside a repo where a real <code>.env</code>, credentials file, or config secret was tracked in git, this is the part worth losing sleep over.</p>
+
+<h2>
+  <a name="the-improve-the-model-toggle-doesnt-do-what-youd-assume" href="#the-improve-the-model-toggle-doesnt-do-what-youd-assume">
+  </a>
+  The "Improve the Model" Toggle Doesn't Do What You'd Assume
+</h2>
+
+<p>Grok Build ships a setting called <strong>"Improve the model."</strong> Most developers would reasonably read that as "controls whether my code is used for anything beyond answering my prompt." Switching it off did not stop the storage-channel uploads — the settings endpoint kept reporting the upload behavior as active regardless of the toggle's state.</p>
+
+<p>The opt-out governs training consent. It says nothing about whether your repository gets mirrored to a persistent bucket in the process.</p>
+
+<h2>
+  <a name="where-the-data-actually-goes" href="#where-the-data-actually-goes">
+  </a>
+  Where the Data Actually Goes
+</h2>
+
+<p>The destination is a named Google Cloud Storage bucket, <code>grok-code-session-traces</code>, with object paths following a pattern like <code>gs://grok-code-session-traces/repo_changes_dedup/v2/...</code>. Sit with that for a second: this isn't "xAI infrastructure" in the way most users would assume from local-first marketing, and it isn't the model provider's usual inference path either. It's a specific, persistent, named cloud bucket that existed and was actively receiving repository data before anyone outside xAI knew it did.</p>
+
+<h2>
+  <a name="quick-timeline" href="#quick-timeline">
+  </a>
+  Quick Timeline
+</h2>
+
+<ul>
+<li>
+<strong>Grok Build v0.2.93</strong> is the version behind the original wire-level capture.</li>
+<li>Cereblab publishes a full write-up on GitHub Gist, plus a public, reproducible test harness anyone can run against their own account.</li>
+<li>The write-up lands on <strong>Hacker News' front page</strong>, and several outlets (ByteIota, AI Weekly, GIGAZINE, ExplainX) cover it within a day.</li>
+<li>xAI's official changelog documents <strong>Grok Build v0.2.98</strong> as the latest release on <strong>July 12, 2026</strong> — with no mention of this behavior or any related fix.</li>
+<li>Within roughly a day of publication, cereblab reruns the same tests six separate times against the same client build and observes <strong>zero</strong> <code>/v1/storage</code> uploads. The settings endpoint now returns <code>trace_upload_enabled: false</code> and a new flag, <code>disable_codebase_upload: true</code>.</li>
+<li>
+<strong>July 13, 2026:</strong> the official @SpaceXAI account states that ZDR-enabled teams retain no trace or code data, and that the <code>/privacy</code> command disables retention and deletes previously synced data for everyone else. Elon Musk separately says all data uploaded before now will be deleted. Still no formal security advisory, scope disclosure, or CVE.</li>
+</ul>
+
+<p>A flag flipping silently on a server isn't the same thing as a disclosed fix.</p>
+
+<h2>
+  <a name="important-caveats-read-this-before-you-panic-further" href="#important-caveats-read-this-before-you-panic-further">
+  </a>
+  Important Caveats — Read This Before You Panic Further
+</h2>
+
+<p>Good security reporting holds itself to the same bar it's asking a vendor to meet. A few things this research does <strong>not</strong> establish:</p>
+
+<ul>
+<li>It doesn't prove xAI trains its models on this data — that's a separate policy question the evidence doesn't settle either way.</li>
+<li>It doesn't prove every Grok Build account or plan tier behaves identically. xAI's enterprise documentation reportedly describes a different setup, including a Zero Data Retention (ZDR) mode said to prevent persistence at the inference layer.</li>
+<li>Only <strong>tracked</strong> files were shown to be swept into the git bundle — properly <code>.gitignore</code>-excluded files weren't part of the captured evidence.</li>
+<li>This is independent research from one security firm, not an official disclosure or a confirmed CVE. It's reproducible and wire-level, which earns it real weight — but it's still worth treating as one firm's findings rather than a settled institutional verdict.</li>
+</ul>
+
+<p><em>This is a fast-moving story. If xAI publishes an official advisory after this goes up, some of the specifics above may shift — check the sources below for the latest.</em></p>
+
+<h2>
+  <a name="what-to-do-if-youve-used-grok-build-cli" href="#what-to-do-if-youve-used-grok-build-cli">
+  </a>
+  What to Do If You've Used Grok Build CLI
+</h2>
+
+<ul>
+<li>
+<strong>Rotate or revoke</strong> any real credentials — API keys, database passwords, tokens — that lived in a repo you've run Grok Build against.</li>
+<li>
+<strong>Audit your git history for secrets</strong>, generally. This is good hygiene regardless of this story, and commit history is exactly what the git bundle captures.</li>
+<li>
+<strong>Hold off on proprietary, regulated, or NDA-covered codebases</strong> until xAI publishes something official about scope and retention.</li>
+<li>
+<strong>Check for Zero Data Retention (ZDR) mode</strong> if you're on an enterprise plan — reportedly the stronger control here.</li>
+<li>
+<strong>Don't rely on <code>.grokignore</code> alone</strong> for anything sensitive already tracked in git — it hasn't been independently verified to strip already-committed secrets from the bundle.</li>
+<li>
+<strong>Ask xAI directly</strong> whether any of your session or repository data has been stored, and request deletion in writing.</li>
+<li>If you manage a team, treat any AI coding CLI like a new third-party tool with broad filesystem access: least-privilege accounts, disposable credentials in dev environments, and no production secrets anywhere near a tool whose data path isn't fully documented.</li>
+</ul>
+
+<h2>
+  <a name="how-to-actually-verify-what-your-ai-cli-is-sending-not-just-trust-the-settings-page" href="#how-to-actually-verify-what-your-ai-cli-is-sending-not-just-trust-the-settings-page">
+  </a>
+  How to Actually Verify What Your AI CLI Is Sending (Not Just Trust the Settings Page)
+</h2>
+
+<p><em>Fair warning: this section assumes some comfort with networking and sandboxing tools. Skip to the Sources if that's not your thing.</em></p>
+
+<p>If a toggle labeled "Improve the model" doesn't govern a background upload channel, the only way to know what's actually happening is to watch the wire yourself. Here's the stack that would've caught this before cereblab did.</p>
+
+<h3>
+  <a name="1-tlsterminating-proxy-not-passive-sniffing" href="#1-tlsterminating-proxy-not-passive-sniffing">
+  </a>
+  1. TLS-terminating proxy, not passive sniffing
+</h3>
+
+<p><code>tcpdump</code> won't help you here — everything's encrypted. You need something that MITMs the TLS session:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>mitmproxy <span class="nt">--mode</span> transparent <span class="nt">--showhost</span> <span class="se">\</span>
+  <span class="nt">--set</span> <span class="nv">confdir</span><span class="o">=</span>~/.mitmproxy <span class="se">\</span>
+  <span class="nt">--ssl-insecure</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Point the CLI's process at it via <code>HTTPS_PROXY</code>/<code>HTTP_PROXY</code> env vars, install the mitmproxy CA cert in the process's trust store (not just the system one — Node/Go binaries often bundle their own cert pool via <code>NODE_EXTRA_CA_CERTS</code> or vendored <code>cacert.pem</code>), and diff every distinct <code>Host</code> header against what the docs claim the tool talks to. Anything hitting a bucket-style endpoint (<code>storage.googleapis.com</code>, <code>s3.amazonaws.com</code>, unfamiliar <code>*.run.app</code> Cloud Run targets) that isn't the documented inference endpoint is your signal.</p>
+
+<h3>
+  <a name="2-egress-allowlisting-at-the-osnetworknamespace-level-not-applevel-toggles" href="#2-egress-allowlisting-at-the-osnetworknamespace-level-not-applevel-toggles">
+  </a>
+  2. Egress allowlisting at the OS/network-namespace level, not app-level toggles
+</h3>
+
+<p>Never trust an in-app setting to be the actual boundary. Enforce it outside the process:</p>
+
+<ul>
+<li>
+<strong>Linux</strong>: run the CLI inside a network namespace with <code>nftables</code> egress rules that allowlist only the documented API host by IP/CIDR (pin it, don't rely on DNS-time resolution which the binary controls anyway):
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>nft add table inet cli_sandbox
+nft add chain inet cli_sandbox output <span class="o">{</span> <span class="nb">type </span>filter hook output priority 0 <span class="se">\;</span> policy drop <span class="se">\;</span> <span class="o">}</span>
+nft add rule inet cli_sandbox output ip daddr &lt;known-inference-ip&gt;/32 tcp dport 443 accept
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<ul>
+<li>
+<strong>Firejail/bubblewrap</strong> for a lighter sandbox if full netns is overkill:
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>firejail <span class="nt">--net</span><span class="o">=</span>none <span class="nt">--whitelist</span><span class="o">=</span><span class="nv">$HOME</span>/project grok-build
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>then punch a hole only for the specific proxy if you need connectivity, via <code>--netfilter</code> with an explicit rule file.</p>
+
+<ul>
+<li>
+<strong>macOS</strong>: Little Snitch or LuLu rules per-binary, deny-by-default, alert-on-first-connection.</li>
+</ul>
+
+<h3>
+  <a name="3-syscallebpflevel-monitoring-catches-what-proxying-cant" href="#3-syscallebpflevel-monitoring-catches-what-proxying-cant">
+  </a>
+  3. Syscall/eBPF-level monitoring — catches what proxying can't
+</h3>
+
+<p>A proxy only sees what respects <code>HTTPS_PROXY</code>. A binary can ignore env proxy vars entirely and dial raw sockets. For that you need syscall visibility:</p>
+
+<ul>
+<li>
+<strong>Falco</strong> or <strong>Tetragon</strong> (eBPF) watching for <code>connect()</code> syscalls from the CLI's PID/cgroup, independent of whatever the app-layer claims:
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="pi">-</span> <span class="na">rule</span><span class="pi">:</span> <span class="s">Unexpected egress from AI CLI</span>
+  <span class="na">condition</span><span class="pi">:</span> <span class="pi">&gt;</span>
+    <span class="s">outbound and proc.name="grok-build"</span>
+    <span class="s">and not fd.sip in (known_inference_ips)</span>
+  <span class="na">output</span><span class="pi">:</span> <span class="s2">"</span><span class="s">Unexpected</span><span class="nv"> </span><span class="s">connection</span><span class="nv"> </span><span class="s">(dest=%fd.rip</span><span class="nv"> </span><span class="s">dport=%fd.rport)"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<ul>
+<li>Cheaper alternative: <code>strace -f -e trace=network -p &lt;pid&gt;</code> during a session, or <code>nethogs</code>/<code>bpftrace</code> for a quick per-process bandwidth check — a 192KB task pushing 5GB out is visible in seconds without any deep tooling.</li>
+</ul>
+
+<h3>
+  <a name="4-treat-trackedfile-exposure-as-a-githygiene-problem-independent-of-any-specific-tool" href="#4-treat-trackedfile-exposure-as-a-githygiene-problem-independent-of-any-specific-tool">
+  </a>
+  4. Treat tracked-file exposure as a git-hygiene problem, independent of any specific tool
+</h3>
+
+<p>Since the exfil vector was "everything tracked in git," not "everything the model reads":</p>
+
+<ul>
+<li>
+<code>gitleaks detect --source . --verbose</code> or <code>trufflehog git file://. --since-commit HEAD~50</code> on any repo before you point an agent at it — this catches historical secrets the CLI's own redaction (if any) will never see, because they're pre-existing tracked content, not live prompt context.</li>
+<li>Pre-commit hook via <code>detect-secrets scan --baseline .secrets.baseline</code> so nothing new lands trackable in the first place.</li>
+<li>For anything genuinely sensitive: keep secrets in an untracked <code>.env</code> loaded via a secrets manager (Vault, SOPS+age, or even just <code>direnv</code> pulling from a keychain) — never committed, never in the working tree the agent's git bundle would sweep.</li>
+</ul>
+
+<h3>
+  <a name="5-container-isolation-with-a-scoped-bindmount-not-point-it-at-your-whole-machine" href="#5-container-isolation-with-a-scoped-bindmount-not-point-it-at-your-whole-machine">
+  </a>
+  5. Container isolation with a scoped bind-mount, not "point it at your whole machine"
+</h3>
+
+<p>Run the CLI in a container that only sees the one repo, with no access to <code>~/.ssh</code>, <code>~/.aws</code>, global git config, or anything outside the mount:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>docker run <span class="nt">--rm</span> <span class="nt">-it</span> <span class="se">\</span>
+  <span class="nt">--network</span><span class="o">=</span>cli-egress-restricted <span class="se">\</span>
+  <span class="nt">-v</span> <span class="s2">"</span><span class="si">$(</span><span class="nb">pwd</span><span class="si">)</span><span class="s2">"</span>:/workspace:rw <span class="se">\</span>
+  <span class="nt">--read-only</span> <span class="nt">--tmpfs</span> /tmp <span class="se">\</span>
+  grok-build-runtime
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Pair the <code>cli-egress-restricted</code> Docker network with an <code>iptables</code>-based egress allowlist on the bridge interface. This turns "the tool can see your whole filesystem and dial anywhere" into "the tool can see one mounted dir and dial one IP."</p>
+
+<p>If you'd rather not hand-roll the <code>docker run</code> flags every time, here's a minimal <code>Dockerfile</code> and <code>docker-compose.yml</code> that pin the same constraints declaratively:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight docker"><code><span class="c"># Dockerfile</span>
+<span class="k">FROM</span><span class="s"> node:20-slim</span>
+
+<span class="c"># Non-root user — never run an AI CLI as root against your code</span>
+<span class="k">RUN </span>useradd <span class="nt">--create-home</span> <span class="nt">--shell</span> /bin/bash runner
+<span class="k">WORKDIR</span><span class="s"> /workspace</span>
+
+<span class="c"># Install the CLI here (pin the version — don't float to `latest`)</span>
+<span class="k">RUN </span>npm <span class="nb">install</span> <span class="nt">-g</span> grok-build@0.2.98
+
+<span class="k">USER</span><span class="s"> runner</span>
+<span class="k">ENTRYPOINT</span><span class="s"> ["grok-build"]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># docker-compose.yml</span>
+<span class="na">services</span><span class="pi">:</span>
+  <span class="na">grok-build</span><span class="pi">:</span>
+    <span class="na">build</span><span class="pi">:</span> <span class="s">.</span>
+    <span class="na">image</span><span class="pi">:</span> <span class="s">grok-build-runtime</span>
+    <span class="na">networks</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">cli-egress-restricted</span>
+    <span class="na">volumes</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">./:/workspace:rw</span>          <span class="c1"># only this repo, nothing else</span>
+    <span class="na">read_only</span><span class="pi">:</span> <span class="kc">true</span>               <span class="c1"># image filesystem is immutable</span>
+    <span class="na">tmpfs</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">/tmp</span>                      <span class="c1"># writable scratch space only</span>
+    <span class="na">cap_drop</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">ALL</span>                       <span class="c1"># no extra Linux capabilities</span>
+    <span class="na">security_opt</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">no-new-privileges:true</span>
+    <span class="na">environment</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s">HTTPS_PROXY=http://host.docker.internal:8080</span>   <span class="c1"># points at mitmproxy running on your host machine</span>
+    <span class="na">extra_hosts</span><span class="pi">:</span>
+      <span class="pi">-</span> <span class="s2">"</span><span class="s">host.docker.internal:host-gateway"</span>   <span class="c1"># makes the host resolvable on Linux too, not just Mac/Windows</span>
+
+<span class="na">networks</span><span class="pi">:</span>
+  <span class="na">cli-egress-restricted</span><span class="pi">:</span>
+    <span class="na">driver</span><span class="pi">:</span> <span class="s">bridge</span>
+    <span class="na">internal</span><span class="pi">:</span> <span class="kc">false</span>   <span class="c1"># flip to true once you've allowlisted the inference IP via iptables on the bridge</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Run it with <code>docker compose run --rm grok-build</code>, and pair the <code>HTTPS_PROXY</code> line with the mitmproxy setup from step 1 above so every session gets wire-audited by default, not just when you remember to check. Bump the pinned version deliberately, not automatically — that's the only way you'll know if a future release changes what crosses the wire.</p>
+
+<p>The common thread: don't audit these tools by reading their settings page. Audit them by watching the wire and constraining the sandbox, because — as this story shows — the two aren't guaranteed to agree.</p>
+
+<h2>
+  <a name="the-bigger-lesson" href="#the-bigger-lesson">
+  </a>
+  The Bigger Lesson
+</h2>
+
+<p>Every cloud-based coding agent has to send some code somewhere — that part isn't the scandal. The problem is the gap between what a settings page promises and what actually leaves your machine at the wire level. A toggle labeled "Improve the model" implies control over data use. It didn't stop a background process from mirroring an entire repository — secrets and history included — to a bucket that was never mentioned anywhere in onboarding.</p>
+
+<p>Before pointing any AI coding agent at a codebase you can't afford to leak, it's worth checking what actually crosses the wire, not just what the settings page claims. In 2026, that's not paranoia — it's due diligence.</p>
+
+<p>One closing note on that "straight answer": xAI's public response so far — ZDR for enterprise, <code>/privacy</code> for everyone else — is a real step, but it's a statement on X, not a security advisory, and it doesn't change what happens by default the first time someone runs the tool without knowing to flip that setting. Worth watching whether anything more formal follows.</p>
+
+<p>Have you run Grok Build against a real project? Curious whether anyone's gotten a straight answer from xAI support on retention — drop it in the comments.</p>
+
+<h2>
+  <a name="sources-amp-further-reading" href="#sources-amp-further-reading">
+  </a>
+  Sources &amp; Further Reading
+</h2>
+
+<ul>
+<li><a href="https://x.com/IntCyberDigest/status/2076689215258014069" target="_blank" rel="noopener noreferrer">Original viral thread — International Cyber Digest (X/Twitter)</a></li>
+<li><a href="https://gist.github.com/cereblab/dc9a40bc26120f4540e4e09b75ffb547" target="_blank" rel="noopener noreferrer">cereblab's full wire-level analysis (GitHub Gist)</a></li>
+<li><a href="https://github.com/cereblab/grok-build-exfil-repro" target="_blank" rel="noopener noreferrer">Reproducible test harness (GitHub)</a></li>
+<li><a href="https://byteiota.com/grok-build-cli-uploads-repo-xai-servers/" target="_blank" rel="noopener noreferrer">ByteIota: "Grok Build CLI Uploads Your Entire Repo to xAI Servers"</a></li>
+<li><a href="https://explainx.ai/blog/grok-build-repository-upload-secrets-security-2026" target="_blank" rel="noopener noreferrer">ExplainX: wire-level breakdown, with the July 13 update</a></li>
+<li><a href="https://gigazine.net/gsc_news/en/20260713-grok-build-sending-data/" target="_blank" rel="noopener noreferrer">GIGAZINE: English-language coverage</a></li>
+<li><a href="https://www.penligent.ai/hackinglabs/grok-build-cli-repository/" target="_blank" rel="noopener noreferrer">Penligent: architecture breakdown and mitigation checklist</a></li>
+<li><a href="https://aiweekly.co/alerts/xai-grok-cli-uploads-full-repos-and-secrets-opt-out-ignored" target="_blank" rel="noopener noreferrer">AI Weekly: alert summary</a></li>
+<li><a href="https://x.com/SpaceXAI/status/2076692402442846289" target="_blank" rel="noopener noreferrer">@SpaceXAI's official response on X (July 13, 2026)</a></li>
+<li><a href="https://x.com/elonmusk/status/2076739687658496209" target="_blank" rel="noopener noreferrer">Elon Musk's follow-up statement on data deletion (X, July 13, 2026)</a></li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/xais-grok-build-cli-was-quietly-uploading-entire-codebases-to-google-cloud-1k20" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/xais-grok-build-cli-was-quietly-uploading-entire-codebases-to-google-cloud-1k20#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

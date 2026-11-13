@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Making a file converter feel alive with QML — FreeRave</title>
+<meta name="description" content="GPU-drawn ring sectors with QtQuick.Shapes, a particle burst, a daemon that opens the wheel in 0.1 s, an Android-style edge dock, Arabic right-to-left, and the bugs each one came with.">
+<link rel="canonical" href="https://dev.to/freerave/making-a-file-converter-feel-alive-with-qml-5gl6">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/making-a-file-converter-feel-alive-with-qml-5gl6">
+<meta property="og:title" content="Making a file converter feel alive with QML — FreeRave">
+<meta property="og:description" content="GPU-drawn ring sectors with QtQuick.Shapes, a particle burst, a daemon that opens the wheel in 0.1 s, an Android-style edge dock, Arabic right-to-left, and the bugs each one came with.">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fw0gsho83uuu9r647dj9p.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fw0gsho83uuu9r647dj9p.png" alt="">
+  <h1 class="post-title">Making a file converter feel alive with QML</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-07T20:28:43Z">7 November 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#qt</span><span class="post-tag">#python</span><span class="post-tag">#linux</span><span class="post-tag">#ui</span></div>
+  </div>
+  <article class="post-body">
+<p><a href="https://dev.to/freerave/8-backends-one-engine-and-the-svg-bug-that-started-it-all-3ooo">Part 2</a> was about DotMorph's conversion engine. This one is about the part people actually see: a two-ring radial menu that blooms around a file, written in QML and driven from Python with PySide6.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Foa3bleniy3jtucnkf9bb.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Foa3bleniy3jtucnkf9bb.gif" alt="The wheel opening, the Video fan blooming, GIF picked, progress, and a success burs" loading="lazy" width="720" height="562"></a></p>
+
+<h2>
+  <a name="why-qml-and-not-widgets" href="#why-qml-and-not-widgets">
+  </a>
+  Why QML and not widgets
+</h2>
+
+<p>A radial menu is all curves, glows and motion. In QWidgets that means hand-painting every frame with <code>QPainter</code> and running your own animation timers. In QML, an animation is a property with a <code>Behavior</code>, and the scene graph draws everything on the GPU. The Python side (a <code>Bridge</code> QObject) exposes the file, the targets, progress and status, and QML just reacts.</p>
+
+<h2>
+  <a name="drawing-a-ring-sector" href="#drawing-a-ring-sector">
+  </a>
+  Drawing a ring sector
+</h2>
+
+<p>My first attempt drew triangles instead of ring sectors, and the labels on top were invisible because of a colour-mixing bug. The version that works describes each sector as an <strong>SVG path</strong>: the outer arc clockwise, a line inward, the inner arc back. QtQuick.Shapes renders it with the curve renderer:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight qml"><code><span class="c1">// ring sector as an SVG path: outer arc clockwise, inner arc back</span>
+<span class="kd">function</span> <span class="nf">pt</span><span class="p">(</span><span class="nx">r</span><span class="p">,</span> <span class="nx">deg</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">a</span> <span class="o">=</span> <span class="nx">deg</span> <span class="o">*</span> <span class="nb">Math</span><span class="p">.</span><span class="nx">PI</span> <span class="o">/</span> <span class="mi">180</span>
+    <span class="k">return </span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">cx</span> <span class="o">+</span> <span class="nx">r</span> <span class="o">*</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">cos</span><span class="p">(</span><span class="nx">a</span><span class="p">)).</span><span class="nf">toFixed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="dl">"</span> <span class="o">+</span> <span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">cy</span> <span class="o">+</span> <span class="nx">r</span> <span class="o">*</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">sin</span><span class="p">(</span><span class="nx">a</span><span class="p">)).</span><span class="nf">toFixed</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+<span class="p">}</span>
+<span class="nx">readonly</span> <span class="nx">property</span> <span class="nx">string</span> <span class="nx">d</span><span class="p">:</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">bigO</span> <span class="o">=</span> <span class="nx">sweepO</span> <span class="o">&gt;</span> <span class="mi">180</span> <span class="p">?</span> <span class="mi">1</span> <span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="nx">bigI</span> <span class="o">=</span> <span class="nx">sweepI</span> <span class="o">&gt;</span> <span class="mi">180</span> <span class="p">?</span> <span class="mi">1</span> <span class="p">:</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="dl">"</span><span class="s2">M </span><span class="dl">"</span> <span class="o">+</span> <span class="nf">pt</span><span class="p">(</span><span class="nx">oR</span><span class="p">,</span> <span class="nx">a0</span><span class="p">)</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> A </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">oR</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">oR</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> 0 </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">bigO</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> 1 </span><span class="dl">"</span> <span class="o">+</span> <span class="nf">pt</span><span class="p">(</span><span class="nx">oR</span><span class="p">,</span> <span class="nx">a0</span> <span class="o">+</span> <span class="nx">sweepO</span><span class="p">)</span>
+         <span class="o">+</span> <span class="dl">"</span><span class="s2"> L </span><span class="dl">"</span> <span class="o">+</span> <span class="nf">pt</span><span class="p">(</span><span class="nx">iR</span><span class="p">,</span> <span class="nx">b0</span><span class="p">)</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> A </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">iR</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">iR</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> 0 </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">bigI</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> 0 </span><span class="dl">"</span> <span class="o">+</span> <span class="nf">pt</span><span class="p">(</span><span class="nx">iR</span><span class="p">,</span> <span class="nx">b0</span> <span class="o">-</span> <span class="nx">sweepI</span><span class="p">)</span> <span class="o">+</span> <span class="dl">"</span><span class="s2"> Z</span><span class="dl">"</span>
+<span class="p">}</span>
+
+<span class="kt">ShapePath</span> <span class="p">{</span>
+    <span class="nl">strokeColor</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nf">mix</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">theme</span><span class="p">.</span><span class="nx">sectorEdge</span><span class="p">,</span> <span class="nx">Qt</span><span class="p">.</span><span class="nf">lighter</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">hot</span><span class="p">,</span> <span class="mf">1.35</span><span class="p">),</span> <span class="nx">s</span><span class="p">.</span><span class="nx">lift</span><span class="p">)</span>
+    <span class="nl">fillGradient</span><span class="p">:</span> <span class="kt">RadialGradient</span> <span class="p">{</span> <span class="cm">/* sector colour → category colour, by s.lift */</span> <span class="p">}</span>
+    <span class="kt">PathSvg</span> <span class="p">{</span> <span class="nl">path</span><span class="p">:</span> <span class="nx">shape</span><span class="p">.</span><span class="nx">d</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The gaps between sectors are constant in <em>pixels</em>, not degrees (<code>gapPx / radius</code> converted to an angle), so the inner and outer rings line up visually even though their circumferences differ.</p>
+
+<h2>
+  <a name="one-number-drives-the-hover" href="#one-number-drives-the-hover">
+  </a>
+  One number drives the hover
+</h2>
+
+<p>Each sector has a single animated property, <code>lift</code>: 0 when idle, about 0.55 when its category is open, 1 when hovered. Colour, outward push and outer radius all read from it, so they can never get out of sync:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight qml"><code><span class="nx">property</span> <span class="nx">real</span> <span class="nx">lift</span><span class="p">:</span> <span class="nx">busy</span> <span class="p">?</span> <span class="mi">0</span> <span class="p">:</span> <span class="p">(</span><span class="nx">hovered</span> <span class="p">?</span> <span class="mi">1</span> <span class="p">:</span> <span class="p">(</span><span class="nx">selected</span> <span class="p">?</span> <span class="mf">0.55</span> <span class="p">:</span> <span class="mi">0</span><span class="p">))</span>
+<span class="kt">Behavior</span> <span class="k">on</span> <span class="nl">lift</span> <span class="p">{</span> <span class="kt">NumberAnimation</span> <span class="p">{</span> <span class="nl">duration</span><span class="p">:</span> <span class="nx">s</span><span class="p">.</span><span class="nx">theme</span><span class="p">.</span><span class="nf">ms</span><span class="p">(</span><span class="mi">170</span><span class="p">);</span> <span class="nl">easing.type</span><span class="p">:</span> <span class="nx">Easing</span><span class="p">.</span><span class="nx">OutCubic</span> <span class="p">}</span> <span class="p">}</span>
+
+<span class="nx">transform</span><span class="p">:</span> <span class="kt">Translate</span> <span class="p">{</span>
+    <span class="nl">x</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">cos</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">midRad</span><span class="p">)</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">*</span> <span class="nx">s</span><span class="p">.</span><span class="nx">lift</span>
+    <span class="nl">y</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">sin</span><span class="p">(</span><span class="nx">s</span><span class="p">.</span><span class="nx">midRad</span><span class="p">)</span> <span class="o">*</span> <span class="mi">7</span> <span class="o">*</span> <span class="nx">s</span><span class="p">.</span><span class="nx">lift</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>theme.ms()</code> scales every duration, and returns 0 when <em>reduce motion</em> is on. That makes the accessibility setting a single switch instead of a hunt through fifty animations.</p>
+
+<p>The intro uses the same trick: every sector has a <code>reveal</code> property that animates from 0 to 1 with a per-sector delay (<code>order * stagger</code>). Scale, rotation and opacity are all functions of it, which gives you a staggered fly-out with a small spin. Labels counter-rotate (<code>rotation: -s.rotation</code>) so the text stays upright while the sector spins in.</p>
+
+<h2>
+  <a name="the-success-burst" href="#the-success-burst">
+  </a>
+  The success burst
+</h2>
+
+<p>When a conversion finishes, a check mark draws itself in the hub and particles fly out. That's QtQuick.Particles with an emitter that does nothing until asked:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight qml"><code><span class="kt">ParticleSystem</span> <span class="p">{</span> <span class="nl">id</span><span class="p">:</span> <span class="kd">particles</span><span class="p">;</span> <span class="nl">running</span><span class="p">:</span> <span class="nx">wheel</span><span class="p">.</span><span class="nx">theme</span><span class="p">.</span><span class="nx">motion</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="p">}</span>
+<span class="kt">Emitter</span> <span class="p">{</span>
+    <span class="nl">id</span><span class="p">:</span> <span class="kd">burst</span>
+    <span class="nl">system</span><span class="p">:</span> <span class="nx">particles</span>
+    <span class="nl">x</span><span class="p">:</span> <span class="nx">wheel</span><span class="p">.</span><span class="nx">cx</span><span class="p">;</span> <span class="nl">y</span><span class="p">:</span> <span class="nx">wheel</span><span class="p">.</span><span class="nx">cy</span><span class="p">;</span> <span class="nl">width</span><span class="p">:</span> <span class="mi">1</span><span class="p">;</span> <span class="nl">height</span><span class="p">:</span> <span class="mi">1</span>
+    <span class="nl">emitRate</span><span class="p">:</span> <span class="mi">0</span>
+    <span class="nl">lifeSpan</span><span class="p">:</span> <span class="mi">1100</span><span class="p">;</span> <span class="nl">lifeSpanVariation</span><span class="p">:</span> <span class="mi">350</span>
+    <span class="nl">size</span><span class="p">:</span> <span class="mi">14</span><span class="p">;</span> <span class="nl">sizeVariation</span><span class="p">:</span> <span class="mi">8</span><span class="p">;</span> <span class="nl">endSize</span><span class="p">:</span> <span class="mi">2</span>
+    <span class="nl">velocity</span><span class="p">:</span> <span class="kt">AngleDirection</span> <span class="p">{</span> <span class="nl">angleVariation</span><span class="p">:</span> <span class="mi">360</span><span class="p">;</span> <span class="nl">magnitude</span><span class="p">:</span> <span class="mi">300</span><span class="p">;</span> <span class="nl">magnitudeVariation</span><span class="p">:</span> <span class="mi">160</span> <span class="p">}</span>
+    <span class="nl">acceleration</span><span class="p">:</span> <span class="kt">PointDirection</span> <span class="p">{</span> <span class="nl">y</span><span class="p">:</span> <span class="mi">240</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>burst.burst(110)</code> on success, and the slight downward acceleration makes it fall like confetti instead of expanding like a balloon. Failure gets a cross and a short <code>SequentialAnimation</code> shake instead.</p>
+
+<h2>
+  <a name="01-seconds-thanks-to-a-daemon" href="#01-seconds-thanks-to-a-daemon">
+  </a>
+  0.1 seconds, thanks to a daemon
+</h2>
+
+<p>Starting Python, importing PySide6 and compiling the QML takes about a second. That's fine for an app and terrible for a right-click menu. So DotMorph keeps a daemon running (started by XDG autostart) with Qt and the wheel already loaded.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fe1kj8748w5qalv98xk3j.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fe1kj8748w5qalv98xk3j.png" alt="Every entry point goes through a stdlib-only client to the daemon over a Unix socket" loading="lazy" width="800" height="400"></a></p>
+
+<p>The trick is that the client side imports <strong>no Qt at all</strong>. <code>dotmorph FILE</code> checks for the daemon's socket in <code>$XDG_RUNTIME_DIR</code> and sends one line of JSON:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">request</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Send one request; returns the reply, or None when no daemon answers.</span><span class="sh">"""</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="nf">socket_path</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="p">.</span><span class="nf">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">socket</span><span class="p">.</span><span class="nf">socket</span><span class="p">(</span><span class="n">socket</span><span class="p">.</span><span class="n">AF_UNIX</span><span class="p">,</span> <span class="n">socket</span><span class="p">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span> <span class="k">as</span> <span class="n">sock</span><span class="p">:</span>
+            <span class="n">sock</span><span class="p">.</span><span class="nf">settimeout</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+            <span class="n">sock</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="nf">str</span><span class="p">(</span><span class="n">path</span><span class="p">))</span>
+            <span class="n">sock</span><span class="p">.</span><span class="nf">sendall</span><span class="p">((</span><span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">message</span><span class="p">)</span> <span class="o">+</span> <span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">).</span><span class="nf">encode</span><span class="p">())</span>
+            <span class="k">with</span> <span class="n">sock</span><span class="p">.</span><span class="nf">makefile</span><span class="p">(</span><span class="sh">"</span><span class="s">r</span><span class="sh">"</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">reader</span><span class="p">:</span>
+                <span class="n">line</span> <span class="o">=</span> <span class="n">reader</span><span class="p">.</span><span class="nf">readline</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="k">if</span> <span class="n">line</span> <span class="k">else</span> <span class="bp">None</span>
+    <span class="nf">except </span><span class="p">(</span><span class="nb">OSError</span><span class="p">,</span> <span class="nb">ValueError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If nobody answers, it falls back to opening its own window. The wheel appears in about 0.1 s. Two bugs from building this:</p>
+
+<ul>
+<li>
+<strong>The daemon didn't answer.</strong> Its socket server was created before the Qt event loop existed, so connections were accepted into the void.</li>
+<li>
+<strong>Long socket paths.</strong> Unix socket paths are limited to 108 bytes. An unusual <code>$XDG_RUNTIME_DIR</code> blew past that, so there's now a short private fallback path.</li>
+</ul>
+
+<h3>
+  <a name="the-hotkey-that-made-the-wheel-shake" href="#the-hotkey-that-made-the-wheel-shake">
+  </a>
+  The hotkey that made the wheel shake
+</h3>
+
+<p>Super+Shift+M opens the wheel with whatever files you copied. When I tested it, holding the keys made the wheel <em>shake</em>. Key repeat fires about every 30 ms, each repeat sent a new "open", and each "open" restarted the bloom animation. The fix is a debounce in the daemon:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">repeat</span> <span class="o">=</span> <span class="n">now</span> <span class="o">-</span> <span class="n">self</span><span class="p">.</span><span class="n">_last_summon</span> <span class="o">&lt;</span> <span class="n">SUMMON_DEBOUNCE</span>   <span class="c1"># 0.6 s
+</span><span class="n">self</span><span class="p">.</span><span class="n">_last_summon</span> <span class="o">=</span> <span class="n">now</span>
+<span class="k">if</span> <span class="n">visible</span> <span class="ow">and</span> <span class="p">(</span><span class="n">repeat</span> <span class="ow">or</span> <span class="p">[</span><span class="n">p</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">paths</span> <span class="k">if</span> <span class="n">p</span><span class="p">.</span><span class="nf">is_file</span><span class="p">()]</span> <span class="o">==</span> <span class="n">self</span><span class="p">.</span><span class="n">_files</span><span class="p">):</span>
+    <span class="k">return</span> <span class="bp">False</span>  <span class="c1"># already showing these files: leave the wheel alone
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="a-drag-is-not-a-click" href="#a-drag-is-not-a-click">
+  </a>
+  A drag is not a click
+</h3>
+
+<p>The wheel is a frameless window you can grab anywhere and move. Early on, releasing a drag over a sector <em>started a conversion</em>. Now a press that moves past a small threshold becomes a move, never a click, and the wheel turns see-through while you move it.</p>
+
+<h2>
+  <a name="the-edge-dock" href="#the-edge-dock">
+  </a>
+  The edge dock
+</h2>
+
+<p>Drag the wheel against the left or right edge of the screen and it turns into a slim glowing tab. Hover it, click it, or drag files over it, and a <strong>half wheel</strong> slides out of the edge, like Android's edge panels. It folds back when the pointer leaves, after a conversion, or on Esc.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Faxe9wd8372mv5gyc0tqj.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Faxe9wd8372mv5gyc0tqj.gif" alt="Dragging the wheel to the edge: it becomes a tab, then a half wheel on hover" loading="lazy" width="760" height="517"></a></p>
+
+<p>The dock is a small state machine (<code>free → docked → peek</code>) in Python that resizes and moves the window. QML switches the wheel into <code>half</code> mode. Some details took more time than the feature itself:</p>
+
+<ul>
+<li>
+<strong>Mirroring.</strong> On the right edge the half wheel is mirrored so the first category is still on top. The hidden half behind the screen edge must never react to clicks.</li>
+<li>
+<strong>Sliding.</strong> Dragging the tab up and down moves it along the edge; pulling it away gives you the full wheel back.</li>
+<li>
+<strong>Memory.</strong> The side and height are saved, and the daemon brings the tab back at login.</li>
+<li>
+<strong>Progress while folded.</strong> A conversion that keeps running fills the tab from the bottom up.</li>
+</ul>
+
+<h2>
+  <a name="wayland-honestly" href="#wayland-honestly">
+  </a>
+  Wayland, honestly
+</h2>
+
+<p>A menu that opens at a precise spot and stays above everything is exactly what Wayland doesn't let a normal client do. DotMorph runs the wheel through XWayland on Wayland sessions:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">XDG_SESSION_TYPE</span><span class="sh">"</span><span class="p">)</span> <span class="o">==</span> <span class="sh">"</span><span class="s">wayland</span><span class="sh">"</span> <span class="ow">and</span> <span class="sh">"</span><span class="s">QT_QPA_PLATFORM</span><span class="sh">"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">:</span>
+    <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">[</span><span class="sh">"</span><span class="s">QT_QPA_PLATFORM</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="sh">"</span><span class="s">xcb</span><span class="sh">"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The cost: it opens centred, because Wayland doesn't expose the pointer position, and it's X11 under the hood. A native version using the layer-shell protocol (KDE and wlroots compositors) is on the roadmap.</p>
+
+<h2>
+  <a name="right-to-left" href="#right-to-left">
+  </a>
+  Right to left
+</h2>
+
+<p>The settings window and the options panel are fully translated to Arabic. For layout, QML does most of the work:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight qml"><code><span class="nx">LayoutMirroring</span><span class="p">.</span><span class="nx">enabled</span><span class="p">:</span> <span class="nx">theme</span><span class="p">.</span><span class="nx">rtl</span>
+<span class="nx">LayoutMirroring</span><span class="p">.</span><span class="nx">childrenInherit</span><span class="p">:</span> <span class="kc">true</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That mirrors anchors and layouts. Sliders and toggles needed manual flipping, and an Arabic font (Noto Kufi Arabic, or another Noto Arabic face) is picked automatically. Format names, commands and engine errors stay English on purpose.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyia08jj67amqgkb5ut68.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fyia08jj67amqgkb5ut68.png" alt="Settings in English (dark) and Arabic (light, right to left)" loading="lazy" width="800" height="272"></a></p>
+
+<h2>
+  <a name="testing-a-ui-that-moves" href="#testing-a-ui-that-moves">
+  </a>
+  Testing a UI that moves
+</h2>
+
+<p>The test suite loads the <strong>real QML</strong> offscreen and drives it like a user would: arrow keys and Enter to pick a format, a drag that must not convert, the options panel, the dock modes, hit-testing on both edges. A message handler collects QML warnings, and the tests fail if any show up.</p>
+
+<p>The GIFs in this post come from the same idea. A script opens the real wheel, presses the keys, grabs every frame with <code>QQuickWindow.grabWindow()</code>, and ffmpeg turns the frames into the GIF. One lesson from that: Qt's <code>offscreen</code> platform has no OpenGL, so the Shapes simply weren't drawn. Running under Xvfb with Mesa's software OpenGL fixed it.</p>
+
+<p>In part 4, the last one: shipping all of this to Linux users five different ways from one signed git tag, and what AppImageHub's test taught me about "works on my machine".</p>
+
+<ul>
+<li>
+<strong>GitHub:</strong> <a href="https://github.com/kareem2099/DotMorph" target="_blank" rel="noopener noreferrer">kareem2099/DotMorph</a>
+</li>
+<li>
+<strong>Project page:</strong> <a href="https://dotsuite.dev/en/product/dotmorph" target="_blank" rel="noopener noreferrer">dotsuite.dev/en/product/dotmorph</a>
+</li>
+</ul>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/making-a-file-converter-feel-alive-with-qml-5gl6" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/making-a-file-converter-feel-alive-with-qml-5gl6#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

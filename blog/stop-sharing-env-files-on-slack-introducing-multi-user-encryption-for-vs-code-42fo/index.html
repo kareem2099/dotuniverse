@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Stop Sharing .env Files on Slack: Introducing Multi-User Encryption for VS Code — FreeRave</title>
+<meta name="description" content="The Problem: &quot;Hey, can you send me the API key?&quot; We've all been there. A new developer joins the...">
+<link rel="canonical" href="https://dev.to/freerave/stop-sharing-env-files-on-slack-introducing-multi-user-encryption-for-vs-code-42fo">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/stop-sharing-env-files-on-slack-introducing-multi-user-encryption-for-vs-code-42fo">
+<meta property="og:title" content="Stop Sharing .env Files on Slack: Introducing Multi-User Encryption for VS Code — FreeRave">
+<meta property="og:description" content="The Problem: &quot;Hey, can you send me the API key?&quot; We've all been there. A new developer joins the...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F6e63sk0pgebsfy34c3uu.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">Stop Sharing .env Files on Slack: Introducing Multi-User Encryption for VS Code</h1>
+  <div class="post-meta">
+    <time datetime="2025-12-31T20:05:35Z">31 December 2025</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: "Hey, can you send me the API key?"<br>
+We've all been there. A new developer joins the team. They clone the repo, run npm install, try to start the server, and... crash. Missing environment variables.</p>
+
+<p>So, what happens next? Usually, someone copies the .env file contents and pastes them into Slack, Teams, or WhatsApp. This is a security nightmare.</p>
+
+<p>I built DotEnvy to solve this. And with the release of v1.3.0, I'm introducing a feature usually reserved for enterprise cloud providers: Multi-User Key Wrapping (Envelope Encryption), right inside VS Code.</p>
+
+<p>What's New in v1.3.0?<br>
+This update is a massive leap forward for team security. It transforms DotEnvy from a personal environment manager into a team collaboration tool.</p>
+
+<ol>
+<li>🛡️ Enterprise-Grade Envelope Encryption
+The core of this update is the complete implementation of envelope encryption. This allows secure multi-user access to environment secrets without ever sharing a master password.</li>
+</ol>
+
+<p>How it works:</p>
+
+<p>No Shared Secrets: Each developer has unique credentials. You never have to text a password to a teammate again.</p>
+
+<p>Key Wrapping: The Project Key (which decrypts the variables) is "wrapped" (encrypted) using individual user passwords using AES-256-GCM.</p>
+
+<p>Zero-Knowledge: Project keys never exist in plaintext outside of encrypted memory.</p>
+
+<ol>
+<li>👥 Full User Management System
+You can now manage your team's access directly from the extension:</li>
+</ol>
+
+<p>Init Secure Project: Sets up an admin user and establishes the encrypted project foundation.</p>
+
+<p>Add User: Invite team members by creating individual password-based access envelopes for them.</p>
+
+<p>Revoke User: Instantly remove access. Because of the envelope architecture, this provides Forward Secrecy—revoked users lose access instantly without needing to rotate passwords for the whole team.</p>
+
+<p>Git Audit Trail: All user management operations are tracked in version control, providing complete non-repudiation.</p>
+
+<ol>
+<li>🔒 Granular Variable Control
+Security shouldn't be all-or-nothing.</li>
+</ol>
+
+<p>Lock/Unlock Toggle: You can now interactively toggle 🔒/🔓 icons on specific variables.</p>
+
+<p>Real-Time Encryption: Encrypt or decrypt specific variables instantly with visual feedback.</p>
+
+<ol>
+<li>🔐 OWASP 2025 Compliance
+Security tools need to stay ahead of the curve. This release updates all cryptographic parameters to meet modern standards:</li>
+</ol>
+
+<p>PBKDF2: We increased iterations to 310,000 with 256-bit salts.</p>
+
+<p>AES-256-GCM: We use authenticated encryption with 12-byte IVs and 16-byte auth tags.</p>
+
+<ol>
+<li>📊 Better UX &amp; "Fail-Fast" Validation
+I wanted the experience to be smooth, not just secure.</li>
+</ol>
+
+<p>Fail-Fast Validation: The system checks username availability early to prevent wasted input.</p>
+
+<p>Progress Indicators: Professional loading bars for encryption and user management operations.</p>
+
+<p>Professional Changelog: You'll now get automatic "What's New" notifications with a native VS Code markdown preview.</p>
+
+<p>Why I Built This<br>
+I wanted a way to manage secrets that felt like GitOps. I didn't want to leave VS Code to manage permissions in a third-party dashboard. I wanted to git pull, type my password, and have my environment ready.</p>
+
+<p>With DotEnvy 1.3.0, we are one step closer to that reality.</p>
+
+<p>Try it out!<br>
+Download on Marketplace: [<a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy</a>]</p>
+
+<p>Star on GitHub: [<a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/dotenvy</a>]</p>
+
+<p>Let me know what you think in the comments! 👇</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/stop-sharing-env-files-on-slack-introducing-multi-user-encryption-for-vs-code-42fo" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/stop-sharing-env-files-on-slack-introducing-multi-user-encryption-for-vs-code-42fo#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

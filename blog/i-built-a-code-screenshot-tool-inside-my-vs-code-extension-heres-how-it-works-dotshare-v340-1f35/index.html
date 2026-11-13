@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Code Screenshot Tool Inside My VS Code Extension — Here's How It Works (DotShare v3.4.0) — FreeRave</title>
+<meta name="description" content="You know that moment when you write a function you're genuinely proud of, and you want to share it on...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-code-screenshot-tool-inside-my-vs-code-extension-heres-how-it-works-dotshare-v340-1f35">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-code-screenshot-tool-inside-my-vs-code-extension-heres-how-it-works-dotshare-v340-1f35">
+<meta property="og:title" content="I Built a Code Screenshot Tool Inside My VS Code Extension — Here's How It Works (DotShare v3.4.0) — FreeRave">
+<meta property="og:description" content="You know that moment when you write a function you're genuinely proud of, and you want to share it on...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2Fb1a1cc30-ad27-415a-b8f0-28bbae98fec3.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2Fb1a1cc30-ad27-415a-b8f0-28bbae98fec3.jpg" alt="">
+  <h1 class="post-title">I Built a Code Screenshot Tool Inside My VS Code Extension — Here's How It Works (DotShare v3.4.0)</h1>
+  <div class="post-meta">
+    <time datetime="2026-06-01T09:34:05Z">1 June 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#typescript</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<p>You know that moment when you write a function you're genuinely proud of, and you want to share it on LinkedIn or Bluesky — but plain text just… doesn't do it justice?</p>
+
+<p>I've been there every week.</p>
+
+<p>I'm <strong>Kareem (FreeRave)</strong>, founder of <strong>DotSuite</strong> — a suite of privacy-first Linux tools and VS Code extensions. DotShare is my VS Code extension for sharing content across LinkedIn, X, Bluesky, Reddit, Dev.to, Medium, Telegram, and more — all without leaving the editor.</p>
+
+<p>Today I'm shipping <strong>v3.4.0</strong>, and the headline feature is <strong>CodeSnap</strong>: a code-to-image tool built entirely inside the extension's WebView, using nothing but HTML Canvas and Highlight.js.</p>
+
+<p>No <code>node-canvas</code>. No <code>sharp</code>. No native binaries. Zero extra dependencies.</p>
+
+<p>Let me walk you through how it works and why I built it this way.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/XqwQVM-s0Po" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-code-screenshots-in-vs-code-are-painful" href="#the-problem-code-screenshots-in-vs-code-are-painful">
+  </a>
+  The Problem: Code Screenshots in VS Code Are Painful
+</h2>
+
+<p>The existing solutions are either:</p>
+
+<ul>
+<li>
+<strong>External web apps</strong> (Carbon, Ray.so) — you copy code, tab out, paste, configure, download, come back, attach. Five steps too many.</li>
+<li>
+<strong>Other VS Code extensions</strong> (CodeSnap, Polacode) — great tools, but they don't integrate with a <em>sharing</em> workflow. You screenshot, then you still have to open your composer manually.</li>
+</ul>
+
+<p>I wanted the whole loop inside one tool:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Select code → 📸 Snap → Pick platform → Composer opens with image attached
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That's it. No context switching.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-architecture-decision-why-html-canvas" href="#the-architecture-decision-why-html-canvas">
+  </a>
+  The Architecture Decision: Why HTML Canvas?
+</h2>
+
+<p>When I started building this, the "obvious" choice was <code>node-canvas</code> — the Node.js port of the HTML Canvas API. But I ran into three hard problems immediately:</p>
+
+<p><strong>1. Native binaries are a Marketplace nightmare.</strong><br>
+<code>node-canvas</code> requires <code>node-gyp</code> and compiles native C++ addons. On VS Code Marketplace, extensions with native binaries are flagged, slow to install, and break on ARM Macs and certain Linux distros.</p>
+
+<p><strong>2. <code>sharp</code> is 10MB+ of compiled code.</strong><br>
+For a feature that renders a static image, that's an absurd payload.</p>
+
+<p><strong>3. VS Code already ships a full browser engine (Electron).</strong><br>
+The WebView <em>is</em> a Chromium tab. It has a GPU-accelerated Canvas API, a full DOM parser, and font rendering that matches what the user actually sees on screen. Why fight it?</p>
+
+<p>So the decision was: <strong>render in the WebView, export PNG from there, and ship it back to the extension host.</strong></p>
+
+<p>The flow looks like this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌─────────────────────┐       loadCode        ┌─────────────────────┐
+│   Extension Host    │ ──────────────────────▶│   WebView (Canvas)  │
+│   (Node.js)         │                        │   (Chromium)        │
+│                     │◀── snapReady (base64) ─│                     │
+│  CodeSnapPanel.ts   │                        │  codesnap.html      │
+│  MediaService.ts    │                        │  hljs + Canvas API  │
+└─────────────────────┘                        └─────────────────────┘
+         │
+         ▼
+    Saves to disk
+    QuickPick: which platform?
+    Opens Composer with image attached
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="codesnapservice-reading-the-editor" href="#codesnapservice-reading-the-editor">
+  </a>
+  CodeSnapService: Reading the Editor
+</h2>
+
+<p>The first piece is pure Node.js — no VS Code UI involved yet. <code>CodeSnapService.capture()</code> reads the active editor and returns everything the renderer needs:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/services/CodeSnapService.ts</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">CodeSnapData</span> <span class="p">{</span>
+    <span class="nl">code</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">language</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>  <span class="c1">// resolved to HL.js alias</span>
+    <span class="nl">fileName</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">lineStart</span><span class="p">:</span> <span class="kr">number</span><span class="p">;</span>
+    <span class="nl">lineEnd</span><span class="p">:</span> <span class="kr">number</span><span class="p">;</span>
+    <span class="nl">hasSelection</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">public</span> <span class="k">static</span> <span class="nf">capture</span><span class="p">():</span> <span class="nx">CodeSnapData</span> <span class="o">|</span> <span class="kc">null</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">editor</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nx">activeTextEditor</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">editor</span><span class="p">)</span> <span class="k">return</span> <span class="kc">null</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">doc</span>       <span class="o">=</span> <span class="nx">editor</span><span class="p">.</span><span class="nb">document</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">selection</span> <span class="o">=</span> <span class="nx">editor</span><span class="p">.</span><span class="nx">selection</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">hasSelection</span> <span class="o">=</span> <span class="o">!</span><span class="nx">selection</span><span class="p">.</span><span class="nx">isEmpty</span><span class="p">;</span>
+
+    <span class="kd">let</span> <span class="nx">code</span> <span class="o">=</span> <span class="nx">hasSelection</span>
+        <span class="p">?</span> <span class="nx">doc</span><span class="p">.</span><span class="nf">getText</span><span class="p">(</span><span class="nx">selection</span><span class="p">)</span>
+        <span class="p">:</span> <span class="nx">doc</span><span class="p">.</span><span class="nf">getText</span><span class="p">();</span>
+
+    <span class="c1">// Tabs break canvas rendering — convert to spaces first</span>
+    <span class="nx">code</span> <span class="o">=</span> <span class="nx">code</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">\t</span><span class="sr">/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">    </span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="c1">// Strip common leading indent so the image doesn't waste space</span>
+    <span class="nx">code</span> <span class="o">=</span> <span class="nx">CodeSnapService</span><span class="p">.</span><span class="nf">_stripCommonIndent</span><span class="p">(</span><span class="nx">code</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="nx">code</span><span class="p">,</span>
+        <span class="na">language</span><span class="p">:</span>  <span class="nx">CodeSnapService</span><span class="p">.</span><span class="nf">_resolveLanguage</span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nx">languageId</span><span class="p">,</span> <span class="nx">doc</span><span class="p">.</span><span class="nx">fileName</span><span class="p">),</span>
+        <span class="na">fileName</span><span class="p">:</span>  <span class="nx">path</span><span class="p">.</span><span class="nf">basename</span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nx">fileName</span><span class="p">),</span>
+        <span class="na">lineStart</span><span class="p">:</span> <span class="nx">hasSelection</span> <span class="p">?</span> <span class="nx">selection</span><span class="p">.</span><span class="nx">start</span><span class="p">.</span><span class="nx">line</span> <span class="o">+</span> <span class="mi">1</span> <span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="na">lineEnd</span><span class="p">:</span>   <span class="nx">hasSelection</span> <span class="p">?</span> <span class="nx">selection</span><span class="p">.</span><span class="nx">end</span><span class="p">.</span><span class="nx">line</span>   <span class="o">+</span> <span class="mi">1</span> <span class="p">:</span> <span class="nx">doc</span><span class="p">.</span><span class="nx">lineCount</span><span class="p">,</span>
+        <span class="nx">hasSelection</span><span class="p">,</span>
+    <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Two details worth calling out:</p>
+
+<p><strong>Tab conversion</strong> — HTML Canvas has inconsistent <code>\t</code> rendering across platforms. Converting to 4 spaces before we even touch the canvas eliminates an entire class of alignment bugs.</p>
+
+<p><strong>Common indent stripping</strong> — if you select a deeply nested function, the raw text has 16 spaces of leading indent on every line. <code>_stripCommonIndent</code> finds the minimum indent across all non-empty lines and removes it. The rendered image uses the full canvas width instead of leaving most of it empty.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">static</span> <span class="nf">_stripCommonIndent</span><span class="p">(</span><span class="nx">code</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="kr">string</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">lines</span> <span class="o">=</span> <span class="nx">code</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="se">\n</span><span class="dl">'</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">minIndent</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span>
+        <span class="p">...</span><span class="nx">lines</span>
+            <span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nx">l</span> <span class="o">=&gt;</span> <span class="nx">l</span><span class="p">.</span><span class="nf">trim</span><span class="p">().</span><span class="nx">length</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">l</span> <span class="o">=&gt;</span> <span class="nx">l</span><span class="p">.</span><span class="nf">match</span><span class="p">(</span><span class="sr">/^</span><span class="se">(\s</span><span class="sr">*</span><span class="se">)</span><span class="sr">/</span><span class="p">)?.[</span><span class="mi">1</span><span class="p">].</span><span class="nx">length</span> <span class="o">??</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">minIndent</span> <span class="o">===</span> <span class="mi">0</span><span class="p">)</span> <span class="k">return</span> <span class="nx">code</span><span class="p">;</span>
+    <span class="k">return</span> <span class="nx">lines</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">l</span> <span class="o">=&gt;</span> <span class="nx">l</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">minIndent</span><span class="p">)).</span><span class="nf">join</span><span class="p">(</span><span class="dl">'</span><span class="se">\n</span><span class="dl">'</span><span class="p">).</span><span class="nf">trimEnd</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-canvas-renderer" href="#the-canvas-renderer">
+  </a>
+  The Canvas Renderer
+</h2>
+
+<p>The canvas rendering runs entirely in the WebView. Here's the core loop — I'll walk through it section by section.</p>
+
+<h3>
+  <a name="step-1-measure-before-you-paint" href="#step-1-measure-before-you-paint">
+  </a>
+  Step 1: Measure before you paint
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// Measure text to calculate canvas dimensions</span>
+<span class="kd">const</span> <span class="nx">tmp</span>    <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">'</span><span class="s1">canvas</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">tmpCtx</span> <span class="o">=</span> <span class="nx">tmp</span><span class="p">.</span><span class="nf">getContext</span><span class="p">(</span><span class="dl">'</span><span class="s1">2d</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">tmpCtx</span><span class="p">.</span><span class="nx">font</span>  <span class="o">=</span> <span class="s2">`</span><span class="p">${</span><span class="nx">fontSize</span><span class="p">}</span><span class="s2">px 'JetBrains Mono', 'Fira Code', Consolas, monospace`</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">lines</span>    <span class="o">=</span> <span class="nx">data</span><span class="p">.</span><span class="nx">code</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="se">\n</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">maxCodeW</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(...</span><span class="nx">lines</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">l</span> <span class="o">=&gt;</span> <span class="nx">tmpCtx</span><span class="p">.</span><span class="nf">measureText</span><span class="p">(</span><span class="nx">l</span><span class="p">).</span><span class="nx">width</span><span class="p">));</span>
+
+<span class="kd">const</span> <span class="nx">innerW</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">ceil</span><span class="p">(</span><span class="nx">maxCodeW</span> <span class="o">+</span> <span class="nx">lineNumWidth</span><span class="p">)</span> <span class="o">+</span> <span class="nx">padding</span> <span class="o">*</span> <span class="mi">2</span><span class="p">;</span>
+<span class="kd">const</span> <span class="nx">innerH</span> <span class="o">=</span> <span class="nx">lines</span><span class="p">.</span><span class="nx">length</span> <span class="o">*</span> <span class="nx">LINE_H</span> <span class="o">+</span> <span class="nx">padding</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">+</span> <span class="nx">TITLE_H</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>We use a throwaway canvas just to measure text width before the real canvas exists. This lets us size the output to exactly fit the content — no hardcoded 800px width.</p>
+
+<h3>
+  <a name="step-2-2x-resolution-for-retina" href="#step-2-2x-resolution-for-retina">
+  </a>
+  Step 2: 2x resolution for Retina
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="nx">cv</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">'</span><span class="s1">canvas</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">cv</span><span class="p">.</span><span class="nx">width</span>  <span class="o">=</span> <span class="nx">canvasW</span> <span class="o">*</span> <span class="mi">2</span><span class="p">;</span>   <span class="c1">// physical pixels</span>
+<span class="nx">cv</span><span class="p">.</span><span class="nx">height</span> <span class="o">=</span> <span class="nx">canvasH</span> <span class="o">*</span> <span class="mi">2</span><span class="p">;</span>
+<span class="nx">cv</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">width</span>  <span class="o">=</span> <span class="nx">canvasW</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">px</span><span class="dl">'</span><span class="p">;</span>   <span class="c1">// CSS pixels</span>
+<span class="nx">cv</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">height</span> <span class="o">=</span> <span class="nx">canvasH</span> <span class="o">+</span> <span class="dl">'</span><span class="s1">px</span><span class="dl">'</span><span class="p">;</span>
+<span class="kd">const</span> <span class="nx">ctx</span> <span class="o">=</span> <span class="nx">cv</span><span class="p">.</span><span class="nf">getContext</span><span class="p">(</span><span class="dl">'</span><span class="s1">2d</span><span class="dl">'</span><span class="p">);</span>
+<span class="nx">ctx</span><span class="p">.</span><span class="nf">scale</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">);</span>  <span class="c1">// scale the context — all our coordinates stay the same</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The canvas is 2× the display size but we scale the context by 2× before drawing. Every coordinate we use is still in CSS pixels. The exported PNG is full Retina resolution.</p>
+
+<h3>
+  <a name="step-3-syntax-highlighting-via-hljs" href="#step-3-syntax-highlighting-via-hljs">
+  </a>
+  Step 3: Syntax highlighting via HL.js
+</h3>
+
+<p>This is where the real trick lives. HL.js gives us highlighted HTML like:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"hljs-keyword"</span><span class="nt">&gt;</span>const<span class="nt">&lt;/span&gt;</span> 
+<span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"hljs-title function_"</span><span class="nt">&gt;</span>greet<span class="nt">&lt;/span&gt;</span>
+<span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"hljs-punctuation"</span><span class="nt">&gt;</span>(<span class="nt">&lt;/span&gt;</span>
+<span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"hljs-params"</span><span class="nt">&gt;</span>name<span class="nt">&lt;/span&gt;</span>
+<span class="nt">&lt;span</span> <span class="na">class=</span><span class="s">"hljs-punctuation"</span><span class="nt">&gt;</span>)<span class="nt">&lt;/span&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>We parse that HTML into a flat token list, then paint each token with its color:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">function</span> <span class="nf">parseHljsHtml</span><span class="p">(</span><span class="nx">html</span><span class="p">,</span> <span class="nx">defaultColor</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">out</span>    <span class="o">=</span> <span class="p">[];</span>
+    <span class="kd">const</span> <span class="nx">parser</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">DOMParser</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">doc</span>    <span class="o">=</span> <span class="nx">parser</span><span class="p">.</span><span class="nf">parseFromString</span><span class="p">(</span><span class="s2">`&lt;pre&gt;</span><span class="p">${</span><span class="nx">html</span><span class="p">}</span><span class="s2">&lt;/pre&gt;`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">text/html</span><span class="dl">'</span><span class="p">);</span>
+    <span class="nf">flattenNode</span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nf">querySelector</span><span class="p">(</span><span class="dl">'</span><span class="s1">pre</span><span class="dl">'</span><span class="p">),</span> <span class="nx">defaultColor</span><span class="p">,</span> <span class="nx">out</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">out</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">function</span> <span class="nf">flattenNode</span><span class="p">(</span><span class="nx">node</span><span class="p">,</span> <span class="nx">inheritColor</span><span class="p">,</span> <span class="nx">out</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">===</span> <span class="nx">Node</span><span class="p">.</span><span class="nx">TEXT_NODE</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">textContent</span><span class="p">)</span> <span class="nx">out</span><span class="p">.</span><span class="nf">push</span><span class="p">({</span> <span class="na">text</span><span class="p">:</span> <span class="nx">node</span><span class="p">.</span><span class="nx">textContent</span><span class="p">,</span> <span class="na">color</span><span class="p">:</span> <span class="nx">inheritColor</span> <span class="p">});</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">nodeType</span> <span class="o">===</span> <span class="nx">Node</span><span class="p">.</span><span class="nx">ELEMENT_NODE</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">cls</span>   <span class="o">=</span> <span class="p">(</span><span class="nx">node</span><span class="p">.</span><span class="nx">className</span> <span class="o">||</span> <span class="dl">''</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+        <span class="kd">const</span> <span class="nx">color</span> <span class="o">=</span> <span class="nx">activePalette</span><span class="p">[</span><span class="nx">cls</span><span class="p">]</span> <span class="o">??</span> <span class="nx">inheritColor</span><span class="p">;</span>
+        <span class="nx">node</span><span class="p">.</span><span class="nx">childNodes</span><span class="p">.</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">c</span> <span class="o">=&gt;</span> <span class="nf">flattenNode</span><span class="p">(</span><span class="nx">c</span><span class="p">,</span> <span class="nx">color</span><span class="p">,</span> <span class="nx">out</span><span class="p">));</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>flattenNode</code> recursively walks the HL.js DOM output. When it hits a text node, it records the current inherited color. When it hits a <code>&lt;span&gt;</code>, it looks up the class name in our palette and updates the color for that subtree.</p>
+
+<p>Then we split by newlines to get per-line segment arrays, and paint:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="nx">lineSegs</span><span class="p">.</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">segs</span><span class="p">,</span> <span class="nx">i</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">y</span> <span class="o">=</span> <span class="nx">codeY</span> <span class="o">+</span> <span class="nx">i</span> <span class="o">*</span> <span class="nx">LINE_H</span><span class="p">;</span>
+
+    <span class="c1">// Line number (dim, right-aligned)</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">showLines</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nx">fillStyle</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">rgba(200,200,220,.22)</span><span class="dl">'</span><span class="p">;</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nx">textAlign</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">right</span><span class="dl">'</span><span class="p">;</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nf">fillText</span><span class="p">(</span><span class="nc">String</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">lineStart</span> <span class="o">+</span> <span class="nx">i</span><span class="p">),</span> <span class="nx">lineNumX</span><span class="p">,</span> <span class="nx">y</span><span class="p">);</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nx">textAlign</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">left</span><span class="dl">'</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Colored tokens, left-to-right</span>
+    <span class="kd">let</span> <span class="nx">x</span> <span class="o">=</span> <span class="nx">codeX</span><span class="p">;</span>
+    <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">seg</span> <span class="k">of</span> <span class="nx">segs</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="p">.</span><span class="nx">text</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nx">fillStyle</span> <span class="o">=</span> <span class="nx">seg</span><span class="p">.</span><span class="nx">color</span><span class="p">;</span>
+        <span class="nx">ctx</span><span class="p">.</span><span class="nf">fillText</span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">text</span><span class="p">,</span> <span class="nx">x</span><span class="p">,</span> <span class="nx">y</span><span class="p">);</span>
+        <span class="nx">x</span> <span class="o">+=</span> <span class="nx">ctx</span><span class="p">.</span><span class="nf">measureText</span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">text</span><span class="p">).</span><span class="nx">width</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is the part that makes the output look good. Each token is measured and positioned individually, so the colors align exactly with the text.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-race-condition-i-fixed" href="#the-race-condition-i-fixed">
+  </a>
+  The Race Condition I Fixed
+</h2>
+
+<p>The tricky part wasn't the canvas rendering — it was the integration between CodeSnap and the Composer.</p>
+
+<p>The original approach was <code>setTimeout</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ Old approach — fragile</span>
+<span class="nx">vscode</span><span class="p">.</span><span class="nx">commands</span><span class="p">.</span><span class="nf">executeCommand</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotshare.openFullWebview</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">post</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="nx">platform</span> <span class="p">});</span>
+<span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="nx">DotShareWebView</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">mediaAttached</span><span class="dl">'</span><span class="p">,</span> <span class="na">mediaFiles</span><span class="p">:</span> <span class="p">[{</span> <span class="p">...</span> <span class="p">}]</span> <span class="p">});</span>
+<span class="p">},</span> <span class="mi">800</span><span class="p">);</span>  <span class="c1">// hope 800ms is enough...</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This breaks on slow machines. It breaks on first load when VS Code needs to compile the extension. It breaks when the Composer webview is loading a saved draft.</p>
+
+<p>The fix is a proper handshake. The Composer fires <code>webviewReady</code> when it mounts:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// app.ts (Composer WebView)</span>
+<span class="kd">function</span> <span class="nf">onReady</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nf">enableDragAndDrop</span><span class="p">(</span><span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLTextAreaElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">post-text</span><span class="dl">'</span><span class="p">));</span>
+    <span class="nf">enableDragAndDrop</span><span class="p">(</span><span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLTextAreaElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">blog-body</span><span class="dl">'</span><span class="p">));</span>
+    <span class="nf">send</span><span class="p">(</span><span class="dl">'</span><span class="s1">webviewReady</span><span class="dl">'</span><span class="p">);</span>  <span class="c1">// ← "I'm alive, send me stuff"</span>
+<span class="p">}</span>
+
+<span class="k">if </span><span class="p">(</span><span class="nb">document</span><span class="p">.</span><span class="nx">readyState</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">loading</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nb">document</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">DOMContentLoaded</span><span class="dl">'</span><span class="p">,</span> <span class="nx">onReady</span><span class="p">,</span> <span class="p">{</span> <span class="na">once</span><span class="p">:</span> <span class="kc">true</span> <span class="p">});</span>
+<span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="nf">onReady</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The extension host handles <code>webviewReady</code> in <code>DotShareWebView</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// DotShareWebView.ts</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">data</span><span class="p">?.</span><span class="nx">command</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">webviewReady</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">vscode</span><span class="p">.</span><span class="nx">commands</span><span class="p">.</span><span class="nf">executeCommand</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotshare._composerReady</span><span class="dl">'</span><span class="p">,</span> <span class="nx">panel</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And <code>_composerReady</code> atomically consumes any pending snap:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// extension.ts</span>
+<span class="nx">vscode</span><span class="p">.</span><span class="nx">commands</span><span class="p">.</span><span class="nf">registerCommand</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotshare._composerReady</span><span class="dl">'</span><span class="p">,</span> <span class="p">(</span><span class="nx">panel</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">WebviewPanel</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">pending</span> <span class="o">=</span> <span class="nx">CodeSnapPanel</span><span class="p">.</span><span class="nf">consumePendingSnap</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">pending</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">panel</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+            <span class="na">command</span><span class="p">:</span>    <span class="dl">'</span><span class="s1">mediaAttached</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">mediaFiles</span><span class="p">:</span> <span class="p">[{</span>
+                <span class="na">mediaPath</span><span class="p">:</span>     <span class="nx">pending</span><span class="p">.</span><span class="nx">filePath</span><span class="p">,</span>
+                <span class="na">mediaFilePath</span><span class="p">:</span> <span class="nx">pending</span><span class="p">.</span><span class="nx">filePath</span><span class="p">,</span>
+                <span class="na">fileName</span><span class="p">:</span>      <span class="nx">pending</span><span class="p">.</span><span class="nx">fileName</span><span class="p">,</span>
+                <span class="na">fileSize</span><span class="p">:</span>      <span class="mi">0</span><span class="p">,</span>
+            <span class="p">}],</span>
+        <span class="p">});</span>
+    <span class="p">}</span>
+<span class="p">})</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>consumePendingSnap()</code> uses a FIFO queue — reads and clears atomically, no double-delivery:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// FIFO queue — thread-safe, handles rapid double-snap edge case</span>
+<span class="k">private</span> <span class="nx">_pendingSnaps</span><span class="p">:</span> <span class="nb">Array</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">filePath</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">fileName</span><span class="p">:</span> <span class="kr">string</span> <span class="p">}</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">[];</span>
+
+<span class="k">public</span> <span class="k">static</span> <span class="nf">consumePendingSnap</span><span class="p">():</span> <span class="p">{</span> <span class="nl">filePath</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">fileName</span><span class="p">:</span> <span class="kr">string</span> <span class="p">}</span> <span class="o">|</span> <span class="kc">null</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nx">CodeSnapPanel</span><span class="p">.</span><span class="nx">_instance</span><span class="p">?.</span><span class="nx">_pendingSnaps</span><span class="p">.</span><span class="nf">shift</span><span class="p">()</span> <span class="o">??</span> <span class="kc">null</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>No race condition. No magic number timeouts. The image attaches the instant the Composer is ready — whether that's 200ms or 3 seconds.</p>
+
+
+<hr>
+
+<h2>
+  <a name="offlinefirst-no-cdn" href="#offlinefirst-no-cdn">
+  </a>
+  Offline-First: No CDN
+</h2>
+
+<p>One more architectural decision worth mentioning: the VS Code webview CSP blocks external CDN requests by default — and that's correct behavior. I vendor all HL.js assets locally:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>media/webview/vendor/
+  highlight.min.js
+  styles/
+    atom-one-dark.min.css
+    github-dark.min.css
+    monokai.min.css
+    dracula.min.css
+    nord.min.css
+    vs2015.min.css
+    tokyo-night-dark.min.css
+    github.min.css
+    catppuccin-mocha.min.css
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>_buildHtml()</code> method in <code>CodeSnapPanel</code> resolves all of these to <code>webview.asWebviewUri()</code> paths and injects them as a JSON map that the WebView uses for theme switching:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="kd">const</span> <span class="nx">themeCssMap</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{};</span>
+<span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">t</span> <span class="k">of</span> <span class="nx">themes</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">localPath</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">.</span><span class="nf">joinPath</span><span class="p">(</span><span class="nx">stylesDir</span><span class="p">,</span> <span class="s2">`</span><span class="p">${</span><span class="nx">t</span><span class="p">}</span><span class="s2">.min.css`</span><span class="p">);</span>
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="nx">fs</span><span class="p">.</span><span class="nf">accessSync</span><span class="p">(</span><span class="nx">localPath</span><span class="p">.</span><span class="nx">fsPath</span><span class="p">);</span>
+        <span class="nx">themeCssMap</span><span class="p">[</span><span class="nx">t</span><span class="p">]</span> <span class="o">=</span> <span class="nx">webview</span><span class="p">.</span><span class="nf">asWebviewUri</span><span class="p">(</span><span class="nx">localPath</span><span class="p">).</span><span class="nf">toString</span><span class="p">();</span>
+    <span class="p">}</span> <span class="k">catch</span> <span class="p">{</span>
+        <span class="c1">// Skip missing files gracefully — theme won't appear in selector</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="nx">html</span> <span class="o">=</span> <span class="nx">html</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">\{\{</span><span class="sr">THEME_CSS_MAP</span><span class="se">\}\}</span><span class="sr">/g</span><span class="p">,</span>
+    <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">(</span><span class="nx">themeCssMap</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&lt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="se">\\</span><span class="s1">u003c</span><span class="dl">'</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/&gt;/g</span><span class="p">,</span> <span class="dl">'</span><span class="se">\\</span><span class="s1">u003e</span><span class="dl">'</span><span class="p">)</span>
+<span class="p">);</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Works completely offline. No network requests. No CDN downtime issues.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-result" href="#the-result">
+  </a>
+  The Result
+</h2>
+
+<p>Here's what the full workflow looks like:</p>
+
+<ol>
+<li>Select a function in your editor</li>
+<li>Right-click → <strong>DotShare: 📸 CodeSnap</strong> (or use the keyboard shortcut)</li>
+<li>The CodeSnap panel opens beside your editor with a live preview</li>
+<li>Adjust theme, font size, padding, line numbers, watermark — instant re-render</li>
+<li>Click <strong>🚀 Share</strong> → QuickPick: which platform?</li>
+<li>The Composer opens with the image already attached</li>
+<li>Write your caption, hit send</li>
+</ol>
+
+<p>Or — from <em>inside</em> the Composer — click <strong>📸 Add CodeSnap</strong> to open the panel mid-composition.</p>
+
+<p><strong>9 themes</strong> ship out of the box, completely free: Atom One Dark, GitHub Dark, GitHub Light, Monokai, Dracula, Nord, VS2015, Tokyo Night, Catppuccin Mocha.</p>
+
+
+<hr>
+
+<h2>
+  <a name="install-dotshare" href="#install-dotshare">
+  </a>
+  Install DotShare
+</h2>
+
+<p>The extension is free and open source.</p>
+
+<p><strong>VS Code Marketplace:</strong><br>
+<a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">marketplace.visualstudio.com/items?itemName=FreeRave.dotshare</a></p>
+
+<p><strong>Open VSX (VSCodium / Windsurf / Cursor):</strong><br>
+<a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">open-vsx.org/extension/freerave/dotshare</a></p>
+
+<p><strong>GitHub:</strong><br>
+<a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotShare</a></p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next" href="#whats-next">
+  </a>
+  What's Next
+</h2>
+
+<p>CodeSnap is v1 — there's plenty left to build:</p>
+
+<ul>
+<li>
+<strong>Custom fonts</strong>: let users point to their own monospace font</li>
+<li>
+<strong>Gradient backgrounds</strong>: mesh gradients instead of solid BG color</li>
+<li>
+<strong>Multiple files</strong>: side-by-side code panels in one image</li>
+<li>
+<strong>Animated GIF export</strong>: show code being written, line by line</li>
+</ul>
+
+<p>If any of these sound useful — or if you hit a bug — open an issue on GitHub or drop a comment below.</p>
+
+<p>And if you ship a post using CodeSnap, tag me. I want to see what you're building. 🚀</p>
+
+
+<hr>
+
+<p><em>— Kareem (FreeRave), founder of DotSuite</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-code-screenshot-tool-inside-my-vs-code-extension-heres-how-it-works-dotshare-v340-1f35" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 2
+    · <a href="https://dev.to/freerave/i-built-a-code-screenshot-tool-inside-my-vs-code-extension-heres-how-it-works-dotshare-v340-1f35#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

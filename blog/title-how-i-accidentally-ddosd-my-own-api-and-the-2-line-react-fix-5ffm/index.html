@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Accidentally DDoS'd My Own API (And the 2-Line React Fix) — FreeRave</title>
+<meta name="description" content="We've all been there. You spend days building a &quot;bulletproof&quot; backend. You set up a strict Rate...">
+<link rel="canonical" href="https://dev.to/freerave/title-how-i-accidentally-ddosd-my-own-api-and-the-2-line-react-fix-5ffm">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/title-how-i-accidentally-ddosd-my-own-api-and-the-2-line-react-fix-5ffm">
+<meta property="og:title" content="How I Accidentally DDoS'd My Own API (And the 2-Line React Fix) — FreeRave">
+<meta property="og:description" content="We've all been there. You spend days building a &quot;bulletproof&quot; backend. You set up a strict Rate...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F99abpcgchbbr4miv3xgg.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F99abpcgchbbr4miv3xgg.png" alt="">
+  <h1 class="post-title">How I Accidentally DDoS'd My Own API (And the 2-Line React Fix)</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-24T20:00:00Z">24 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#react</span><span class="post-tag">#webdev</span><span class="post-tag">#javascript</span><span class="post-tag">#typescript</span></div>
+  </div>
+  <article class="post-body">
+<p>We've all been there. You spend days building a "bulletproof" backend. You set up a strict Rate Limiter to protect your database from malicious bots and DDoS attacks. You feel like a Cybersecurity mastermind. 🛡️</p>
+
+<p>Then, you open your own app, type a few words into the search bar, and... your backend blocks YOU.</p>
+
+<p>Yep, I accidentally DDoS'd myself.</p>
+
+<p>If you want to see the exact moment my backend decided to fight back, check out this quick 30-second Short I made about the incident:<br>
+  <iframe src="https://www.youtube.com/embed/6J1J75VX8ww" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>(Wait, what actually happened?)</p>
+
+<p>The Crime: Friendly Fire<br>
+I was building a search feature for my platform, DotSuite. I wanted the search results to update automatically as the user typed. So, I wrote a standard useEffect in React to fetch the data whenever the search state changed.</p>
+
+<p>The result? For every single keystroke, my React frontend fired a new API request.<br>
+Typing "dotsuite" didn't send 1 request. It sent 8 requests in less than a second.</p>
+
+<p>My backend saw this massive spike in traffic, panicked, and did exactly what I programmed it to do: It slammed me with a massive wall of 429 Too Many Requests errors. </p>
+
+<p>The Fix: The Magic of "Debounce"<br>
+This is a classic rookie mistake, but the fix is a beautifully simple Senior Dev pattern called Debouncing.</p>
+
+<p>Instead of spamming the server instantly, we tell the frontend: "Hey, wait for the user to stop typing for 500 milliseconds. If they are quiet for half a second, THEN send the request."</p>
+
+<p>I've put together the exact code snippet showing the optimized "Debounce Code" using setTimeout and clearTimeout.</p>
+
+<p>Check out the full solution in this GitHub Gist:<br>
+</p>
+<div class="ltag_gist-liquid-tag">
+  
+</div>
+
+
+<p>Why this matters:<br>
+Saves Money: Database reads aren't free. This simple pattern cuts your database reads by 90%.</p>
+
+<p>Better UX: Your app won't stutter while trying to resolve 15 overlapping API responses.</p>
+
+<p>No more 429 Errors: Your rate limiter can actually focus on real bad actors, not your own frontend!</p>
+
+<p>Over to you!<br>
+Have you ever accidentally taken down your own app? Or written a script that backfired spectacularly? Share your "Log of Shame" in the comments below so I don't feel alone! 👇😂</p>
+
+<p>I'm FreeRave, currently building developer tools at DotSuite. Drop a follow if you love seeing the messy, behind-the-scenes reality of full-stack development!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/title-how-i-accidentally-ddosd-my-own-api-and-the-2-line-react-fix-5ffm" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/title-how-i-accidentally-ddosd-my-own-api-and-the-2-line-react-fix-5ffm#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

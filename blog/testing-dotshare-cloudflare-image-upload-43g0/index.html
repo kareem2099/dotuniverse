@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Testing DotShare Cloudflare Image Upload — FreeRave</title>
+<meta name="description" content="A quick test to verify that the DotShare image upload pipeline successfully stores images in Cloudflare R2 and detects MIME types via Magic Bytes.">
+<link rel="canonical" href="https://dev.to/freerave/testing-dotshare-cloudflare-image-upload-43g0">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/testing-dotshare-cloudflare-image-upload-43g0">
+<meta property="og:title" content="Testing DotShare Cloudflare Image Upload — FreeRave">
+<meta property="og:description" content="A quick test to verify that the DotShare image upload pipeline successfully stores images in Cloudflare R2 and detects MIME types via Magic Bytes.">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2Fdf422d57-dc76-4bfb-bc02-e2c2c38c4dec.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fpub-d57e1a7c5e7b4cabaebd11efb3aab712.r2.dev%2Fdotsuite%2Fscheduled_posts%2Fdf422d57-dc76-4bfb-bc02-e2c2c38c4dec.jpg" alt="">
+  <h1 class="post-title">Testing DotShare Cloudflare Image Upload</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-24T10:39:45Z">24 May 2026</time> · 1 min read
+    <div class="post-tags"><span class="post-tag">#test</span><span class="post-tag">#webdev</span><span class="post-tag">#rust</span><span class="post-tag">#vscode</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="testing-cloudflare-r2-integration" href="#testing-cloudflare-r2-integration">
+  </a>
+  Testing Cloudflare R2 Integration
+</h2>
+
+<p>This is a test article to verify that the <strong>DotShare Cover Image Upload</strong> feature is working perfectly with Cloudflare R2 and the Rust backend.</p>
+
+<h3>
+  <a name="what-are-we-testing" href="#what-are-we-testing">
+  </a>
+  What are we testing?
+</h3>
+
+<ol>
+<li>Selecting an image via the VS Code extension.</li>
+<li>Converting the image to a Buffer via <code>axios</code> instead of native <code>fetch</code>.</li>
+<li>Verifying that the Axum Rust server detects the magic bytes correctly.</li>
+<li>Ensuring the Cloudflare R2 upload succeeds and returns a public URL.</li>
+</ol>
+
+<p>If you can read this on Dev.to and see the cover image, then the end-to-end media upload pipeline is fully operational! 🚀</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/testing-dotshare-cloudflare-image-upload-43g0" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/testing-dotshare-cloudflare-image-upload-43g0#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

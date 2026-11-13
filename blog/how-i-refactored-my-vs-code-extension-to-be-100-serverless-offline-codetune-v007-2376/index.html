@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Refactored My VS Code Extension to be 100% Serverless &amp; Offline 🚀 (CodeTune v0.0.7) — FreeRave</title>
+<meta name="description" content="The Problem: &quot;It works on my machine&quot; 😅 I've been building CodeTune, an Islamic companion extension...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-refactored-my-vs-code-extension-to-be-100-serverless-offline-codetune-v007-2376">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-refactored-my-vs-code-extension-to-be-100-serverless-offline-codetune-v007-2376">
+<meta property="og:title" content="How I Refactored My VS Code Extension to be 100% Serverless &amp; Offline 🚀 (CodeTune v0.0.7) — FreeRave">
+<meta property="og:description" content="The Problem: &quot;It works on my machine&quot; 😅 I've been building CodeTune, an Islamic companion extension...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fglot09do6tw2j4xz0d4g.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">How I Refactored My VS Code Extension to be 100% Serverless &amp; Offline 🚀 (CodeTune v0.0.7)</h1>
+  <div class="post-meta">
+    <time datetime="2025-12-20T22:34:38Z">20 December 2025</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#javascript</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: "It works on my machine" 😅<br>
+I've been building CodeTune, an Islamic companion extension for VS Code that helps developers maintain their spiritual focus (Prayer times, Quran player, Azkar) without leaving their editor.</p>
+
+<p>In early versions, I made a classic architectural mistake: I spun up a local Express server (localhost:3000) inside the extension to handle API requests for prayer times and Hijri dates.</p>
+
+<p>The result?</p>
+
+<p>❌ Port Conflicts: If port 3000 was busy, the extension crashed.</p>
+
+<p>❌ Network Dependency: If the internet flickered, the prayer times disappeared.</p>
+
+<p>❌ Complexity: Managing a Node process alongside the VS Code Webview was a headache.</p>
+
+<p>The Solution: Going "Local-First" 🛠️<br>
+For the new v0.0.7 update, I decided to tear down the backend and rebuild it entirely within the VS Code Extension Host.</p>
+
+<p>Here is how I transformed the architecture:</p>
+
+<ol>
+<li>Mathematical Calculation vs. API Calls
+Instead of fetching prayer times from an external API (which requires internet), I integrated the adhan JavaScript library directly into the extension source.</li>
+</ol>
+
+<p>Now, the extension calculates astronomical prayer times locally on your CPU in milliseconds.</p>
+
+<p>TypeScript</p>
+
+<p>// The new logic (No more fetch calls!)<br>
+import { Coordinates, CalculationMethod, PrayerTimes } from 'adhan';</p>
+
+<p>function calculatePrayerTimes(lat, lon) {<br>
+    const coordinates = new Coordinates(lat, lon);<br>
+    const params = CalculationMethod.Egyptian();<br>
+    const prayerTimes = new PrayerTimes(coordinates, new Date(), params);</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>return prayerTimes; // Instant results!
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<p>}</p>
+
+<ol>
+<li>Solving the "Where am I?" Problem
+VS Code Webviews have strict restrictions on the Geolocation API. To solve this without annoying the user with manual inputs, I implemented IP-based Geolocation in the Extension Host.</li>
+</ol>
+
+<p>It detects the city automatically on the first run (using a simple call to ip-api), saves the coordinates locally, and then never needs the internet again for calculations.</p>
+
+<p>What's New in v0.0.7? ✨<br>
+After this refactor, the extension is faster, lighter, and more reliable.</p>
+
+<p>🌍 Zero-Config Setup: Install it, and it instantly knows your location (e.g., Asyut, Cairo, London).</p>
+
+<p>✈️ 100% Offline Support: Coding on a plane? Your prayer times and Quran player still work.</p>
+
+<p>🎨 New Visual Identity: A fresh icon representing the fusion of Code &lt; &gt; and Spirituality ●.</p>
+
+<p>🛡️ Privacy: No GPS permissions required.</p>
+
+<p>Screenshots 📸<br>
+Here is the result of the new UI with the "Dot" branding and automatic location detection:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fc5dzhc6f8u41yka4m29l.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fc5dzhc6f8u41yka4m29l.png" alt=" " loading="lazy" width="264" height="975"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn0mppli9myxcfcyezrbw.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn0mppli9myxcfcyezrbw.png" alt=" " loading="lazy" width="42" height="51"></a></p>
+
+<p>Try it out! 👇<br>
+If you are a Muslim developer looking to balance your workflow with your spiritual habits, give it a try. It's open-source and free.</p>
+
+<p>VS Code Marketplace: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune</a></p>
+
+<p>GitHub Repository: <br>
+<a href="https://github.com/kareem2099/codetune" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/codetune</a></p>
+
+<p>I'd love to hear your feedback in the comments! Have you ever had to refactor a VS Code extension?</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-refactored-my-vs-code-extension-to-be-100-serverless-offline-codetune-v007-2376" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-refactored-my-vs-code-extension-to-be-100-serverless-offline-codetune-v007-2376#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Had 3 Abandoned Apps, Then Kotlin Pulled Me Back In — FreeRave</title>
+<meta name="description" content="How I went from abandoning 3 Android apps to shipping DotReminder v0.0.5 — a full reminder app with...">
+<link rel="canonical" href="https://dev.to/freerave/i-had-3-abandoned-apps-then-kotlin-pulled-me-back-in-1kh1">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-had-3-abandoned-apps-then-kotlin-pulled-me-back-in-1kh1">
+<meta property="og:title" content="I Had 3 Abandoned Apps, Then Kotlin Pulled Me Back In — FreeRave">
+<meta property="og:description" content="How I went from abandoning 3 Android apps to shipping DotReminder v0.0.5 — a full reminder app with...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmz78a7vwp0q214chdp8z.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fmz78a7vwp0q214chdp8z.png" alt="">
+  <h1 class="post-title">I Had 3 Abandoned Apps, Then Kotlin Pulled Me Back In</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-17T11:00:00Z">17 March 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#kotlin</span><span class="post-tag">#android</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#firebase</span></div>
+  </div>
+  <article class="post-body">
+<p>How I went from abandoning 3 Android apps to shipping DotReminder v0.0.5 — a full reminder app with AI, biometrics, 2FA, and real-time sessions — in just a few months of Kotlin fun.</p>
+
+<p>Look at this screenshot. Three apps. Three ideas. Three moments of excitement that all faded into the "I'll finish it later" pile.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7ztzi6d9r4uqt52egay5.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F7ztzi6d9r4uqt52egay5.png" alt="Google Play Console showing 3 apps: DotBurn, DotReminder, shredzilla" loading="lazy"></a></p>
+
+<p><strong>DotBurn</strong> — a fitness tracker. Abandoned.<br><br>
+<strong>shredzilla</strong> — a gym app. Also abandoned.<br><br>
+<strong>DotReminder</strong> — a reminder app. <em>This one I kept going.</em></p>
+
+<p>Not because it was my best idea. Not because it had the most users. But because one quiet evening in November 2025, I opened Android Studio, looked at the Kotlin syntax, and thought:</p>
+
+<blockquote>
+<p><em>"Wait... this is actually fun."</em></p>
+</blockquote>
+
+<p>And that was it. I was hooked again.</p>
+
+<hr>
+<h2>
+  <a name="the-just-playing-around-phase-v001-%E2%86%92-v002" href="#the-just-playing-around-phase-v001-%E2%86%92-v002">
+  </a>
+  The "Just Playing Around" Phase (v0.0.1 → v0.0.2)
+</h2>
+
+<p>When I first started DotReminder back in <strong>November 2025</strong>, I wasn't building a product. I was playing. Jetpack Compose was new to me, Hilt felt like magic, and Firebase was just... there, ready to do the heavy lifting.</p>
+
+<p>The first two versions were pure chaos — in the best way:</p>
+
+<ul>
+<li>
+<strong>AI chat</strong> powered by Google Gemini for natural language reminders</li>
+<li>
+<strong>Location-based reminders</strong> with Geofencing</li>
+<li>
+<strong>5 custom themes</strong> (Ocean Blue, Forest Green, Sunset Orange, Midnight Purple, Candy)</li>
+<li>
+<strong>Biometric auth</strong>, <strong>2FA</strong>, <strong>Google + Facebook sign-in</strong>
+</li>
+<li>
+<strong>Widgets</strong> for home screen quick access</li>
+</ul>
+
+<p>Was the code clean? Absolutely not. Was it working? Mostly. Was I having fun? <strong>100%.</strong></p>
+
+<hr>
+<h2>
+  <a name="the-turning-point-v003-november-%E2%86%92-march" href="#the-turning-point-v003-november-%E2%86%92-march">
+  </a>
+  The Turning Point — v0.0.3 (November → March)
+</h2>
+
+<p>By the time I reached v0.0.3, the "playing around" phase was over. Real bugs started showing up. Real crashes. Real users (well, 2 of them 😄).</p>
+
+<p>The biggest crisis? <strong>Biometric auth was completely broken.</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>W AccountSecurityScreen: FragmentActivity not found
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The error looked simple. The fix was... embarrassing.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ The problem — MainActivity inheriting from the wrong class</span>
+<span class="kd">class</span> <span class="nc">MainActivity</span> <span class="p">:</span> <span class="nc">ComponentActivity</span><span class="p">()</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+
+<span class="c1">// ✅ The fix — AppCompatActivity extends FragmentActivity</span>
+<span class="c1">// which is what BiometricPrompt actually needs</span>
+<span class="kd">class</span> <span class="nc">MainActivity</span> <span class="p">:</span> <span class="nc">AppCompatActivity</span><span class="p">()</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That's it. One word. <code>AppCompatActivity</code> instead of <code>ComponentActivity</code>. BiometricPrompt internally uses the Fragment system, which only exists in <code>FragmentActivity</code>. <code>ComponentActivity</code> doesn't have it.</p>
+
+<p>The lesson? <strong>Always read what your dependencies actually need.</strong></p>
+
+<h3>
+  <a name="real-active-sessions" href="#real-active-sessions">
+  </a>
+  Real Active Sessions
+</h3>
+
+<p>The other big feature in v0.0.3 was replacing the mock "Active Sessions" screen with real Firestore-backed data.</p>
+
+<p>The Firestore structure:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="s">users/</span>
+  <span class="s">{userId}/</span>
+    <span class="s">sessions/</span>
+      <span class="s">{sessionId}/</span>
+        <span class="s">deviceName</span><span class="err">:</span> <span class="s2">"</span><span class="s">samsung</span><span class="nv"> </span><span class="s">SM-G991B"</span>
+        <span class="na">deviceModel</span><span class="pi">:</span> <span class="s2">"</span><span class="s">SM-G991B"</span>
+        <span class="na">loginTime</span><span class="pi">:</span> <span class="s">Timestamp</span>
+        <span class="na">lastActive</span><span class="pi">:</span> <span class="s">Timestamp</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>Session</code> model:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">data class</span> <span class="nc">Session</span><span class="p">(</span>
+    <span class="kd">val</span> <span class="py">sessionId</span><span class="p">:</span> <span class="nc">String</span> <span class="p">=</span> <span class="s">""</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="py">deviceName</span><span class="p">:</span> <span class="nc">String</span> <span class="p">=</span> <span class="s">""</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="py">deviceModel</span><span class="p">:</span> <span class="nc">String</span> <span class="p">=</span> <span class="s">""</span><span class="p">,</span>
+    <span class="kd">val</span> <span class="py">loginTime</span><span class="p">:</span> <span class="nc">Timestamp</span> <span class="p">=</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">(),</span>
+    <span class="kd">val</span> <span class="py">lastActive</span><span class="p">:</span> <span class="nc">Timestamp</span> <span class="p">=</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+<span class="p">)</span> <span class="p">{</span>
+    <span class="k">companion</span> <span class="k">object</span> <span class="p">{</span>
+        <span class="k">fun</span> <span class="nf">createForCurrentDevice</span><span class="p">(</span><span class="n">sessionId</span><span class="p">:</span> <span class="nc">String</span><span class="p">)</span> <span class="p">=</span> <span class="nc">Session</span><span class="p">(</span>
+            <span class="n">sessionId</span> <span class="p">=</span> <span class="n">sessionId</span><span class="p">,</span>
+            <span class="n">deviceName</span> <span class="p">=</span> <span class="s">"${Build.MANUFACTURER} ${Build.MODEL}"</span><span class="p">,</span>
+            <span class="n">deviceModel</span> <span class="p">=</span> <span class="nc">Build</span><span class="p">.</span><span class="nc">MODEL</span><span class="p">,</span>
+            <span class="n">loginTime</span> <span class="p">=</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">(),</span>
+            <span class="n">lastActive</span> <span class="p">=</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+        <span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>SessionRepository</code> using real-time Flow:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">getSessions</span><span class="p">(</span><span class="n">userId</span><span class="p">:</span> <span class="nc">String</span><span class="p">):</span> <span class="nc">Flow</span><span class="p">&lt;</span><span class="nc">List</span><span class="p">&lt;</span><span class="nc">Session</span><span class="p">&gt;&gt;</span> <span class="p">=</span> <span class="nf">callbackFlow</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">listener</span> <span class="p">=</span> <span class="nf">sessionsCollection</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">orderBy</span><span class="p">(</span><span class="s">"lastActive"</span><span class="p">,</span> <span class="nc">Query</span><span class="p">.</span><span class="nc">Direction</span><span class="p">.</span><span class="nc">DESCENDING</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">addSnapshotListener</span> <span class="p">{</span> <span class="n">snapshot</span><span class="p">,</span> <span class="n">error</span> <span class="p">-&gt;</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">error</span> <span class="p">!=</span> <span class="k">null</span><span class="p">)</span> <span class="p">{</span> <span class="nf">close</span><span class="p">(</span><span class="n">error</span><span class="p">);</span> <span class="k">return</span><span class="nd">@addSnapshotListener</span> <span class="p">}</span>
+            <span class="kd">val</span> <span class="py">sessions</span> <span class="p">=</span> <span class="n">snapshot</span><span class="o">?.</span><span class="n">documents</span><span class="o">?.</span><span class="nf">mapNotNull</span> <span class="p">{</span> <span class="n">doc</span> <span class="p">-&gt;</span>
+                <span class="nc">Session</span><span class="p">(</span>
+                    <span class="n">sessionId</span> <span class="p">=</span> <span class="n">doc</span><span class="p">.</span><span class="nf">getString</span><span class="p">(</span><span class="s">"sessionId"</span><span class="p">)</span> <span class="o">?:</span> <span class="n">doc</span><span class="p">.</span><span class="n">id</span><span class="p">,</span>
+                    <span class="n">deviceName</span> <span class="p">=</span> <span class="n">doc</span><span class="p">.</span><span class="nf">getString</span><span class="p">(</span><span class="s">"deviceName"</span><span class="p">)</span> <span class="o">?:</span> <span class="s">"Unknown Device"</span><span class="p">,</span>
+                    <span class="n">loginTime</span> <span class="p">=</span> <span class="n">doc</span><span class="p">.</span><span class="nf">getTimestamp</span><span class="p">(</span><span class="s">"loginTime"</span><span class="p">)</span> <span class="o">?:</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">(),</span>
+                    <span class="n">lastActive</span> <span class="p">=</span> <span class="n">doc</span><span class="p">.</span><span class="nf">getTimestamp</span><span class="p">(</span><span class="s">"lastActive"</span><span class="p">)</span> <span class="o">?:</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+                <span class="p">)</span>
+            <span class="p">}</span> <span class="o">?:</span> <span class="nf">emptyList</span><span class="p">()</span>
+            <span class="nf">trySend</span><span class="p">(</span><span class="n">sessions</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="nf">awaitClose</span> <span class="p">{</span> <span class="n">listener</span><span class="p">.</span><span class="nf">remove</span><span class="p">()</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And of course — the Firestore Rules were missing the <code>sessions</code> subcollection. Classic.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="nx">match</span> <span class="o">/</span><span class="nx">users</span><span class="o">/</span><span class="p">{</span><span class="nx">userId</span><span class="p">}</span> <span class="p">{</span>
+  <span class="nx">allow</span> <span class="nx">read</span><span class="p">,</span> <span class="na">write</span><span class="p">:</span> <span class="k">if</span> <span class="nx">request</span><span class="p">.</span><span class="nx">auth</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="nx">request</span><span class="p">.</span><span class="nx">auth</span><span class="p">.</span><span class="nx">uid</span> <span class="o">==</span> <span class="nx">userId</span><span class="p">;</span>
+
+  <span class="c1">// ✅ Don't forget subcollections!</span>
+  <span class="nx">match</span> <span class="o">/</span><span class="nx">sessions</span><span class="o">/</span><span class="p">{</span><span class="nx">sessionId</span><span class="p">}</span> <span class="p">{</span>
+    <span class="nx">allow</span> <span class="nx">read</span><span class="p">,</span> <span class="na">write</span><span class="p">:</span> <span class="k">if</span> <span class="nx">request</span><span class="p">.</span><span class="nx">auth</span> <span class="o">!=</span> <span class="kc">null</span> <span class="o">&amp;&amp;</span> <span class="nx">request</span><span class="p">.</span><span class="nx">auth</span><span class="p">.</span><span class="nx">uid</span> <span class="o">==</span> <span class="nx">userId</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-agp-90-migration-v004" href="#the-agp-90-migration-v004">
+  </a>
+  The AGP 9.0 Migration — v0.0.4
+</h2>
+
+<p>March 2026. AGP 9.0 dropped and broke basically everything.</p>
+
+<p>Here's what I had to change in <code>libs.versions.toml</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight toml"><code><span class="nn">[versions]</span>
+<span class="py">agp</span> <span class="p">=</span> <span class="s">"9.1.0"</span>
+<span class="py">kotlin</span> <span class="p">=</span> <span class="s">"2.3.10"</span>
+<span class="py">ksp</span> <span class="p">=</span> <span class="s">"2.3.6"</span>  <span class="c"># First version compatible with AGP 9.0</span>
+
+<span class="nn">[plugins]</span>
+<span class="c"># ❌ Remove these — they're built-in since AGP 9.0</span>
+<span class="c"># kotlin-android = { id = "org.jetbrains.kotlin.android" }</span>
+<span class="c"># kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose" }</span>
+<span class="c"># kotlin-kapt = { id = "org.jetbrains.kotlin.kapt" }</span>
+
+<span class="c"># ✅ Keep only these</span>
+<span class="py">android-application</span> <span class="o">=</span> <span class="p">{</span> <span class="py">id</span> <span class="p">=</span> <span class="s">"com.android.application"</span><span class="p">,</span> <span class="py">version.ref</span> <span class="p">=</span> <span class="s">"agp"</span> <span class="p">}</span>
+<span class="py">ksp</span> <span class="o">=</span> <span class="p">{</span> <span class="py">id</span> <span class="p">=</span> <span class="s">"com.google.devtools.ksp"</span><span class="p">,</span> <span class="py">version.ref</span> <span class="p">=</span> <span class="s">"ksp"</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And in <code>app/build.gradle.kts</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ Old kapt</span>
+<span class="nf">kapt</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">hilt</span><span class="p">.</span><span class="n">compiler</span><span class="p">)</span>
+
+<span class="c1">// ✅ New KSP — faster and AGP 9.0 compatible</span>
+<span class="nf">ksp</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">hilt</span><span class="p">.</span><span class="n">compiler</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Also had to add this to <code>gradle.properties</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight properties"><code><span class="py">android.disallowKotlinSourceSets</span><span class="p">=</span><span class="s">false</span>
+<span class="py">org.gradle.java.home</span><span class="p">=</span><span class="s">/usr/lib/jvm/java-21-openjdk-amd64</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The KSP migration alone cut my build time by roughly 30%.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-big-cleanup-v005" href="#the-big-cleanup-v005">
+  </a>
+  The Big Cleanup — v0.0.5
+</h2>
+
+<p>This is where things got interesting. The app was <strong>95 MB</strong>. Not acceptable.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span><span class="nb">du</span> <span class="nt">-sh</span> app/src/main/assets/backgrounds/home/<span class="k">*</span>
+6.4M  candy_home.mp4
+17M   forest_green_home.mp4
+1.9M  midnight_purple_home.mp4
+17M   ocean_blue_home.mp4
+9.2M  sunset_orange_home.mp4
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>74MB of video backgrounds.</strong> I was using ExoPlayer to play them on the home screen. </p>
+
+<p>The fix was simple: delete them, replace with pure Compose gradients.</p>
+
+<p>Before:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ 74MB of videos + ExoPlayer dependency + Cloudinary CDN</span>
+<span class="nc">VideoBackgroundPlayer</span><span class="p">(</span>
+    <span class="n">videoPath</span> <span class="p">=</span> <span class="s">"backgrounds/home/ocean_blue_home.mp4"</span><span class="p">,</span>
+    <span class="n">modifier</span> <span class="p">=</span> <span class="nc">Modifier</span><span class="p">.</span><span class="nf">fillMaxSize</span><span class="p">()</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>After:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ✅ Zero bytes, works offline, renders instantly</span>
+<span class="kd">val</span> <span class="py">OceanBlueDarkGradient</span> <span class="p">=</span> <span class="nc">Brush</span><span class="p">.</span><span class="nf">radialGradient</span><span class="p">(</span>
+    <span class="n">colors</span> <span class="p">=</span> <span class="nf">listOf</span><span class="p">(</span>
+        <span class="nc">Color</span><span class="p">(</span><span class="mh">0xFF0D47A1</span><span class="p">),</span> <span class="c1">// Deep navy</span>
+        <span class="nc">Color</span><span class="p">(</span><span class="mh">0xFF1565C0</span><span class="p">),</span> <span class="c1">// Royal blue</span>
+        <span class="nc">Color</span><span class="p">(</span><span class="mh">0xFF1976D2</span><span class="p">),</span> <span class="c1">// Ocean blue</span>
+        <span class="nc">Color</span><span class="p">(</span><span class="mh">0xFF42A5F5</span><span class="p">),</span> <span class="c1">// Light ocean blue</span>
+        <span class="nc">Color</span><span class="p">(</span><span class="mh">0xFF0D47A1</span><span class="p">)</span>  <span class="c1">// Back to deep navy</span>
+    <span class="p">),</span>
+    <span class="n">center</span> <span class="p">=</span> <span class="nc">Offset</span><span class="p">(</span><span class="mf">0.7f</span><span class="p">,</span> <span class="mf">0.3f</span><span class="p">),</span>
+    <span class="n">radius</span> <span class="p">=</span> <span class="mf">1000f</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Result: <strong>95 MB → 20.5 MB</strong>. An 78% reduction in one commit.</p>
+
+<h3>
+  <a name="upgrading-the-ai-brain" href="#upgrading-the-ai-brain">
+  </a>
+  Upgrading the AI Brain
+</h3>
+
+<p>While I was at it, I upgraded the Gemini model from <code>2.0-flash</code> to <code>2.5-flash</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// Before</span>
+<span class="n">generativeModel</span> <span class="p">=</span> <span class="nc">GenerativeModel</span><span class="p">(</span>
+    <span class="n">modelName</span> <span class="p">=</span> <span class="s">"gemini-2.0-flash"</span><span class="p">,</span>
+    <span class="n">apiKey</span> <span class="p">=</span> <span class="nc">BuildConfig</span><span class="p">.</span><span class="nc">GEMINI_API_KEY</span>
+<span class="p">)</span>
+
+<span class="c1">// After — faster, smarter, Arabic + English native support</span>
+<span class="n">generativeModel</span> <span class="p">=</span> <span class="nc">GenerativeModel</span><span class="p">(</span>
+    <span class="n">modelName</span> <span class="p">=</span> <span class="s">"gemini-2.5-flash"</span><span class="p">,</span>
+    <span class="n">apiKey</span> <span class="p">=</span> <span class="nc">BuildConfig</span><span class="p">.</span><span class="nc">GEMINI_API_KEY</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And the most satisfying addition — a JSON extractor that turns natural language into structured reminder data:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">suspend</span> <span class="k">fun</span> <span class="nf">parseReminderToJSON</span><span class="p">(</span><span class="n">userInput</span><span class="p">:</span> <span class="nc">String</span><span class="p">):</span> <span class="nc">String</span><span class="p">?</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">currentMillis</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span>
+
+    <span class="kd">val</span> <span class="py">prompt</span> <span class="p">=</span> <span class="s">"""
+        You are a strict Data Extraction AI for a Reminder App.
+        You must support both Arabic and English natively.
+
+        Current Time in Milliseconds: $currentMillis
+
+        Output ONLY a valid JSON object:
+        {
+          "title": "Cleaned up task title",
+          "reminderTime": 1712345678000,
+          "isRecurring": false,
+          "category": "Work"
+        }
+
+        User Input: "$userInput"
+    """</span><span class="p">.</span><span class="nf">trimIndent</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="k">try</span> <span class="p">{</span>
+        <span class="nf">withContext</span><span class="p">(</span><span class="nc">Dispatchers</span><span class="p">.</span><span class="nc">IO</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kd">val</span> <span class="py">response</span> <span class="p">=</span> <span class="n">generativeModel</span><span class="o">!!</span><span class="p">.</span><span class="nf">generateContent</span><span class="p">(</span><span class="n">prompt</span><span class="p">)</span>
+            <span class="n">response</span><span class="p">.</span><span class="n">text</span>
+                <span class="o">?.</span><span class="nf">replace</span><span class="p">(</span><span class="s">"```
+</span><span class="p">{%</span> <span class="n">endraw</span> <span class="p">%}</span>
+<span class="n">json</span><span class="s">", "")
+</span>                <span class="o">?.</span><span class="nf">replace</span><span class="p">(</span><span class="s">"
+</span><span class="p">{%</span> <span class="n">raw</span> <span class="p">%}</span>
+<span class="err">```</span><span class="s">", "")
+</span>                <span class="o">?.</span><span class="nf">trim</span><span class="p">()</span>
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">catch</span> <span class="p">(</span><span class="n">e</span><span class="p">:</span> <span class="nc">Exception</span><span class="p">)</span> <span class="p">{</span> <span class="k">null</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now in <code>AiViewModel</code>, instead of regex-based NLP parsing:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ Old NLP approach — fragile regex</span>
+<span class="kd">val</span> <span class="py">parsedInfo</span> <span class="p">=</span> <span class="nc">NLPUtils</span><span class="p">.</span><span class="nf">parseReminderText</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+
+<span class="c1">// ✅ New Gemini JSON approach — understands context and Arabic</span>
+<span class="kd">val</span> <span class="py">jsonString</span> <span class="p">=</span> <span class="n">geminiService</span><span class="p">.</span><span class="nf">parseReminderToJSON</span><span class="p">(</span><span class="n">userMessageText</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="p">(!</span><span class="n">jsonString</span><span class="p">.</span><span class="nf">isNullOrBlank</span><span class="p">())</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">cleanJson</span> <span class="p">=</span> <span class="n">jsonString</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="s">"```
+</span><span class="p">{%</span> <span class="n">endraw</span> <span class="p">%}</span>
+<span class="n">json</span><span class="s">", "").replace("</span>
+<span class="p">{%</span> <span class="n">raw</span> <span class="p">%}</span>
+<span class="err">```</span><span class="s">", "").trim()
+</span>    <span class="kd">val</span> <span class="py">json</span> <span class="p">=</span> <span class="nc">Gson</span><span class="p">().</span><span class="nf">fromJson</span><span class="p">(</span><span class="n">cleanJson</span><span class="p">,</span> <span class="nc">JsonObject</span><span class="o">::</span><span class="k">class</span><span class="p">.</span><span class="n">java</span><span class="p">)</span>
+
+    <span class="kd">val</span> <span class="py">title</span> <span class="p">=</span> <span class="k">if</span> <span class="p">(</span><span class="n">json</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="s">"title"</span><span class="p">))</span> <span class="n">json</span><span class="p">.</span><span class="k">get</span><span class="p">(</span><span class="s">"title"</span><span class="p">).</span><span class="n">asString</span> <span class="k">else</span> <span class="s">""</span>
+    <span class="kd">val</span> <span class="py">reminderTime</span> <span class="p">=</span> <span class="k">if</span> <span class="p">(</span><span class="n">json</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="s">"reminderTime"</span><span class="p">)</span> <span class="p">&amp;&amp;</span> <span class="p">!</span><span class="n">json</span><span class="p">.</span><span class="k">get</span><span class="p">(</span><span class="s">"reminderTime"</span><span class="p">).</span><span class="n">isJsonNull</span><span class="p">)</span>
+        <span class="n">json</span><span class="p">.</span><span class="k">get</span><span class="p">(</span><span class="s">"reminderTime"</span><span class="p">).</span><span class="n">asLong</span> <span class="k">else</span> <span class="k">null</span>
+    <span class="kd">val</span> <span class="py">category</span> <span class="p">=</span> <span class="k">if</span> <span class="p">(</span><span class="n">json</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="s">"category"</span><span class="p">))</span> <span class="n">json</span><span class="p">.</span><span class="k">get</span><span class="p">(</span><span class="s">"category"</span><span class="p">).</span><span class="n">asString</span> <span class="k">else</span> <span class="s">"Other"</span>
+
+    <span class="c1">// Save to Firestore</span>
+    <span class="kd">val</span> <span class="py">reminder</span> <span class="p">=</span> <span class="nc">Reminder</span><span class="p">(</span>
+        <span class="n">id</span> <span class="p">=</span> <span class="nc">UUID</span><span class="p">.</span><span class="nf">randomUUID</span><span class="p">().</span><span class="nf">toString</span><span class="p">(),</span>
+        <span class="n">title</span> <span class="p">=</span> <span class="n">title</span><span class="p">,</span>
+        <span class="n">category</span> <span class="p">=</span> <span class="n">category</span><span class="p">,</span>
+        <span class="n">reminderTime</span> <span class="p">=</span> <span class="n">reminderTime</span><span class="o">!!</span><span class="p">,</span>
+        <span class="n">userId</span> <span class="p">=</span> <span class="n">currentUserId</span>
+    <span class="p">)</span>
+    <span class="n">reminderService</span><span class="p">.</span><span class="nf">addReminder</span><span class="p">(</span><span class="n">reminder</span><span class="p">)</span>
+    <span class="n">_chatMessages</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="nc">ChatMessage</span><span class="p">(</span><span class="n">text</span> <span class="p">=</span> <span class="s">"Done! '$title' added ✅"</span><span class="p">,</span> <span class="n">sender</span> <span class="p">=</span> <span class="nc">SenderType</span><span class="p">.</span><span class="nc">AI</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v006" href="#whats-next-v006">
+  </a>
+  What's Next — v0.0.6
+</h2>
+
+<p>The roadmap is clear:</p>
+
+<ol>
+<li>
+<strong>Real Change Password</strong> — Still using a mock implementation. Time to fix it.
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// 🚧 Current — shameful mock</span>
+<span class="n">_changePasswordState</span><span class="p">.</span><span class="n">value</span> <span class="p">=</span> <span class="nc">ChangePasswordState</span><span class="p">.</span><span class="nc">Success</span><span class="p">(</span><span class="s">"Password changed (mock)."</span><span class="p">)</span>
+
+<span class="c1">// ✅ Planned — real Firebase re-auth</span>
+<span class="n">firebaseAuth</span><span class="p">.</span><span class="n">currentUser</span><span class="o">?.</span><span class="nf">reauthenticateAndRetrieveData</span><span class="p">(</span><span class="n">credential</span><span class="p">)</span><span class="o">?.</span><span class="nf">await</span><span class="p">()</span>
+<span class="n">firebaseAuth</span><span class="p">.</span><span class="n">currentUser</span><span class="o">?.</span><span class="nf">updatePassword</span><span class="p">(</span><span class="n">newPassword</span><span class="p">)</span><span class="o">?.</span><span class="nf">await</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<ol>
+<li><p><strong>Calendar Feature</strong> — The screen exists, it just needs the reminders mapped to dates.</p></li>
+<li><p><strong>AI in AddReminderScreen</strong> — Using <code>parseReminderToJSON</code> not just in chat but in the add reminder flow too.</p></li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="the-real-takeaway" href="#the-real-takeaway">
+  </a>
+  The Real Takeaway
+</h2>
+
+<p>Looking at that Play Console screenshot — 3 apps, 2 abandoned — I could feel bad about DotBurn and shredzilla. But I don't.</p>
+
+<p>Because every line of Kotlin I wrote in those apps taught me something. The AGP migration, the BiometricPrompt quirks, the Firestore Rules gotchas, the ExoPlayer RAM usage — all of it was lessons paid in abandoned projects.</p>
+
+<p>DotReminder is what happens when those lessons finally compound.</p>
+
+<p><strong>versionCode 6. versionName 0.0.5. Still going.</strong> 🚀</p>
+
+
+<hr>
+
+<h2>
+  <a name="links" href="#links">
+  </a>
+  Links
+</h2>
+
+<ul>
+<li>
+<strong>GitHub</strong>: <a href="https://github.com/kareem2099/DotReminder" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotReminder</a>
+</li>
+<li>
+<strong>Google Play</strong>: <a href="https://play.google.com/store/apps/details?id=com.FreeRave.remindme" target="_blank" rel="noopener noreferrer">DotReminder on Play Store</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>If you're also sitting on 3 abandoned projects right now — pick one. Just one. And keep going.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-had-3-abandoned-apps-then-kotlin-pulled-me-back-in-1kh1" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-had-3-abandoned-apps-then-kotlin-pulled-me-back-in-1kh1#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

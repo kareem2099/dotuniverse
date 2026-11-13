@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>The Hotfix Chronicles: What Broke After the Nexus Release and How I Fixed It (v1.5.2 &amp; v1.5.3) — FreeRave</title>
+<meta name="description" content="I promised I'd fix it. Here's exactly what broke in DotGhostBoard after v1.5.1 — PyInstaller...">
+<link rel="canonical" href="https://dev.to/freerave/the-hotfix-chronicles-what-broke-after-the-nexus-release-and-how-i-fixed-it-v152-v153-46o2">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/the-hotfix-chronicles-what-broke-after-the-nexus-release-and-how-i-fixed-it-v152-v153-46o2">
+<meta property="og:title" content="The Hotfix Chronicles: What Broke After the Nexus Release and How I Fixed It (v1.5.2 &amp; v1.5.3) — FreeRave">
+<meta property="og:description" content="I promised I'd fix it. Here's exactly what broke in DotGhostBoard after v1.5.1 — PyInstaller...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fot8tf97cx4keuj0t040s.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fot8tf97cx4keuj0t040s.png" alt="">
+  <h1 class="post-title">The Hotfix Chronicles: What Broke After the Nexus Release and How I Fixed It (v1.5.2 &amp; v1.5.3)</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-17T12:46:26Z">17 April 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#linux</span><span class="post-tag">#devops</span><span class="post-tag">#playwright</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="i-promised-id-fix-it-heres-exactly-what-broke-in-dotghostboard-after-v151-pyinstaller-frozen-environments-insecure-tmp-update-paths-missing-ui-assets-and-a-polkit-regression-and-how-each-one-was-resolved" href="#i-promised-id-fix-it-heres-exactly-what-broke-in-dotghostboard-after-v151-pyinstaller-frozen-environments-insecure-tmp-update-paths-missing-ui-assets-and-a-polkit-regression-and-how-each-one-was-resolved">
+  </a>
+  I promised I'd fix it. Here's exactly what broke in DotGhostBoard after v1.5.1 — PyInstaller frozen environments, insecure /tmp update paths, missing UI assets, and a polkit regression — and how each one was resolved.
+</h2>
+
+<blockquote>
+<p>This is a follow-up to <a href="https://dev.to/freerave/engineering-the-nexus-release-how-i-built-secure-e2ee-network-sync-into-a-linux-clipboard-manager-3ocd">Engineering the Nexus Release</a>. At the end of that article I wrote: <em>"Stay tuned for v2.0.0 Cerberus."</em> Before Cerberus ships, there's something I owe you — the full post-mortem on what broke in production immediately after that release.</p>
+</blockquote>
+
+<p>Check out the v1.5.3 highlight reel to see the new Live Terminal and Network Sync in action:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/vqDU_tnvLy0" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-happened-after-v151-shipped" href="#what-happened-after-v151-shipped">
+  </a>
+  What Happened After v1.5.1 Shipped
+</h2>
+
+<p>The Nexus architecture held. mDNS discovery worked. E2EE pairing worked. The sync engine worked.</p>
+
+<p>What didn't work: <strong>the UI didn't load on any bundled build.</strong></p>
+
+<p>Users who downloaded the <code>.AppImage</code> or <code>.deb</code> were greeted with a white window. No stylesheet. No dark theme. Just a blank Qt frame. The app was running — but blind.</p>
+
+<p>That was the beginning of the <code>v1.5.2 → v1.5.3</code> hotfix sprint.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bug-1-the-white-window-pyinstaller-frozen-environment" href="#bug-1-the-white-window-pyinstaller-frozen-environment">
+  </a>
+  Bug 1 — The White Window (PyInstaller Frozen Environment)
+</h2>
+
+<h3>
+  <a name="root-cause" href="#root-cause">
+  </a>
+  Root Cause
+</h3>
+
+<p>When PyInstaller bundles an app, it doesn't just copy files — it extracts them into a temporary directory at runtime called <code>sys._MEIPASS</code>. The problem is that code like this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ❌ Breaks in bundled builds
+</span><span class="n">base</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">dirname</span><span class="p">(</span><span class="n">__file__</span><span class="p">)</span>
+<span class="n">qss_path</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="sh">"</span><span class="s">ui</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">ghost.qss</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>...works perfectly when you run <code>python main.py</code> from source, because <code>__file__</code> points to the project root. But inside a frozen <code>.AppImage</code>, <code>__file__</code> resolves to a virtual path inside the bundle — and <code>ghost.qss</code> is nowhere near it.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>  Source mode:    __file__ → /home/user/DotGhostBoard/core/app.py  ✅
+  Frozen mode:    __file__ → /tmp/_MEI3xk9/core/app.py             ✅
+                  ghost.qss → ???                                   ❌
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The UI stylesheet <code>ghost.qss</code> simply couldn't be found. Qt silently fell back to its default theme. White window.</p>
+
+<h3>
+  <a name="the-fix-raw-resourcepath-endraw-bridge" href="#the-fix-raw-resourcepath-endraw-bridge">
+  </a>
+  The Fix: <code>resource_path</code> Bridge
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/paths.py
+</span><span class="kn">import</span> <span class="n">os</span>
+<span class="kn">import</span> <span class="n">sys</span>
+
+
+<span class="k">def</span> <span class="nf">_base_dir</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Detect whether we</span><span class="sh">'</span><span class="s">re running from source or a PyInstaller bundle.
+    In frozen mode, all assets are extracted to sys._MEIPASS at runtime.
+    </span><span class="sh">"""</span>
+    <span class="k">if</span> <span class="nf">getattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="sh">"</span><span class="s">frozen</span><span class="sh">"</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="ow">and</span> <span class="nf">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="sh">"</span><span class="s">_MEIPASS</span><span class="sh">"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">sys</span><span class="p">.</span><span class="n">_MEIPASS</span>          <span class="c1"># PyInstaller extraction folder
+</span>    <span class="k">return</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">dirname</span><span class="p">(</span>           <span class="c1"># two levels up from core/paths.py
+</span>        <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">dirname</span><span class="p">(</span><span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">abspath</span><span class="p">(</span><span class="n">__file__</span><span class="p">))</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">resource_path</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Build an absolute path to any bundled asset, regardless of runtime mode.
+
+    Usage:
+        resource_path(</span><span class="sh">"</span><span class="s">ui</span><span class="sh">"</span><span class="s">, </span><span class="sh">"</span><span class="s">ghost.qss</span><span class="sh">"</span><span class="s">)   →  /tmp/_MEIxxxx/ui/ghost.qss
+        resource_path(</span><span class="sh">"</span><span class="s">data</span><span class="sh">"</span><span class="s">, </span><span class="sh">"</span><span class="s">icon.png</span><span class="sh">"</span><span class="s">)  →  /home/user/Project/data/icon.png
+    </span><span class="sh">"""</span>
+    <span class="k">return</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nf">_base_dir</span><span class="p">(),</span> <span class="o">*</span><span class="n">parts</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Decision flow:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>  App requests: resource_path("ui", "ghost.qss")
+                          │
+                    is_frozen?
+                   /         \
+                 Yes           No
+                  │             │
+          sys._MEIPASS    Project Root
+                  │             │
+    /tmp/_MEIxxxx/ui/ghost.qss  /home/user/.../ui/ghost.qss
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Every asset reference in the codebase was updated to go through <code>resource_path()</code>. The white window was gone.</p>
+
+<h3>
+  <a name="the-ci-side-of-this-bug" href="#the-ci-side-of-this-bug">
+  </a>
+  The CI Side of This Bug
+</h3>
+
+<p>But wait — local builds worked. CI builds didn't. Why?</p>
+
+<p>Because the PyInstaller command in the workflow was missing the <code>--add-data</code> directive for the UI directory:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># ❌ v1.5.1 — ghost.qss never made it into the bundle</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Build</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">pyinstaller --noconsole --onedir \</span>
+      <span class="s">--add-data "data:data" \</span>
+      <span class="s">--hidden-import "PyQt6.sip" \</span>
+      <span class="s">--name dotghostboard main.py</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># ✅ v1.5.3 — explicitly map the UI directory</span>
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Build</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">pyinstaller --noconsole --onedir \</span>
+      <span class="s">--add-data "data:data" \</span>
+      <span class="s">--add-data "ui/ghost.qss:ui" \    # ← this line was the missing piece</span>
+      <span class="s">--hidden-import "PyQt6.sip" \</span>
+      <span class="s">--hidden-import "cryptography" \</span>
+      <span class="s">--hidden-import "cryptography.hazmat.primitives.asymmetric.x25519" \</span>
+      <span class="s">--hidden-import "cryptography.hazmat.primitives.ciphers.aead" \</span>
+      <span class="s">--name dotghostboard main.py</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>--add-data</code> syntax is <code>"source:dest"</code> — it maps the source path on the build machine to the relative path inside <code>_MEIPASS</code>. Without it, PyInstaller doesn't know the file exists and silently skips it.</p>
+
+<blockquote>
+<p><strong>The deceptive part:</strong> local <code>pyinstaller</code> builds work because <code>pyinstaller</code> finds <code>ui/ghost.qss</code> relative to the working directory. The GitHub Actions runner has a clean checkout with the same structure — but without explicit <code>--add-data</code>, the file is excluded from the bundle spec. Same command, different behavior depending on how PyInstaller resolves paths in its analysis phase.</p>
+</blockquote>
+
+<p>You can verify any <code>.deb</code> build has the file:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dpkg <span class="nt">-c</span> dotghostboard_1.5.3_amd64.deb | <span class="nb">grep </span>ui/
+<span class="c"># Expected: ... _internal/ui/ghost.qss</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="bug-2-insecure-update-download-path" href="#bug-2-insecure-update-download-path">
+  </a>
+  Bug 2 — Insecure Update Download Path
+</h2>
+
+<p>In <code>v1.5.1</code>, the in-app "Download Update" feature used <code>/tmp/</code> as the staging area:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ❌ v1.5.1
+</span><span class="n">download_path</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">/tmp/dotghostboard_</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s">_amd64.deb</span><span class="sh">"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>/tmp/</code> is world-readable, world-writable, and wiped on reboot. For a one-time download that's fine. For a security tool that downloads and installs packages — it's a TOCTOU (Time-Of-Check to Time-Of-Use) attack surface. An attacker with local access could replace the <code>.deb</code> between download and installation.</p>
+
+<h3>
+  <a name="the-fix-userspecific-sandbox" href="#the-fix-userspecific-sandbox">
+  </a>
+  The Fix: User-Specific Sandbox
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ✅ v1.5.2+
+</span><span class="kn">import</span> <span class="n">os</span>
+
+<span class="k">def</span> <span class="nf">get_update_staging_dir</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Returns a user-specific, restricted directory for staging update packages.
+    Created with mode 0o700 — only the owning user can read or write.
+    </span><span class="sh">"""</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span>
+        <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">expanduser</span><span class="p">(</span><span class="sh">"</span><span class="s">~</span><span class="sh">"</span><span class="p">),</span>
+        <span class="sh">"</span><span class="s">.local</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">share</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">dotghostboard</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">updates</span><span class="sh">"</span>
+    <span class="p">)</span>
+    <span class="n">os</span><span class="p">.</span><span class="nf">makedirs</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="mo">0o700</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">path</span>
+
+<span class="n">SAFE_PATH</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nf">get_update_staging_dir</span><span class="p">(),</span> <span class="sa">f</span><span class="sh">"</span><span class="s">dotghostboard_</span><span class="si">{</span><span class="n">version</span><span class="si">}</span><span class="s">_amd64.deb</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th>v1.5.1</th>
+<th>v1.5.2+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Download path</td>
+<td><code>/tmp/</code></td>
+<td><code>~/.local/share/dotghostboard/updates/</code></td>
+</tr>
+<tr>
+<td>Readable by other users</td>
+<td>Yes</td>
+<td>No (<code>0o700</code>)</td>
+</tr>
+<tr>
+<td>Survives reboot</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Integrity check</td>
+<td>None</td>
+<td>SHA-256 (v1.5.3)</td>
+</tr>
+</tbody>
+</table></div>
+
+<h3>
+  <a name="the-kamikaze-installer" href="#the-kamikaze-installer">
+  </a>
+  The Kamikaze Installer
+</h3>
+
+<p>The install script itself also needed hardening. After <code>dpkg -i</code> finishes, no artifacts should remain:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c">#!/bin/sh</span>
+<span class="c"># dotghostboard_install.sh — self-destructs after use</span>
+
+<span class="nv">SAFE_PATH</span><span class="o">=</span><span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span>
+
+dpkg <span class="nt">-i</span> <span class="s2">"</span><span class="nv">$SAFE_PATH</span><span class="s2">"</span>   <span class="c"># Install the package</span>
+<span class="nb">rm</span> <span class="nt">-f</span> <span class="s2">"</span><span class="nv">$SAFE_PATH</span><span class="s2">"</span>     <span class="c"># Wipe the .deb from disk</span>
+<span class="nb">rm</span> <span class="nt">-f</span> <span class="s2">"</span><span class="nv">$0</span><span class="s2">"</span>             <span class="c"># Wipe this script itself</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Nothing lingers. No old <code>.deb</code> sitting in a directory. No script to be re-executed.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bug-3-polkit-suid-regression-on-kali" href="#bug-3-polkit-suid-regression-on-kali">
+  </a>
+  Bug 3 — Polkit SUID Regression on Kali
+</h2>
+
+<p>Kali Linux (and some hardened Arch setups) occasionally strip or reset the SUID bit on <code>/usr/bin/pkexec</code> after system updates. This caused the in-app "Download &amp; Install" button to fail silently — <code>pkexec</code> would return a permission error, and the UI would just hang.</p>
+
+<p>The fix was embedded directly in the package's <code>postinst</code> script — it runs as <code>root</code> immediately after <code>dpkg -i</code> completes:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c">#!/bin/sh</span>
+<span class="c"># DEBIAN/postinst</span>
+
+<span class="nb">set</span> <span class="nt">-e</span>
+
+fix_pkexec<span class="o">()</span> <span class="o">{</span>
+    <span class="nv">PKEXEC</span><span class="o">=</span><span class="s2">"/usr/bin/pkexec"</span>
+    <span class="k">if</span> <span class="o">[</span> <span class="nt">-f</span> <span class="s2">"</span><span class="nv">$PKEXEC</span><span class="s2">"</span> <span class="o">]</span><span class="p">;</span> <span class="k">then
+        </span><span class="nv">CURRENT_PERMS</span><span class="o">=</span><span class="si">$(</span><span class="nb">stat</span> <span class="nt">-c</span> <span class="s2">"%a"</span> <span class="s2">"</span><span class="nv">$PKEXEC</span><span class="s2">"</span><span class="si">)</span>
+        <span class="k">if</span> <span class="o">[</span> <span class="s2">"</span><span class="nv">$CURRENT_PERMS</span><span class="s2">"</span> <span class="o">!=</span> <span class="s2">"4755"</span> <span class="o">]</span><span class="p">;</span> <span class="k">then
+            </span><span class="nb">echo</span> <span class="s2">"dotghostboard: repairing pkexec SUID bit (</span><span class="nv">$CURRENT_PERMS</span><span class="s2"> → 4755)"</span>
+            <span class="nb">chmod </span>4755 <span class="s2">"</span><span class="nv">$PKEXEC</span><span class="s2">"</span>
+        <span class="k">fi
+    fi</span>
+<span class="o">}</span>
+
+<span class="k">case</span> <span class="s2">"</span><span class="nv">$1</span><span class="s2">"</span> <span class="k">in
+    </span>configure<span class="p">)</span>
+        fix_pkexec
+        <span class="p">;;</span>
+<span class="k">esac</span>
+
+<span class="nb">exit </span>0
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Logic flow:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight console"><code><span class="go">  dpkg -i dotghostboard_1.5.3_amd64.deb
+         │
+         └── postinst runs as root
+                  │
+            /usr/bin/pkexec exists?
+                  │
+            current perms == 4755?
+            /              \
+          Yes               No
+           │                 │
+         Skip           chmod 4755
+                             │
+                    "Download &amp; Install" works
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is controversial — touching SUID bits in a <code>postinst</code> script is aggressive. But the alternative is users filing issues that are impossible to debug remotely, or writing a setup guide that says "run <code>chmod 4755 /usr/bin/pkexec</code> after installing." The autorepair is the lesser evil.</p>
+
+
+<hr>
+
+<h2>
+  <a name="feature-live-terminal-log-v153" href="#feature-live-terminal-log-v153">
+  </a>
+  Feature: Live Terminal Log (v1.5.3)
+</h2>
+
+<p>While fixing the above bugs, I replaced the old "Please Wait..." dialog during updates with a live terminal stream. It felt wrong to show a spinner while <code>dpkg</code> was doing real work with real output.</p>
+
+<h3>
+  <a name="architecture" href="#architecture">
+  </a>
+  Architecture
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/update_log_screen.py
+</span><span class="kn">from</span> <span class="n">PyQt6.QtCore</span> <span class="kn">import</span> <span class="n">QThread</span><span class="p">,</span> <span class="n">pyqtSignal</span>
+<span class="kn">import</span> <span class="n">subprocess</span>
+
+
+<span class="k">class</span> <span class="nc">InstallWorker</span><span class="p">(</span><span class="n">QThread</span><span class="p">):</span>
+    <span class="n">log_line</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>   <span class="c1"># emitted for every line of dpkg output
+</span>    <span class="n">finished</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>   <span class="c1"># exit code
+</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">script_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="nf">super</span><span class="p">().</span><span class="nf">__init__</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">script_path</span> <span class="o">=</span> <span class="n">script_path</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="n">process</span> <span class="o">=</span> <span class="n">subprocess</span><span class="p">.</span><span class="nc">Popen</span><span class="p">(</span>
+            <span class="p">[</span><span class="sh">"</span><span class="s">bash</span><span class="sh">"</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">script_path</span><span class="p">],</span>
+            <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">PIPE</span><span class="p">,</span>
+            <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">STDOUT</span><span class="p">,</span>   <span class="c1"># merge stderr into stdout
+</span>            <span class="n">text</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+            <span class="n">bufsize</span><span class="o">=</span><span class="mi">1</span>                   <span class="c1"># line-buffered
+</span>        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">process</span><span class="p">.</span><span class="n">stdout</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">log_line</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">line</span><span class="p">.</span><span class="nf">rstrip</span><span class="p">())</span>
+
+        <span class="n">process</span><span class="p">.</span><span class="nf">wait</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">finished</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">process</span><span class="p">.</span><span class="n">returncode</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>On the UI side:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Color mapping — Regex-based, no AI required
+</span><span class="kn">import</span> <span class="n">re</span>
+<span class="kn">from</span> <span class="n">PyQt6.QtGui</span> <span class="kn">import</span> <span class="n">QColor</span>
+
+<span class="n">COLOR_MAP</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">'</span><span class="s">\berror\b</span><span class="sh">'</span><span class="p">,</span>   <span class="n">re</span><span class="p">.</span><span class="n">I</span><span class="p">),</span> <span class="sh">"</span><span class="s">#FF5555</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># red
+</span>    <span class="p">(</span><span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">'</span><span class="s">\bwarning\b</span><span class="sh">'</span><span class="p">,</span> <span class="n">re</span><span class="p">.</span><span class="n">I</span><span class="p">),</span> <span class="sh">"</span><span class="s">#FFB86C</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># amber
+</span>    <span class="p">(</span><span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">'</span><span class="s">\bSetting up\b|\bProcessing\b</span><span class="sh">'</span><span class="p">),</span> <span class="sh">"</span><span class="s">#50FA7B</span><span class="sh">"</span><span class="p">),</span>  <span class="c1"># green
+</span>    <span class="p">(</span><span class="n">re</span><span class="p">.</span><span class="nf">compile</span><span class="p">(</span><span class="sa">r</span><span class="sh">'</span><span class="s">^--</span><span class="sh">'</span><span class="p">),</span>                             <span class="sh">"</span><span class="s">#8BE9FD</span><span class="sh">"</span><span class="p">),</span>  <span class="c1"># cyan for steps
+</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">colorize</span><span class="p">(</span><span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">pattern</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="n">COLOR_MAP</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">pattern</span><span class="p">.</span><span class="nf">search</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="sh">'</span><span class="s">&lt;span style=</span><span class="sh">"</span><span class="s">color:</span><span class="si">{</span><span class="n">color</span><span class="si">}</span><span class="sh">"</span><span class="s">&gt;</span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s">&lt;/span&gt;</span><span class="sh">'</span>
+    <span class="k">return</span> <span class="n">line</span>  <span class="c1"># default — white
+</span>
+<span class="k">def</span> <span class="nf">on_log_line</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">line</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">log_box</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="nf">colorize</span><span class="p">(</span><span class="n">line</span><span class="p">))</span>
+    <span class="c1"># Auto-scroll to bottom
+</span>    <span class="n">sb</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">log_box</span><span class="p">.</span><span class="nf">verticalScrollBar</span><span class="p">()</span>
+    <span class="n">sb</span><span class="p">.</span><span class="nf">setValue</span><span class="p">(</span><span class="n">sb</span><span class="p">.</span><span class="nf">maximum</span><span class="p">())</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The blinking cursor is driven by a <code>QTimer</code> — no threads, no complexity:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">self</span><span class="p">.</span><span class="n">_cursor_visible</span> <span class="o">=</span> <span class="bp">True</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_cursor_timer</span> <span class="o">=</span> <span class="nc">QTimer</span><span class="p">()</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_cursor_timer</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_blink_cursor</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_cursor_timer</span><span class="p">.</span><span class="nf">start</span><span class="p">(</span><span class="mi">500</span><span class="p">)</span>  <span class="c1"># 500ms interval
+</span>
+<span class="k">def</span> <span class="nf">_blink_cursor</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_cursor_visible</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">_cursor_visible</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">cursor_label</span><span class="p">.</span><span class="nf">setText</span><span class="p">(</span><span class="sh">"</span><span class="s">█</span><span class="sh">"</span> <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">_cursor_visible</span> <span class="k">else</span> <span class="sh">"</span><span class="s"> </span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="verification-checklist" href="#verification-checklist">
+  </a>
+  Verification Checklist
+</h2>
+
+<p>For any future hotfix, these three commands confirm the build is clean:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># 1. Confirm ghost.qss is inside the bundle</span>
+dpkg <span class="nt">-c</span> dotghostboard_1.5.3_amd64.deb | <span class="nb">grep </span>ui/
+<span class="c"># Expected: ./opt/dotghostboard/_internal/ui/ghost.qss</span>
+
+<span class="c"># 2. Verify SUID bit post-install</span>
+<span class="nb">ls</span> <span class="nt">-l</span> /usr/bin/pkexec
+<span class="c"># Expected: -rwsr-xr-x (the 's' in position 4 is the SUID bit)</span>
+
+<span class="c"># 3. Test resource_path in frozen mode (AppImage)</span>
+./DotGhostBoard-1.5.3-x86_64.AppImage <span class="nt">--debug-paths</span>
+<span class="c"># Should print resolved paths for ghost.qss and icon_256.png</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="what-i-learned" href="#what-i-learned">
+  </a>
+  What I Learned
+</h2>
+
+<p><strong>PyInstaller's <code>--add-data</code> is not optional for anything outside <code>data/</code>.</strong> If your app loads a file at runtime that isn't in the directory you passed to <code>--add-data</code>, it won't be in the bundle. PyInstaller doesn't warn you. The app just crashes or falls back silently. Map every resource directory explicitly.</p>
+
+<p><strong><code>sys._MEIPASS</code> is the only reliable truth in a frozen environment.</strong> Don't use <code>__file__</code>, don't use <code>os.getcwd()</code>, don't use relative paths. <code>_MEIPASS</code> is where PyInstaller extracted everything — it's the only path you can trust.</p>
+
+<p><strong><code>/tmp/</code> is fine for scratch. It's not fine for security-sensitive staging.</strong> The threat model for a clipboard manager that stores secrets is different from a text editor. The update pipeline needed to match that model.</p>
+
+<p><strong>Local builds working ≠ CI builds working.</strong> The <code>ghost.qss</code> bug existed for the entire <code>v1.5.x</code> series in bundled form because nobody had tested a clean AppImage build from the CI artifact — only local PyInstaller runs. Add artifact smoke testing to your release checklist.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v200-cerberus" href="#whats-next-v200-cerberus">
+  </a>
+  What's Next — v2.0.0 Cerberus
+</h2>
+
+<p>The hotfix series is closed. v1.5.3 is stable.</p>
+
+<p>Next up is <strong>Cerberus</strong> — the Zero-Knowledge Password Vault. The AES-256 foundation from v1.4.0 (Eclipse) is already in place. The design is locked:</p>
+
+<ul>
+<li>Isolated <code>vault.db</code> — separate file, separate connection, locked when idle</li>
+<li>Pattern-based secret detection — JWT, AWS keys (<code>AKIA...</code>), GitHub tokens (<code>ghp_...</code>), high-entropy hex — shape-based, not keyword-based</li>
+<li>Auto-clear: wipes clipboard 30 seconds after a Vault paste</li>
+<li>Paranoia Mode: suspends all DB writes on demand</li>
+</ul>
+
+<p>The core principle of Cerberus: a 1500-word article that contains the word "password" doesn't trigger detection. A 40-character base64 string with high Shannon entropy does.</p>
+
+
+<hr>
+
+<h2>
+  <a name="download" href="#download">
+  </a>
+  Download
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📦 GitHub Release (AppImage + DEB + GPG sigs)</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.3" target="_blank" rel="noopener noreferrer">v1.5.3</a></td>
+</tr>
+<tr>
+<td>🖥️ OpenDesktop</td>
+<td><a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard</a></td>
+</tr>
+<tr>
+<td>💻 Source</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">kareem2099/DotGhostBoard</a></td>
+</tr>
+</tbody>
+</table></div>
+
+<p><em>DotSuite — built for the shadows</em> 👻</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/the-hotfix-chronicles-what-broke-after-the-nexus-release-and-how-i-fixed-it-v152-v153-46o2" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 0
+    · <a href="https://dev.to/freerave/the-hotfix-chronicles-what-broke-after-the-nexus-release-and-how-i-fixed-it-v152-v153-46o2#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

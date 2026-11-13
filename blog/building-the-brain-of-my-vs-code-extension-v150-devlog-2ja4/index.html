@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building the Brain of My VS Code Extension 🧠 (v1.5.0 Devlog) — FreeRave</title>
+<meta name="description" content="🚀 UPDATE: DotCommand v1.5.0 is officially LIVE! &amp;gt; To prove the engine is flawless (and my PC...">
+<link rel="canonical" href="https://dev.to/freerave/building-the-brain-of-my-vs-code-extension-v150-devlog-2ja4">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-the-brain-of-my-vs-code-extension-v150-devlog-2ja4">
+<meta property="og:title" content="Building the Brain of My VS Code Extension 🧠 (v1.5.0 Devlog) — FreeRave">
+<meta property="og:description" content="🚀 UPDATE: DotCommand v1.5.0 is officially LIVE! &amp;gt; To prove the engine is flawless (and my PC...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxfu4mqtspsyejru7ngc2.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxfu4mqtspsyejru7ngc2.png" alt="">
+  <h1 class="post-title">Building the Brain of My VS Code Extension 🧠 (v1.5.0 Devlog)</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-18T11:00:00Z">18 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#opensource</span><span class="post-tag">#showdev</span></div>
+  </div>
+  <article class="post-body">
+<blockquote>
+<p><strong>🚀 UPDATE: DotCommand v1.5.0 is officially LIVE!</strong> &gt; To prove the engine is flawless (and my PC finally survived the test suite 😂), I ran the tests again. Watch 60 complex ML assertions pass in just 16 milliseconds:<br>
+  <iframe src="https://www.youtube.com/embed/v8QXmbE_m1Y" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p><em>Read the original architecture breakdown below 👇</em></p>
+</blockquote>
+
+<p>  <iframe src="https://www.youtube.com/embed/i8cDPwwrDyc" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>Development on DotCommand v1.5.0 is officially wrapping up! </p>
+
+<p>We are calling this update "The Intelligence Foundation."</p>
+
+<p>Before rolling out the massive UI overhaul planned for v2.0, I needed to ensure the backend was smart enough to handle it. I didn't just want a "command runner"; I wanted an assistant that actually learns from you.</p>
+
+<p>Here is a look behind the scenes at the new architecture. </p>
+
+<p>What's New in the "Brain"?<br>
+I’ve refactored the core engine to include:</p>
+
+<p>Local Analytics Engine: A privacy-first system that tracks usage patterns locally. It knows which commands you use most and when.</p>
+
+<p>Machine Learning Suggestions: A heuristic model that ranks commands based on Frequency + Recency + Context. It adapts to your workflow in real-time.</p>
+
+<p>Package Intelligence: The extension now parses your package.json dependencies to suggest relevant install commands automatically.</p>
+
+<p>Custom Context Rules: You can now define your own JSON-based triggers for specific templates.</p>
+
+<p>🐢 The "Hardware Struggle" (A Dev's Reality)<br>
+If you watched the video above closely, you might have noticed a couple of red "Fail" markers in the test runner at the end. 😅</p>
+
+<p>Full disclosure: The code is optimized (running mostly under 5ms), but my faithful old PC... well, let's just say it was fighting for its life trying to run the full test suite AND record the screen at 1080p simultaneously.</p>
+
+<p>The "timeout" errors were just my CPU screaming for help, not logic bugs. It’s a classic case of "Code is ready, Hardware is tired." </p>
+
+<p>🚀 What's Next?<br>
+This backend update lays the groundwork for v2.0.0, where we will visualize all this data in a stunning new Dashboard Webview.</p>
+
+<p>DotCommand v1.5.0 will be live on the Marketplace very soon.</p>
+
+<p>Let me know what you think about adding ML to developer tools! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-the-brain-of-my-vs-code-extension-v150-devlog-2ja4" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/building-the-brain-of-my-vs-code-extension-v150-devlog-2ja4#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

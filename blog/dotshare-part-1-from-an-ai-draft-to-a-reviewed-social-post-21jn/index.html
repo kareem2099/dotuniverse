@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare Part 1: From an AI draft to a reviewed social post — FreeRave</title>
+<meta name="description" content="Install DotShare, connect Codex to its local MCP server, and review and publish the same draft from VS Code.">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-part-1-from-an-ai-draft-to-a-reviewed-social-post-21jn">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-part-1-from-an-ai-draft-to-a-reviewed-social-post-21jn">
+<meta property="og:title" content="DotShare Part 1: From an AI draft to a reviewed social post — FreeRave">
+<meta property="og:description" content="Install DotShare, connect Codex to its local MCP server, and review and publish the same draft from VS Code.">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F1uayumig4qg8wfw1gf6a.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F1uayumig4qg8wfw1gf6a.png" alt="">
+  <h1 class="post-title">DotShare Part 1: From an AI draft to a reviewed social post</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-09T18:07:44Z">9 November 2026</time> · 4 min read
+    <div class="post-tags"><span class="post-tag">#mcp</span><span class="post-tag">#vscode</span><span class="post-tag">#opensource</span><span class="post-tag">#tutorial</span></div>
+  </div>
+  <article class="post-body">
+<p>The first time I published through the new DotShare workflow, the post started as a draft in Codex. I opened that draft in VS Code, reviewed the saved preview, and clicked publish. DotShare recorded which revision went out and returned the link to the public Mastodon post. <a href="https://mastodon.social/@FreeRave/117574826108449747" target="_blank" rel="noopener noreferrer">See the test post</a>.</p>
+
+<p>That’s the workflow I wanted to build. I can give an agent the context for a release, then pick up the draft in the editor and see what each account is about to receive. The text, preview, and receipt stay together in one local library.</p>
+
+<p>DotShare started as an open-source VS Code extension for sharing developer updates. Release <strong>3.6.0</strong> adds the shared Publishing Library. The companion <strong><code>dotshare-cli</code> 3.0.0</strong> package adds a local <a href="https://modelcontextprotocol.io/" target="_blank" rel="noopener noreferrer">Model Context Protocol (MCP)</a> server and the terminal commands that work with the same library. <a href="https://github.com/kareem2099/DotShare/releases/tag/v3.6.0" target="_blank" rel="noopener noreferrer">GitHub release</a>.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnn3is54sv3by56qba9l5.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnn3is54sv3by56qba9l5.png" alt="Codex or another MCP client saves a draft, VS Code reviews the same local draft, and DotShare delivers the saved preview to the selected platform." loading="lazy" width="800" height="303"></a></p>
+
+<h2>
+  <a name="install-the-cli-and-connect-codex" href="#install-the-cli-and-connect-codex">
+  </a>
+  Install the CLI and connect Codex
+</h2>
+
+<p>Use Node.js 22.12 or newer and an unlocked OS credential store. On Linux, the CLI uses Secret Service. Install the extension as well if you want to review the draft in VS Code. <a href="https://www.npmjs.com/package/dotshare-cli" target="_blank" rel="noopener noreferrer">npm package</a> · <a href="https://marketplace.visualstudio.com/items?itemName=freerave.dotshare" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a> · <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX</a>.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>npm <span class="nb">install</span> <span class="nt">-g</span> dotshare-cli
+dotshare-agent setup
+dotshare-agent doctor
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>setup</code> starts the local MCP server to verify its handshake, then writes the DotShare entry to Codex’s configuration. <code>doctor</code> checks the launcher, configuration, local storage, and MCP connection. Restart or reconnect Codex after setup so it picks up the new entry. The server exposes 23 tools for accounts, drafts, templates, previews, delivery history, and cloud scheduling. The agent supplies the copy and DotShare handles the publishing workflow. Other MCP clients can use the configuration snippet from <code>dotshare-agent setup --client generic</code>. <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md" target="_blank" rel="noopener noreferrer">Agent setup guide</a>.</p>
+
+<p>Connect a named account. I used Mastodon because I could verify the whole path against a public post.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotshare-agent accounts add personal-mastodon <span class="nt">--platform</span> mastodon
+dotshare-agent doctor <span class="nt">--account</span> personal-mastodon
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Enter the instance and access token in the terminal prompts. DotShare stores credentials in the OS keyring. The agent sees the account ID, and <code>doctor --account</code> checks identity without creating a post.</p>
+
+<p>The CLI can target Mastodon, Bluesky, X, LinkedIn, Telegram, Discord, and Dev.to. Supported content depends on the platform. For example, Mastodon, Bluesky, and X support threads. For local images, add an explicit allowed directory such as <code>dotshare-agent setup --media-root /absolute/path/to/images</code> and reconnect the client. <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md" target="_blank" rel="noopener noreferrer">Platform and media details</a>.</p>
+
+<h2>
+  <a name="save-the-draft-in-codex" href="#save-the-draft-in-codex">
+  </a>
+  Save the draft in Codex
+</h2>
+
+<p>In Codex, start with one destination and a small test message.</p>
+
+<blockquote>
+<p>Use DotShare to save a draft titled “My first DotShare post” for <code>personal-mastodon</code> with the text “Hello from DotShare!” Leave it in Draft so I can review it in VS Code.</p>
+</blockquote>
+
+<p>The agent calls <code>create_draft</code> and gets a draft ID, a revision, and the state <code>Draft</code>. A draft can be incomplete, so you can start with copy and choose accounts later. It’s saved in the shared local library as soon as the tool returns successfully.</p>
+
+<h2>
+  <a name="open-the-same-draft-in-vs-code" href="#open-the-same-draft-in-vs-code">
+  </a>
+  Open the same draft in VS Code
+</h2>
+
+<p>Open the Command Palette and choose <strong>DotShare: Open Publishing Library</strong>. Pick <strong>My first DotShare post</strong>. The library connects to the configured local DotShare server, so the draft you open is the same saved record that Codex created. You can edit the shared copy, choose accounts, write a thread, or review a different version for each account. <a href="https://dotsuite.dev/en/product/dotshare/docs/publishing-library" target="_blank" rel="noopener noreferrer">Publishing Library guide</a>.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fq22iu0u7pzj3tskfhn36.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fq22iu0u7pzj3tskfhn36.png" alt="The Publishing Library with a saved draft on the left, shared post content in the middle, and a customized version for a selected account on the right." loading="lazy" width="799" height="529"></a></p>
+
+<p><em>Publishing Library preview with example accounts and draft content.</em></p>
+
+<p>Select <strong>Prepare preview</strong>. Check the destination, final text, thread parts, and media in the saved preview. Editing the draft after this point invalidates that preview. If you make a change, save it and prepare a fresh one.</p>
+
+<p>When you’re happy with it, select <strong>Publish this saved preview</strong>. The result shows the delivery state per account and a receipt URL when the platform returns one. In my Mastodon test, the draft ended at <code>Published</code>, and the receipt opened the public post linked above.</p>
+
+<h2>
+  <a name="reuse-the-workflow-for-a-real-release" href="#reuse-the-workflow-for-a-real-release">
+  </a>
+  Reuse the workflow for a real release
+</h2>
+
+<p>The library includes five starter templates. A template can hold placeholders such as <code>{{version}}</code> and <code>{{link}}</code>, plus variations for specific platforms or accounts. Fill it with verified release details and save it as a draft. That draft has its own revisions, so you can edit the template later and keep the original draft and receipt for reference.</p>
+
+<p>For a release, I start with one set of facts and review each destination’s version. A short Mastodon update can use the shared copy, while LinkedIn can use a different introduction. If I override the text only, the version still inherits the shared images. The preview is where I check the actual output for every destination. <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md#reusable-templates-and-account-versions" target="_blank" rel="noopener noreferrer">Templates and account versions</a>.</p>
+
+<p>Part 2 covers how DotShare binds approval to a specific revision, keeps track of uncertain deliveries, and migrates the local library to encrypted storage.</p>
+
+<p><em>I used AI assistance to draft and edit this write-up. The workflow is based on the shipped implementation and the linked Mastodon test.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-part-1-from-an-ai-draft-to-a-reviewed-social-post-21jn" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 2
+    · <a href="https://dev.to/freerave/dotshare-part-1-from-an-ai-draft-to-a-reviewed-social-post-21jn#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>unior Devs Write Code. Senior Devs Delete It. — FreeRave</title>
+<meta name="description" content="We often glorify adding new features, shipping fast, and &quot;getting things done.&quot; But sometimes, the...">
+<link rel="canonical" href="https://dev.to/freerave/unior-devs-write-code-senior-devs-delete-it-5d">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/unior-devs-write-code-senior-devs-delete-it-5d">
+<meta property="og:title" content="unior Devs Write Code. Senior Devs Delete It. — FreeRave">
+<meta property="og:description" content="We often glorify adding new features, shipping fast, and &quot;getting things done.&quot; But sometimes, the...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fe8aqab4viqbi31hoatwp.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">unior Devs Write Code. Senior Devs Delete It.</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-20T10:00:00Z">20 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#refactoring</span><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#cleancode</span></div>
+  </div>
+  <article class="post-body">
+<p>We often glorify adding new features, shipping fast, and "getting things done." But sometimes, the most productive thing you can do is stop, look at your codebase, and admit: <em>"This is a mess."</em></p>
+
+<p>For the past few months, I've been building <strong>DotShare</strong>, a VS Code extension that helps developers share code snippets to social media. It works great. Users love it. But under the hood? It was a nightmare.</p>
+
+<p>This is the story of how I refactored a massive <strong>2000+ line monolithic file</strong> into a pristine <strong>Clean Architecture</strong> in 24 hours.</p>
+
+<h2>
+  <a name="the-transformation-watch-in-30s" href="#the-transformation-watch-in-30s">
+  </a>
+  🎥 The Transformation (Watch in 30s)
+</h2>
+
+<p>Words are cheap. Here is the actual footage of deleting 2,000 lines of spaghetti code. Pure satisfaction.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/zN12CR0IXFY" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<h2>
+  <a name="the-problem-the-monolithic-class-trap" href="#the-problem-the-monolithic-class-trap">
+  </a>
+  🍝 The Problem: The "Monolithic Class" Trap
+</h2>
+
+<p>I fell into the classic trap. I started with one file: <code>DotShareProvider.ts</code>.<br>
+At first, it was 200 lines. "Manageable," I thought.<br>
+Then I added LinkedIn support. Then Telegram. Then AI caption generation.</p>
+
+<p>Before I knew it, I was staring at a <strong>2000-line beast</strong>.</p>
+
+<ul>
+<li>The logic was tightly coupled with the UI.</li>
+<li>Authentication tokens were being handled in the same class as UI rendering.</li>
+<li>Debugging meant scrolling... and scrolling... and scrolling.</li>
+</ul>
+
+<h2>
+  <a name="the-solution-clean-architecture" href="#the-solution-clean-architecture">
+  </a>
+  🧹 The Solution: Clean Architecture
+</h2>
+
+<p>I decided to stop "patching" and start "engineering." I spent 24 hours rewriting the core architecture from scratch.</p>
+
+<h3>
+  <a name="1-breaking-the-monolith" href="#1-breaking-the-monolith">
+  </a>
+  1. Breaking the Monolith
+</h3>
+
+<p>I moved away from the single-file approach and adopted a modular structure based on <strong>Single Responsibility Principle (SRP)</strong>.</p>
+
+<ul>
+<li>
+<strong>Services:</strong> <code>HistoryService</code>, <code>AnalyticsService</code> (Pure logic).</li>
+<li>
+<strong>Handlers:</strong> <code>PostHandler</code>, <code>ConfigHandler</code> (Bridge between UI and Services).</li>
+<li>
+<strong>UI:</strong> <code>DotShareProvider</code> (Strictly for rendering).</li>
+</ul>
+
+<p><strong>The Result?</strong><br>
+Instead of one file doing everything, I now have 9 focused files. Each one does exactly <em>one</em> thing well.</p>
+
+<h2>
+  <a name="the-security-upgrade" href="#the-security-upgrade">
+  </a>
+  🛡️ The Security Upgrade
+</h2>
+
+<p>This was the most critical part. Previously, I stored tokens in <code>globalState</code> (plain JSON).<br>
+I migrated everything to <strong>VS Code's SecretStorage API</strong>.</p>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>
+typescript
+// Old Way (Insecure)
+this.context.globalState.update('linkedinToken', token);
+
+// New Way (Enterprise Security)
+await this.context.secrets.store('linkedinToken', token);
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/unior-devs-write-code-senior-devs-delete-it-5d" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/unior-devs-write-code-senior-devs-delete-it-5d#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

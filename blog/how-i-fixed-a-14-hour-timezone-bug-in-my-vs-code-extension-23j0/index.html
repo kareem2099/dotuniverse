@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Fixed a 14-Hour Timezone Bug in My VS Code Extension 🕒🐛 — FreeRave</title>
+<meta name="description" content="💀 The Nightmare: &quot;Why is my post 14 hours late?&quot;   I recently released a major update for my...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-fixed-a-14-hour-timezone-bug-in-my-vs-code-extension-23j0">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-fixed-a-14-hour-timezone-bug-in-my-vs-code-extension-23j0">
+<meta property="og:title" content="How I Fixed a 14-Hour Timezone Bug in My VS Code Extension 🕒🐛 — FreeRave">
+<meta property="og:description" content="💀 The Nightmare: &quot;Why is my post 14 hours late?&quot;   I recently released a major update for my...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcqe6dxbdpesmtutan52s.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">How I Fixed a 14-Hour Timezone Bug in My VS Code Extension 🕒🐛</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-22T10:00:00Z">22 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#javascript</span><span class="post-tag">#debugging</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="the-nightmare-why-is-my-post-14-hours-late" href="#the-nightmare-why-is-my-post-14-hours-late">
+  </a>
+  💀 The Nightmare: "Why is my post 14 hours late?"
+</h2>
+
+<p>I recently released a major update for my VS Code extension, <strong>DotShare</strong>, which allows developers to schedule social media posts directly from their editor.</p>
+
+<p>Everything seemed perfect in testing... until I tried to schedule a post for <strong>12:00 PM</strong>.<br>
+Instead of posting at noon, the scheduler fired at <strong>2:00 AM the next day</strong>.</p>
+
+<p><strong>A 14-hour delay.</strong> 😱</p>
+
+<h3>
+  <a name="the-investigation" href="#the-investigation">
+  </a>
+  🔍 The Investigation
+</h3>
+
+<p>I dug into the logs and realized I was falling into the classic <strong>Timezone Trap</strong>:</p>
+
+<ol>
+<li> <strong>The Input:</strong> The HTML <code>datetime-local</code> input gives a local time string (e.g., <code>2026-01-21T12:00</code>).</li>
+<li> <strong>The Mistake:</strong> I was converting this string directly using <code>toISOString()</code>, which assumed the input was UTC and subtracted my local offset (Egypt is UTC+2).</li>
+<li> <strong>The Result:</strong> * 12:00 PM Local -&gt; becomes 10:00 AM UTC in storage.
+
+<ul>
+<li>But my Scheduler Logic was comparing <code>new Date()</code> (Local) vs the Stored UTC.</li>
+<li>
+<strong>Math:</strong> 12 hours (AM/PM confusion) + 2 hours (Timezone offset) = <strong>14 Hours lag.</strong>
+</li>
+</ul>
+</li>
+</ol>
+
+<h3>
+  <a name="the-fix-trust-no-string-use-unix-timestamps" href="#the-fix-trust-no-string-use-unix-timestamps">
+  </a>
+  🛠️ The Fix: Trust No String, Use Unix Timestamps
+</h3>
+
+<p>I decided to nuke the complex Date object comparisons and go back to basics: <strong>Milliseconds</strong>.</p>
+
+<p>Here is the refactored logic that solved it instantly:</p>
+
+<h4>
+  <a name="1-the-storage-neutral-ground" href="#1-the-storage-neutral-ground">
+  </a>
+  1. The Storage (Neutral Ground)
+</h4>
+
+<p>Instead of fighting with Timezones, I store everything as a standardized ISO string, but I convert user input strictly based on Local Time first.</p>
+
+<h4>
+  <a name="2-the-scheduler-the-refree" href="#2-the-scheduler-the-refree">
+  </a>
+  2. The Scheduler (The "Refree")
+</h4>
+
+<p>I changed the comparison logic to use <code>.getTime()</code>. This compares the absolute number of milliseconds since the Unix Epoch, ignoring timezones completely.</p>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>
+typescript
+// Inside my Scheduler Service
+public getScheduledPostsDue(now: Date = new Date()): ScheduledPost[] {
+    const posts = this.loadScheduledPosts();
+    const nowTime = now.getTime(); // Absolute milliseconds
+
+    return posts.filter(p =&gt; {
+        const scheduledDate = new Date(p.scheduledTime);
+        const scheduledTime = scheduledDate.getTime();
+
+        // Debugging the exact moment
+        console.log(`[SCHEDULER DEBUG] Post ${p.id}: due=${scheduledTime &lt;= nowTime}`);
+
+        return p.status === 'scheduled' &amp;&amp; scheduledTime &lt;= nowTime;
+    });
+}
+
+✅ The Result: Zero Latency
+After refactoring, I tested it live. I set the schedule for 3:12 PM, and the Telegram message arrived the exact second the clock turned.
+
+Watch the fix in action (50 sec):
+
+  <iframe src="https://www.youtube.com/embed/sSKcS0ABF5M" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+
+
+🧠 Lessons Learned
+Never trust datetime-local: Always parse it explicitly before sending it to your backend/storage.
+
+Logs are your best friend: Adding [SCHEDULER DEBUG] logs saved me hours of guessing.
+
+Math.floor is key: APIs like Telegram expect timestamps in Seconds, JavaScript gives Milliseconds. Always Math.floor(date.getTime() / 1000).
+
+👋 I'm Freerave I build developer tools and VS Code extensions. If you found this helpful, check out DotShare on the VS Code Marketplace!
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-fixed-a-14-hour-timezone-bug-in-my-vs-code-extension-23j0" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-fixed-a-14-hour-timezone-bug-in-my-vs-code-extension-23j0#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

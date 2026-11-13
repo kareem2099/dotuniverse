@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I built an Encrypted Vault for .env files inside VS Code — FreeRave</title>
+<meta name="description" content="Let’s be honest: Handling .env files is a headache. We all know we shouldn't commit them to Git, but...">
+<link rel="canonical" href="https://dev.to/freerave/-i-built-an-encrypted-vault-for-env-files-inside-vs-code-3bcd">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/-i-built-an-encrypted-vault-for-env-files-inside-vs-code-3bcd">
+<meta property="og:title" content="I built an Encrypted Vault for .env files inside VS Code — FreeRave">
+<meta property="og:description" content="Let’s be honest: Handling .env files is a headache. We all know we shouldn't commit them to Git, but...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frjdcnpzq5hd882beb34l.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frjdcnpzq5hd882beb34l.png" alt="">
+  <h1 class="post-title">I built an Encrypted Vault for .env files inside VS Code</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-30T12:00:00Z">30 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#security</span><span class="post-tag">#opensource</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<p><strong>Let’s be honest:</strong> Handling <code>.env</code> files is a headache. We all know we shouldn't commit them to Git, but what about local backups?</p>
+
+<p>I realized that while I was being careful with <code>.gitignore</code>, I was casually copy-pasting <code>.env</code> files to <code>.env.old</code> or <code>.env.backup</code> on my disk... <strong>in plain text</strong>. </p>
+
+<p>If anyone (or any malicious script) got access to my machine, my Stripe keys and DB credentials were sitting there like an open book.</p>
+
+<p>So, I spent the last weekend rewriting the backup engine for my VS Code extension, <strong>DotEnvy</strong>, to fix this.</p>
+
+<h2>
+  <a name="meet-dotenvy-v140" href="#meet-dotenvy-v140">
+  </a>
+  Meet DotEnvy v1.4.0 🚀
+</h2>
+
+<p>I just released version 1.4.0, which introduces <strong>AES-256 Encrypted Backups</strong>. It allows you to snapshot your environment variables and lock them behind a password directly within VS Code.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/YH5yNUyN4Kk" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<h3>
+  <a name="under-the-hood-for-the-geeks" href="#under-the-hood-for-the-geeks">
+  </a>
+  🛠️ Under the Hood (For the Geeks)
+</h3>
+
+<p>I didn't want "fake security" (like Base64 encoding). I wanted something I could trust with my own production keys.</p>
+
+<p>Here is the crypto stack I implemented:</p>
+
+<ol>
+<li> <strong>Algorithm:</strong> <code>AES-256-GCM</code> (Authenticated Encryption). This ensures that if the backup file is tampered with (even one bit flipped), the decryption will fail instantly.</li>
+<li> <strong>Key Derivation:</strong> <code>PBKDF2</code> with <strong>310,000 iterations</strong> and <code>SHA-256</code>. This makes brute-forcing the password computationally expensive.</li>
+<li> <strong>Salt &amp; IV:</strong> Every single backup generates a unique, cryptographically secure random Salt and Initialization Vector.</li>
+</ol>
+
+<h3>
+  <a name="performance" href="#performance">
+  </a>
+  ⚡ Performance
+</h3>
+
+<p>You might think 310k iterations would be slow. I optimized the implementation to keep the encryption overhead around <strong>~170ms</strong> for a standard <code>.env</code> file. It feels instant.</p>
+
+<h3>
+  <a name="crossplatform-portability" href="#crossplatform-portability">
+  </a>
+  🌍 Cross-Platform Portability
+</h3>
+
+<p>The coolest part? Since the encryption is standard, you can:</p>
+
+<ol>
+<li> Backup your <code>.env</code> on your <strong>Linux</strong> workstation.</li>
+<li> Sync the encrypted file (via Dropbox/Drive/whatever).</li>
+<li> Restore it on your <strong>Mac</strong> or <strong>Windows</strong> laptop just by entering the password.</li>
+</ol>
+
+<h3>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  🔗 Try it out
+</h3>
+
+<p>It's open source and free. I'd love to hear your feedback or see your PRs!</p>
+
+<ul>
+<li>📥 <strong>VS Code Marketplace:</strong> <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotenvy" target="_blank" rel="noopener noreferrer">DotEnvy - VS Code Extension</a>
+</li>
+<li>🦊 <strong>Open VSX (VSCodium):</strong> <a href="https://open-vsx.org/extension/freerave/dotenvy" target="_blank" rel="noopener noreferrer">DotEnvy on Open VSX</a>
+</li>
+<li>⭐ <strong>GitHub Repo:</strong> <a href="https://github.com/kareem2099/dotenvy" target="_blank" rel="noopener noreferrer">kareem2099/dotenvy</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p><em>If you find this useful, a star on GitHub would make my day! Happy coding!</em> 👨‍💻</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/-i-built-an-encrypted-vault-for-env-files-inside-vs-code-3bcd" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 3
+    · <a href="https://dev.to/freerave/-i-built-an-encrypted-vault-for-env-files-inside-vs-code-3bcd#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

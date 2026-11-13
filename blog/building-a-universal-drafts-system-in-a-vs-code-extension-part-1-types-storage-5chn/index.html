@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building a Universal Drafts System in a VS Code Extension — Part 1: Types &amp; Storage — FreeRave</title>
+<meta name="description" content="How I designed the Draft type, DraftsService, and the save/upsert flow that powers DotShare...">
+<link rel="canonical" href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-1-types-storage-5chn">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-1-types-storage-5chn">
+<meta property="og:title" content="Building a Universal Drafts System in a VS Code Extension — Part 1: Types &amp; Storage — FreeRave">
+<meta property="og:description" content="How I designed the Draft type, DraftsService, and the save/upsert flow that powers DotShare...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fajh7y0oc0oznicwcipyf.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fajh7y0oc0oznicwcipyf.png" alt="">
+  <h1 class="post-title">Building a Universal Drafts System in a VS Code Extension — Part 1: Types &amp; Storage</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-25T17:40:45Z">25 April 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#opensource</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-i-designed-the-draft-type-draftsservice-and-the-saveupsert-flow-that-powers-dotshare-v325-with-full-typescript-code-and-the-decisions-behind-every-choice" href="#how-i-designed-the-draft-type-draftsservice-and-the-saveupsert-flow-that-powers-dotshare-v325-with-full-typescript-code-and-the-decisions-behind-every-choice">
+  </a>
+  How I designed the Draft type, DraftsService, and the save/upsert flow that powers DotShare v3.2.5 — with full TypeScript code and the decisions behind every choice.
+</h2>
+
+<p>Before v3.2.5, DotShare had zero persistence. Write a 2,000-word Dev.to article in the WebView, switch tabs to check something, come back — gone. Reset. Empty form.</p>
+
+<p>So I built a drafts system. This is Part 1: how I modeled the data and built the storage layer.</p>
+
+<blockquote>
+<p><strong>Part 2</strong> covers the Two-Way Markdown Sync, Remote Dev.to Drafts, the WebView UI, and the Split-Editor workflow.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-with-webviews" href="#the-problem-with-webviews">
+  </a>
+  The Problem with WebViews
+</h2>
+
+<p>VS Code WebViews are iframes. They get suspended when not visible and fully reset on restart. For a tweet that's annoying. For a structured blog article with frontmatter, tags, cover image, and thousands of words — it's a real productivity loss.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ff9rwwjvjxq5bixbscjqu.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ff9rwwjvjxq5bixbscjqu.png" alt="Split screen showing a full 2000-word article draft on the right, and a completely empty reset form on the left after switching tabs" loading="lazy" width="800" height="225"></a></p>
+
+<p>The naive fix is "just auto-save to a file." But that creates new questions: which file? What about social posts that have no file? What if the user has multiple articles open? What about platform-specific metadata like Dev.to series or Medium publish status?</p>
+
+<p>The solution needed to be <strong>universal</strong> — one system for social posts and blog articles, all 9 platforms, zero config for the user.</p>
+
+
+<hr>
+
+<h2>
+  <a name="designing-the-raw-draft-endraw-type" href="#designing-the-raw-draft-endraw-type">
+  </a>
+  Designing the <code>Draft</code> Type
+</h2>
+
+<p>The first thing I did was sit down and define exactly what a "draft" means across all use cases.</p>
+
+<p>A LinkedIn post draft needs: text content, platform, timestamp.<br>
+A Dev.to article draft needs: title, tags, description, cover image, canonical URL, series, body markdown, publish status, platform.</p>
+
+<p>One interface had to cover both:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/types.ts</span>
+
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">DraftType</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">social</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">article</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">Draft</span> <span class="p">{</span>
+    <span class="nl">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">type</span><span class="p">:</span> <span class="nx">DraftType</span><span class="p">;</span>
+    <span class="nl">timestamp</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">platforms</span><span class="p">:</span> <span class="nx">SocialPlatform</span><span class="p">[];</span>
+    <span class="nl">data</span><span class="p">:</span> <span class="nx">PostData</span> <span class="o">|</span> <span class="nx">BlogPost</span><span class="p">;</span>
+    <span class="nl">title</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>      <span class="c1">// Human-readable label in the UI</span>
+    <span class="nl">isRemote</span><span class="p">?:</span> <span class="nx">boolean</span><span class="p">;</span>  <span class="c1">// true = fetched from Dev.to API, not local</span>
+    <span class="nl">remoteId</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>   <span class="c1">// Dev.to article ID for remote drafts</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>data</code> field is a union. <code>PostData</code> for social:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">export</span> <span class="kr">interface</span> <span class="nx">PostData</span> <span class="p">{</span>
+    <span class="nl">text</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">media</span><span class="p">?:</span> <span class="kr">string</span><span class="p">[];</span>  <span class="c1">// local file paths</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>BlogPost</code> for long-form articles:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">export</span> <span class="kr">interface</span> <span class="nx">BlogPost</span> <span class="p">{</span>
+    <span class="nl">id</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">title</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">bodyMarkdown</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">tags</span><span class="p">:</span> <span class="kr">string</span><span class="p">[];</span>
+    <span class="nl">canonicalUrl</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">description</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">coverImage</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">series</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">status</span><span class="p">:</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nl">platformId</span><span class="p">:</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">medium</span><span class="dl">'</span><span class="p">;</span>
+    <span class="nl">publishedAt</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+    <span class="nl">url</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flelfx1anxb3gry8x1eoq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flelfx1anxb3gry8x1eoq.png" alt="Data model diagram showing the Draft Interface parent node branching into two child types: PostData for social posts and BlogPost for articles" loading="lazy" width="799" height="436"></a></p>
+
+<p>This union lets a single <code>draftsLoaded</code> WebView message carry both types. The WebView switches behavior on <code>draft.type</code> — no separate message commands, no separate storage keys per platform.</p>
+
+<p>The <code>isRemote</code> flag is critical: it marks drafts fetched from the Dev.to API. Remote drafts look identical to local ones in the UI but have different save semantics — you update them via API, not <code>globalState</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="choosing-the-storage-backend" href="#choosing-the-storage-backend">
+  </a>
+  Choosing the Storage Backend
+</h2>
+
+<p>I evaluated three options:</p>
+
+<p><strong>Option A — Write to a file in the workspace.</strong> Simple, but creates git noise, doesn't work if there's no workspace open, and fails for social post drafts that have no natural file home.</p>
+
+<p><strong>Option B — SQLite via a native module.</strong> Powerful, but native modules in VS Code extensions are a packaging nightmare. Cross-platform builds, <code>.vsix</code> size, and esbuild bundling issues ruled this out fast.</p>
+
+<p><strong>Option C — VS Code <code>globalState</code>.</strong> This is a key-value store backed by VS Code's own storage layer. It survives restarts, is encrypted at rest on macOS (Keychain), works even without a workspace, requires zero config, and the API is synchronous to read and async to write.</p>
+
+<p><code>globalState</code> was the obvious choice. The only real limitation is that it's not designed for large datasets — but a list of drafts with text content will comfortably stay under the internal limits for years.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-raw-draftsservice-endraw-" href="#the-raw-draftsservice-endraw-">
+  </a>
+  The <code>DraftsService</code>
+</h2>
+
+<p><code>DraftsService</code> wraps <code>globalState</code> with a clean CRUD interface. The full implementation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/services/DraftsService.ts</span>
+<span class="k">import</span> <span class="o">*</span> <span class="k">as</span> <span class="nx">vscode</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">vscode</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">Draft</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">../types</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">DRAFTS_KEY</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">dotshare_drafts_v1</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">DraftsService</span> <span class="p">{</span>
+    <span class="nf">constructor</span><span class="p">(</span><span class="k">private</span> <span class="nx">globalState</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Memento</span><span class="p">)</span> <span class="p">{}</span>
+
+    <span class="nf">getDrafts</span><span class="p">():</span> <span class="nx">Draft</span><span class="p">[]</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nx">globalState</span><span class="p">.</span><span class="kd">get</span><span class="o">&lt;</span><span class="nx">Draft</span><span class="p">[]</span><span class="o">&gt;</span><span class="p">(</span><span class="nx">DRAFTS_KEY</span><span class="p">,</span> <span class="p">[]);</span>
+    <span class="p">}</span>
+
+    <span class="nf">getDraft</span><span class="p">(</span><span class="nx">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nx">Draft</span> <span class="o">|</span> <span class="kc">undefined</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">getDrafts</span><span class="p">().</span><span class="nf">find</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">id</span> <span class="o">===</span> <span class="nx">id</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="nf">saveDraft</span><span class="p">(</span><span class="nx">data</span><span class="p">:</span> <span class="nb">Omit</span><span class="o">&lt;</span><span class="nx">Draft</span><span class="p">,</span> <span class="dl">'</span><span class="s1">id</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">timestamp</span><span class="dl">'</span><span class="o">&gt;</span><span class="p">):</span> <span class="nx">Draft</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">drafts</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getDrafts</span><span class="p">();</span>
+        <span class="kd">const</span> <span class="nx">draft</span><span class="p">:</span> <span class="nx">Draft</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">...</span><span class="nx">data</span><span class="p">,</span>
+            <span class="na">id</span><span class="p">:</span> <span class="s2">`draft_</span><span class="p">${</span><span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">()}</span><span class="s2">_</span><span class="p">${</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">().</span><span class="nf">toString</span><span class="p">(</span><span class="mi">36</span><span class="p">).</span><span class="nf">slice</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">9</span><span class="p">)}</span><span class="s2">`</span><span class="p">,</span>
+            <span class="na">timestamp</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+        <span class="p">};</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">globalState</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="nx">DRAFTS_KEY</span><span class="p">,</span> <span class="p">[</span><span class="nx">draft</span><span class="p">,</span> <span class="p">...</span><span class="nx">drafts</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="nx">draft</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="nf">updateDraft</span><span class="p">(</span><span class="nx">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">updates</span><span class="p">:</span> <span class="nb">Partial</span><span class="o">&lt;</span><span class="nx">Draft</span><span class="o">&gt;</span><span class="p">):</span> <span class="nx">Draft</span> <span class="o">|</span> <span class="kc">undefined</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">drafts</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getDrafts</span><span class="p">();</span>
+        <span class="kd">const</span> <span class="nx">idx</span> <span class="o">=</span> <span class="nx">drafts</span><span class="p">.</span><span class="nf">findIndex</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">id</span> <span class="o">===</span> <span class="nx">id</span><span class="p">);</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">idx</span> <span class="o">===</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">return</span> <span class="kc">undefined</span><span class="p">;</span>
+        <span class="nx">drafts</span><span class="p">[</span><span class="nx">idx</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">...</span><span class="nx">drafts</span><span class="p">[</span><span class="nx">idx</span><span class="p">],</span>
+            <span class="p">...</span><span class="nx">updates</span><span class="p">,</span>
+            <span class="na">timestamp</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+        <span class="p">};</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">globalState</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="nx">DRAFTS_KEY</span><span class="p">,</span> <span class="nx">drafts</span><span class="p">);</span>
+        <span class="k">return</span> <span class="nx">drafts</span><span class="p">[</span><span class="nx">idx</span><span class="p">];</span>
+    <span class="p">}</span>
+
+    <span class="nf">deleteDraft</span><span class="p">(</span><span class="nx">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">globalState</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span>
+            <span class="nx">DRAFTS_KEY</span><span class="p">,</span>
+            <span class="k">this</span><span class="p">.</span><span class="nf">getDrafts</span><span class="p">().</span><span class="nf">filter</span><span class="p">(</span><span class="nx">d</span> <span class="o">=&gt;</span> <span class="nx">d</span><span class="p">.</span><span class="nx">id</span> <span class="o">!==</span> <span class="nx">id</span><span class="p">)</span>
+        <span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three decisions worth explaining:</p>
+
+<p><strong><code>_v1</code> on the key.</strong> If I ever change the schema, I read <code>dotshare_drafts_v1</code>, transform the data, write to <code>dotshare_drafts_v2</code>, then delete the old key. No migration scripts, no breaking changes for existing users.</p>
+
+<p><strong><code>Omit&lt;Draft, 'id' | 'timestamp'&gt;</code> at save.</strong> This forces the compiler to prevent callers from passing a stale ID or a hand-crafted timestamp. IDs and timestamps are always generated internally, guaranteed fresh.</p>
+
+<p><strong>Newest first.</strong> <code>[draft, ...drafts]</code> prepends instead of appending. The WebView grid always shows the most recent work at the top without any sort step.</p>
+
+
+<hr>
+
+<h2>
+  <a name="wiring-it-into-the-handler-chain" href="#wiring-it-into-the-handler-chain">
+  </a>
+  Wiring It Into the Handler Chain
+</h2>
+
+<p><code>DraftsService</code> is instantiated once in <code>MessageHandler</code> and injected down into <code>PostHandler</code>. This keeps a single instance — one source of truth — across the extension's lifetime:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/handlers/MessageHandler.ts</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">MessageHandler</span> <span class="p">{</span>
+    <span class="k">private</span> <span class="nx">draftsService</span><span class="p">:</span> <span class="nx">DraftsService</span><span class="p">;</span>
+    <span class="k">private</span> <span class="nx">postHandler</span><span class="p">:</span> <span class="nx">PostHandler</span><span class="p">;</span>
+
+    <span class="nf">constructor</span><span class="p">(</span>
+        <span class="k">private</span> <span class="nx">view</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">WebviewView</span><span class="p">,</span>
+        <span class="k">private</span> <span class="nx">context</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">ExtensionContext</span><span class="p">,</span>
+        <span class="k">private</span> <span class="nx">historyService</span><span class="p">:</span> <span class="nx">HistoryService</span><span class="p">,</span>
+        <span class="k">private</span> <span class="nx">analyticsService</span><span class="p">:</span> <span class="nx">AnalyticsService</span><span class="p">,</span>
+        <span class="k">private</span> <span class="nx">mediaService</span><span class="p">:</span> <span class="nx">MediaService</span>
+    <span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">draftsService</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">DraftsService</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">globalState</span><span class="p">);</span>
+
+        <span class="k">this</span><span class="p">.</span><span class="nx">postHandler</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">PostHandler</span><span class="p">(</span>
+            <span class="nx">view</span><span class="p">,</span>
+            <span class="nx">context</span><span class="p">,</span>
+            <span class="nx">historyService</span><span class="p">,</span>
+            <span class="nx">analyticsService</span><span class="p">,</span>
+            <span class="nx">mediaService</span><span class="p">,</span>
+            <span class="k">this</span><span class="p">.</span><span class="nx">draftsService</span>  <span class="c1">// ← injected</span>
+        <span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Routing is handled by a string check — any command that includes the word <code>Draft</code> goes to <code>PostHandler</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">if </span><span class="p">(</span>
+    <span class="nx">cmd</span><span class="p">.</span><span class="nf">startsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1">share</span><span class="dl">'</span><span class="p">)</span> <span class="o">||</span>
+    <span class="nx">cmd</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">generatePost</span><span class="dl">'</span>  <span class="o">||</span>
+    <span class="nx">cmd</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">readMarkdownFile</span><span class="dl">'</span> <span class="o">||</span>
+    <span class="nx">cmd</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft</span><span class="dl">'</span><span class="p">)</span>      <span class="c1">// ← catches all 7 draft commands</span>
+<span class="p">)</span> <span class="p">{</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">postHandler</span><span class="p">.</span><span class="nf">handleMessage</span><span class="p">(</span><span class="nx">message</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This keeps the routing table flat and readable. Adding a new draft command in the future requires zero changes to <code>MessageHandler</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-saveupsert-pattern" href="#the-saveupsert-pattern">
+  </a>
+  The Save/Upsert Pattern
+</h2>
+
+<p>The <code>saveLocalDraft</code> handler is the most-called draft command. It does an upsert — not a blind insert:</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw21ujpn25pv42prcw45i.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fw21ujpn25pv42prcw45i.png" alt="Logic flowchart illustrating the save process: checking if an ID exists, then either updating the existing draft or creating a new one in the global state" loading="lazy" width="799" height="436"></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="k">async</span> <span class="nf">handleSaveLocalDraft</span><span class="p">(</span><span class="nx">message</span><span class="p">:</span> <span class="nx">Message</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="k">void</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">draft</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">draft</span> <span class="k">as</span> <span class="nb">Omit</span><span class="o">&lt;</span><span class="nx">Draft</span><span class="p">,</span> <span class="dl">'</span><span class="s1">id</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">timestamp</span><span class="dl">'</span><span class="o">&gt;</span><span class="p">;</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">draft</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft data is required.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Guard: remote drafts cannot be cloned locally</span>
+    <span class="k">if </span><span class="p">((</span><span class="nx">draft</span> <span class="k">as</span> <span class="nx">Draft</span><span class="p">).</span><span class="nx">isRemote</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">Cannot save a remote draft locally. Use "Update" instead.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">existingId</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">draftId</span> <span class="k">as</span> <span class="kr">string</span> <span class="o">|</span> <span class="kc">undefined</span><span class="p">;</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">existingId</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Update existing draft in place</span>
+        <span class="kd">const</span> <span class="nx">updated</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">draftsService</span><span class="p">.</span><span class="nf">updateDraft</span><span class="p">(</span><span class="nx">existingId</span><span class="p">,</span> <span class="nx">draft</span><span class="p">);</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">updated</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">this</span><span class="p">.</span><span class="nf">sendInfo</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft updated!</span><span class="dl">'</span><span class="p">);</span>
+            <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">draftLoaded</span><span class="dl">'</span><span class="p">,</span> <span class="na">draft</span><span class="p">:</span> <span class="nx">updated</span> <span class="p">});</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="k">this</span><span class="p">.</span><span class="nf">sendError</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft not found for update.</span><span class="dl">'</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="c1">// Create new draft</span>
+        <span class="kd">const</span> <span class="nx">saved</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">draftsService</span><span class="p">.</span><span class="nf">saveDraft</span><span class="p">(</span><span class="nx">draft</span><span class="p">);</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">sendInfo</span><span class="p">(</span><span class="dl">'</span><span class="s1">Draft saved locally!</span><span class="dl">'</span><span class="p">);</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">view</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">draftLoaded</span><span class="dl">'</span><span class="p">,</span> <span class="na">draft</span><span class="p">:</span> <span class="nx">saved</span> <span class="p">});</span>
+    <span class="p">}</span>
+
+    <span class="c1">// Always refresh the list</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">handleListLocalDrafts</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The upsert is essential. The first save creates a new draft and the WebView receives its ID via <code>draftLoaded</code>. Every subsequent save passes that ID back in <code>message.draftId</code>. Without this, every Ctrl+S would create a duplicate entry.</p>
+
+<p>The remote guard is equally important. If someone somehow triggers a save on a remote draft, the handler rejects it with a clear error rather than silently creating a stale local copy that would immediately diverge from the Dev.to version.</p>
+
+<p>After every save or update, <code>handleListLocalDrafts</code> runs and pushes the full refreshed list to the WebView — so the draft grid always reflects the current state without a manual refresh.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-in-part-2" href="#whats-in-part-2">
+  </a>
+  What's in Part 2
+</h2>
+
+<p>The storage layer is done. In Part 2, we cover:</p>
+
+<ul>
+<li>
+<strong><code>loadLocalDraft</code></strong> — the Two-Way Markdown Sync that rewrites the active <code>.md</code> editor file when you load a draft</li>
+<li>
+<strong><code>fetchDevToDrafts</code></strong> — fetching remote Dev.to articles and mapping them to the <code>Draft</code> interface</li>
+<li>
+<strong><code>resetBlogMarkdown</code></strong> — the Reset Boilerplate button</li>
+<li>
+<strong>The WebView UI</strong> — the HTML, draft card CSS, and how <code>{{PLATFORM_NAME}}</code> tokens get injected</li>
+<li>
+<strong>Split-Editor workflow</strong> — how opening Dev.to or Medium auto-creates a named <code>.md</code> file beside the WebView panel</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try It
+</h2>
+
+<p>DotShare is free and open source under Apache 2.0:</p>
+
+<ul>
+<li>
+<strong>VS Code Marketplace</strong>: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">Download Extension</a> (or search <code>ext install freerave.dotshare</code>)</li>
+<li>
+<strong>Open VSX Registry</strong>: <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Download for VSCodium</a>
+</li>
+<li>
+<strong>GitHub</strong>: <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotShare</a>
+</li>
+</ul>
+
+<p>If this saved you time, a ⭐ on the repo means a lot!</p>
+
+
+<hr>
+
+<p><em>Built by <a href="https://dev.to/freerave">@FreeRave</a></em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-1-types-storage-5chn" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 2
+    · <a href="https://dev.to/freerave/building-a-universal-drafts-system-in-a-vs-code-extension-part-1-types-storage-5chn#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

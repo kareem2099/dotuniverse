@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>From 11 Failing Tests to a 110-Test &quot;Bulletproof&quot; AI: A Debugging War Story — FreeRave</title>
+<meta name="description" content="I just finished building the &quot;brain&quot; for my VS Code extension, Break Bully. It's a complex AI stack...">
+<link rel="canonical" href="https://dev.to/freerave/from-11-failing-tests-to-a-110-test-bulletproof-ai-a-debugging-war-story-36k3">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/from-11-failing-tests-to-a-110-test-bulletproof-ai-a-debugging-war-story-36k3">
+<meta property="og:title" content="From 11 Failing Tests to a 110-Test &quot;Bulletproof&quot; AI: A Debugging War Story — FreeRave">
+<meta property="og:description" content="I just finished building the &quot;brain&quot; for my VS Code extension, Break Bully. It's a complex AI stack...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdz357ormbod84t35dhuh.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">From 11 Failing Tests to a 110-Test &quot;Bulletproof&quot; AI: A Debugging War Story</h1>
+  <div class="post-meta">
+    <time datetime="2025-11-15T15:48:31Z">15 November 2025</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#machinelearning</span><span class="post-tag">#programming</span><span class="post-tag">#testing</span></div>
+  </div>
+  <article class="post-body">
+<p>I just finished building the "brain" for my VS Code extension, Break Bully. It's a complex AI stack with four ML-driven services:<br>
+One to generate personalized work-rest models.<br>
+One to analyze historical productivity.<br>
+One to monitor real-time fatigue from typing patterns.<br>
+One to adapt and learn from user feedback.<br>
+I'd written all the code, and I thought it worked. Then, I finally wrote the first massive test suite... and ran npm test.<br>
+11 FAILING TESTS.</p>
+
+<p>My heart sank. But after digging in, I realized this was the best thing that could have happened. The tests had uncovered every single weakness in my design.<br>
+Here's the "behind-the-scenes" of the 3 types of bugs I found and fixed to get to 110 passing tests.</p>
+
+<p>Bug Type 1: The "Obvious" Crash (TypeError)<br>
+The first set of bugs was the classic:<br>
+TypeError: Cannot read properties of undefined (reading 'length')<br>
+My test was correctly simulating a scenario where no activity data was available (null). My code, however, never expected this and tried to run .filter() on null.</p>
+
+<p>The Fix: The simplest fix in the book. A guard clause at the top of every analytics function.</p>
+
+<p>// Before<br>
+public static analyzeWorkPatterns(events: ActivityEvent[])...</p>
+
+<p>// After<br>
+public static analyzeWorkPatterns(events: ActivityEvent[])... {<br>
+  if (!events || events.length === 0) {<br>
+    return { ...default_analysis ... };<br>
+  }<br>
+  // ... rest of the code<br>
+}</p>
+
+<p>Lesson: Your tests are your best defense against null. Test what happens when your functions get null, undefined, or [].</p>
+
+<p>Bug Type 2: The "Flaky" Bug (The Race Condition)<br>
+The next set of bugs was infuriating. Five tests would fail sometimes.<br>
+AssertionError: ... at Timeout._onTimeout<br>
+The Problem: My RealTimeSessionAnalyzer runs on a setInterval (a "real" clock). My test was using setTimeout to "wait" for the analysis to finish. They were racing, and the test was losing.<br>
+The Fix: Stop waiting for the clock; control it. I used sinon.useFakeTimers().<br>
+// In beforeEach:<br>
+clock = sinon.useFakeTimers();<br>
+// In the test:<br>
+it('should perform baseline session analysis', function() {<br>
+  analyzer.startSessionAnalysis(); // Starts the internal setInterval<br>
+  // Don't wait! Just fast-forward the clock:<br>
+  clock.tick(5000); // 5 seconds pass instantly<br>
+  const analysis = analyzer.getCurrentAnalysis();<br>
+  assert.ok(analysis, 'Should have analysis results');<br>
+});</p>
+
+<p>Lesson: If you're testing code that involves setInterval or setTimeout, don't guess. Use fake timers to make your tests instant, deterministic, and 100% reliable.<br>
+Bug Type 3: The "Aha!" Bug (The AI Was Smarter Than My Test)<br>
+This was my favorite bug. One test failed with:<br>
+AssertionError: expected 'nuclear' to equal 'moderate'<br>
+I was confused. The test was simple: check the default annoyanceLevel. Why did it expect moderate but get nuclear?</p>
+
+<p>Then I remembered: I had fixed a different bug earlier that correctly set the default to nuclear! My test was outdated. The "failing" test was actually proof that my previous fix was working.<br>
+The Fix: Change the test to match the correct behavior.<br>
+// Before<br>
+assert.strictEqual(config.get('annoyanceLevel'), 'moderate');<br>
+// After<br>
+assert.strictEqual(config.get('annoyanceLevel'), 'nuclear');<br>
+Lesson: Tests aren't just for finding bugs in your code; they're for finding bugs in your assumptions.<br>
+The Final Run<br>
+After fixing the guard clauses, controlling the clock, and aligning my tests with the AI's actual logic, I ran the full suite one last time.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fa98ycr8ji92elb31oc6z.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fa98ycr8ji92elb31oc6z.png" alt=" " loading="lazy" width="800" height="450"></a><br>
+The result?<br>
+110 PASSING (14s)<br>
+Exit code: 0<br>
+This isn't just a vanity number. This 110-test suite is a safety net. It proves the AI brain is validated. It means I can now move on to building new features (like the CodeTune integration) with confidence, knowing that this "bulletproof" foundation won't break.<br>
+Thanks for reading my debugging story! What's the "flakiest" bug you've ever had to chase?</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/from-11-failing-tests-to-a-110-test-bulletproof-ai-a-debugging-war-story-36k3" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/from-11-failing-tests-to-a-110-test-bulletproof-ai-a-debugging-war-story-36k3#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

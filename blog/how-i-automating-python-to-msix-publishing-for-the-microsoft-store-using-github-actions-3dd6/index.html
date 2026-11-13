@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Automating Python-to-MSIX Publishing for the Microsoft Store using GitHub Actions — FreeRave</title>
+<meta name="description" content="The Problem: Python on the Windows Store? 🤔 We all know distributing Python desktop apps to...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-automating-python-to-msix-publishing-for-the-microsoft-store-using-github-actions-3dd6">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-automating-python-to-msix-publishing-for-the-microsoft-store-using-github-actions-3dd6">
+<meta property="og:title" content="How I Automating Python-to-MSIX Publishing for the Microsoft Store using GitHub Actions — FreeRave">
+<meta property="og:description" content="The Problem: Python on the Windows Store? 🤔 We all know distributing Python desktop apps to...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fnukq0e8w0pv81jxq6hcj.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fnukq0e8w0pv81jxq6hcj.png" alt="">
+  <h1 class="post-title">How I Automating Python-to-MSIX Publishing for the Microsoft Store using GitHub Actions</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-03T11:00:00Z">3 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#githubactions</span><span class="post-tag">#windowsdev</span><span class="post-tag">#showdev</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: Python on the Windows Store? 🤔<br>
+We all know distributing Python desktop apps to non-technical users can be a pain. Asking users to pip install dependencies is a no-go. I wanted to build DotScramble—a privacy-focused image encryption tool—and make it available natively on the Microsoft Store for Windows 10 and 11.</p>
+
+<p>The challenge? Converting a Python script into a signed, store-ready MSIX package without doing it manually every time.</p>
+
+<p>The Stack 🛠️<br>
+Core: Python 3.10 + Tkinter (tkinterdnd2 for drag-and-drop).</p>
+
+<p>Build: PyInstaller (to create the EXE).</p>
+
+<p>Packaging: MSIX (MakeAppx.exe).</p>
+
+<p>CI/CD: GitHub Actions (The magic sauce).</p>
+
+<p>The "Aha!" Moment: Automating the Build <br>
+Instead of manually running PyInstaller and MakeAppx locally, I built a GitHub Actions workflow that does the heavy lifting.</p>
+
+<p>Here is the logic I used in my .github/workflows/build.yml:</p>
+
+<p>Setup: Install Python &amp; System Deps (like Tesseract).</p>
+
+<p>Build EXE: Run pyinstaller --onefile.</p>
+
+<p>Layout: Create the MSIX directory structure and copy assets.</p>
+
+<p>Pack: Dynamically find MakeAppx.exe on the runner and pack the MSIX.</p>
+
+<p>Artifact: Upload the final package ready for the Partner Center.</p>
+
+<p>It wasn't easy—I faced issues with runFullTrust capabilities and manifest validation errors—but finally seeing that green checkmark and the "In Certification" status on the Partner Center was worth it.</p>
+
+<p>Introducing: DotScramble <br>
+DotScramble is the result of this journey. It’s a 100% offline tool that lets you scramble and encrypt your images locally.</p>
+
+<p>I just uploaded a quick teaser to show it in action:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/zU-7elyfyMY" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>(Note: The app is currently in certification and will be live on the Store soon!)</p>
+
+<p>Key Takeaway <br>
+If you are a Python developer, don't be afraid of the Windows Store. With PyInstaller and a little PowerShell magic in GitHub Actions, you can automate the entire delivery pipeline.</p>
+
+<p>Let me know in the comments if you want a detailed tutorial on the AppxManifest.xml configuration! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-automating-python-to-msix-publishing-for-the-microsoft-store-using-github-actions-3dd6" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-automating-python-to-msix-publishing-for-the-microsoft-store-using-github-actions-3dd6#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Regex vs. AI: Why I Moved My Logic to the Cloud (DotEnvy v1.4) — FreeRave</title>
+<meta name="description" content="The Problem: Regex is &quot;Dumb&quot;  If you’ve ever built a secret scanner or a linter, you know the...">
+<link rel="canonical" href="https://dev.to/freerave/regex-vs-ai-why-i-moved-my-logic-to-the-cloud-dotenvy-v14-1ij2">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/regex-vs-ai-why-i-moved-my-logic-to-the-cloud-dotenvy-v14-1ij2">
+<meta property="og:title" content="Regex vs. AI: Why I Moved My Logic to the Cloud (DotEnvy v1.4) — FreeRave">
+<meta property="og:description" content="The Problem: Regex is &quot;Dumb&quot;  If you’ve ever built a secret scanner or a linter, you know the...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fz9qul1w40q6vl1c0wnnu.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">Regex vs. AI: Why I Moved My Logic to the Cloud (DotEnvy v1.4)</h1>
+  <div class="post-meta">
+    <time datetime="2026-01-25T11:00:00Z">25 January 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#ai</span><span class="post-tag">#python</span><span class="post-tag">#typescript</span></div>
+  </div>
+  <article class="post-body">
+<p>The Problem: Regex is "Dumb" <br>
+If you’ve ever built a secret scanner or a linter, you know the struggle. You write a Regex for an API key, and suddenly, every random SHA hash or CSS hex code gets flagged as a "Critical Security Risk."</p>
+
+<p>I got tired of False Positives in my VS Code extension, DotEnvy. I wanted a scanner that didn't just match patterns—I wanted one that understood context.</p>
+
+<p>The Solution: A Hybrid Engine (Regex + AI) <br>
+In version 1.4, I introduced a new architecture. Instead of relying solely on client-side logic, I offloaded the heavy lifting to a custom Python LLM Service hosted on Railway.</p>
+
+<p>The Logic Flow:</p>
+
+<p>Layer 1 (Local): Fast Regex &amp; Entropy analysis runs in VS Code. If it looks safe, we ignore it.</p>
+
+<p>Layer 2 (The Filter): If the local score is ambiguous (&gt; 0.4), we pause.</p>
+
+<p>Layer 3 (The Brain): The extension queries my Python backend. The LLM analyzes the variable name, surrounding code, and entropy to give a final verdict.</p>
+
+<p>The "Secret" Sauce: The 80/20 Rule <br>
+Integrating the LLM was only about 20% of the new code, but it provides 80% of the intelligence.</p>
+
+<p>Frontend: TypeScript (VS Code API) handling async/debounced events.</p>
+
+<p>Backend: Python service on Railway.</p>
+
+<p>Result: Zero false positives. It can tell the difference between a real Stripe key and a random test string.</p>
+
+<p>Watch it in Action <br>
+I ran a full suite of integration tests to prove stability. The system now validates connection, analyzes entropy, and confirms secrets in real-time.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/lJbKhv8p1QI" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>Under the Hood <br>
+Performance: I implemented debouncing so we don't spam the server on every keystroke.</p>
+
+<p>Security: The API key is injected at build time, keeping the repo clean.</p>
+
+<p>Reliability: Added a circuit breaker pattern—if the server is down, it falls back to local analysis seamlessly.</p>
+
+<p>Let me know what you think about hybrid AI/Local architectures in the comments! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/regex-vs-ai-why-i-moved-my-logic-to-the-cloud-dotenvy-v14-1ij2" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/regex-vs-ai-why-i-moved-my-logic-to-the-cloud-dotenvy-v14-1ij2#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

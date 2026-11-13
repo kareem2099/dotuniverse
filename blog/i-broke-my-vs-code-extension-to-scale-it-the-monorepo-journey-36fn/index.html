@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Broke My VS Code Extension to Scale It (The Monorepo Journey) — FreeRave</title>
+<meta name="description" content="Building a VS Code extension is fun, but what happens when you want to take that same logic to...">
+<link rel="canonical" href="https://dev.to/freerave/i-broke-my-vs-code-extension-to-scale-it-the-monorepo-journey-36fn">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-broke-my-vs-code-extension-to-scale-it-the-monorepo-journey-36fn">
+<meta property="og:title" content="I Broke My VS Code Extension to Scale It (The Monorepo Journey) — FreeRave">
+<meta property="og:description" content="Building a VS Code extension is fun, but what happens when you want to take that same logic to...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fo6iucsfhsewf2w808ohd.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fo6iucsfhsewf2w808ohd.png" alt="">
+  <h1 class="post-title">I Broke My VS Code Extension to Scale It (The Monorepo Journey)</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-04T11:00:00Z">4 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#typescript</span><span class="post-tag">#monorepo</span><span class="post-tag">#vscode</span><span class="post-tag">#architecture</span></div>
+  </div>
+  <article class="post-body">
+<p>Building a VS Code extension is fun, but what happens when you want to take that same logic to mobile?</p>
+
+<p>I've been working on DotSense, a developer wellness tool. It started as a VS Code extension, but I wanted to expand it to Android using Kotlin &amp; React Native.</p>
+
+<p>The problem? My business logic was tightly coupled to the VS Code API. I couldn't just "copy-paste" it to mobile.</p>
+
+<p>The Decision: Monorepo Architecture<br>
+I decided to refactor the entire project into a Monorepo structure using npm workspaces.</p>
+
+<p>packages/core: The "Brain" (Analytics, Gamification, Statistics). Pure TypeScript, no platform dependencies.</p>
+
+<p>packages/vscode-extension: The "Desktop UI". Consumes the core.</p>
+
+<p>packages/mobile: The "Mobile App" 📱 (Coming soon). Will consume the same core.</p>
+
+<p>The "Red Screen" of Death<br>
+Extracting the core wasn't painless. As soon as I moved the files and updated the tsconfig.json, my terminal exploded.</p>
+
+<p>101 TypeScript Errors.</p>
+
+<p>It looked terrifying, but it was actually a roadmap. Every error was a dependency I needed to untangle.</p>
+
+<p>Here is a 60-second timelapse of the process, from the chaos of 101 errors to the satisfaction of a clean compile:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/R8_WgJleOF0" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>Key Steps in the Migration<br>
+Isolating Types: I moved all shared interfaces (like UserStats, Achievement) to the core package.</p>
+
+<p>Configuring Paths: Updated tsconfig.json in the extension to map @dotsense/core to the local package.</p>
+
+<p>Linking: Used npm install at the root to link the local packages together.</p>
+
+<p>JSON<br>
+// packages/vscode-extension/package.json<br>
+{<br>
+  "dependencies": {<br>
+    "@dotsense/core": "*"<br>
+  }<br>
+}</p>
+
+<p>The Result<br>
+After hours of fixing imports and decoupling logic, the build finally passed. Now, I have a single source of truth for my app's logic.</p>
+
+<p>If I fix a bug in the Core, it's fixed for both VS Code and Android instantly.</p>
+
+<p>Next stop: Building the Android Native Module with Kotlin! </p>
+
+<p>Have you ever migrated a live project to a Monorepo? Let me know in the comments! 👇</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-broke-my-vs-code-extension-to-scale-it-the-monorepo-journey-36fn" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-broke-my-vs-code-extension-to-scale-it-the-monorepo-journey-36fn#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

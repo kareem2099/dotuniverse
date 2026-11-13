@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Built a Crash-Resistant Workout Tracker: Shredzilla v1.2.0 Deep Dive — FreeRave</title>
+<meta name="description" content="From a crash-prone MVP to a production-ready Android app — real bugs, real fixes, and the...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-built-a-crash-resistant-workout-tracker-shredzilla-v120-deep-dive-1441">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-built-a-crash-resistant-workout-tracker-shredzilla-v120-deep-dive-1441">
+<meta property="og:title" content="How I Built a Crash-Resistant Workout Tracker: Shredzilla v1.2.0 Deep Dive — FreeRave">
+<meta property="og:description" content="From a crash-prone MVP to a production-ready Android app — real bugs, real fixes, and the...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk5zmaf7niiucoy23enqn.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk5zmaf7niiucoy23enqn.jpg" alt="">
+  <h1 class="post-title">How I Built a Crash-Resistant Workout Tracker: Shredzilla v1.2.0 Deep Dive</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-23T09:00:00Z">23 March 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#firebase</span></div>
+  </div>
+  <article class="post-body">
+<p><em>From a crash-prone MVP to a production-ready Android app — real bugs, real fixes, and the architectural patterns that actually matter in the gym.</em></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-with-most-fitness-apps" href="#the-problem-with-most-fitness-apps">
+  </a>
+  The Problem With Most Fitness Apps
+</h2>
+
+<p>Every gym session, the same story plays out: you finish a brutal set, reach for your phone to log it, and the app freezes. Or worse — you logged 10 sets, rotated the screen, and they're all gone.</p>
+
+<p><strong>Shredzilla</strong> started as a side project to solve exactly this. But shipping v1.1.0 revealed a hard truth: building a <em>working</em> app and building a <em>reliable</em> app are two completely different problems.</p>
+
+<p>This article is the honest story of v1.2.0 — the bugs we found, how we fixed them, and what architectural patterns actually held up under real-world gym conditions.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-stack" href="#the-stack">
+  </a>
+  The Stack
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Language:    Kotlin
+UI:          Jetpack Compose (Material 3)  
+Architecture: MVVM + State Hoisting
+Backend:     Firebase Auth + Cloud Firestore
+Async:       Kotlin Coroutines + StateFlow
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="bug-1-the-timer-that-lied" href="#bug-1-the-timer-that-lied">
+  </a>
+  Bug 1: The Timer That Lied
+</h2>
+
+<h3>
+  <a name="the-problem" href="#the-problem">
+  </a>
+  The Problem
+</h3>
+
+<p>Our rest timer used a naive <code>delay(1000L)</code> loop:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ The old approach — drifts under load</span>
+<span class="n">timerJob</span> <span class="p">=</span> <span class="n">coroutineScope</span><span class="p">.</span><span class="nf">launch</span> <span class="p">{</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">isTimerRunning</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">delay</span><span class="p">(</span><span class="mi">1000L</span><span class="p">)</span>
+        <span class="n">timerRemainingSeconds--</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Under heavy CPU load, background threading, or while scrolling a large list, <code>delay(1000L)</code> doesn't actually delay exactly 1000ms. It delays <em>at least</em> 1000ms. Over a 90-second rest period, this accumulated drift could mean 93–95 seconds of actual elapsed time.</p>
+
+<h3>
+  <a name="the-fix-delta-math" href="#the-fix-delta-math">
+  </a>
+  The Fix: Delta Math
+</h3>
+
+<p>Instead of counting down by decrementing every second, we anchor to wall-clock time:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ✅ Zero-drift delta math</span>
+<span class="k">fun</span> <span class="nf">startRestTimer</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">targetEndTimeMillis</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span> <span class="p">+</span> <span class="p">(</span><span class="n">duration</span> <span class="p">*</span> <span class="mi">1000L</span><span class="p">)</span>
+
+    <span class="n">timerJob</span> <span class="p">=</span> <span class="n">coroutineScope</span><span class="p">.</span><span class="nf">launch</span> <span class="p">{</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">isTimerRunning</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kd">val</span> <span class="py">currentMillis</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="n">currentMillis</span> <span class="p">&gt;=</span> <span class="n">targetEndTimeMillis</span><span class="p">)</span> <span class="p">{</span>
+                <span class="n">timerRemainingSeconds</span> <span class="p">=</span> <span class="mi">0</span>
+                <span class="k">break</span>
+            <span class="p">}</span>
+
+            <span class="c1">// Math anchored to real time — never drifts</span>
+            <span class="n">timerRemainingSeconds</span> <span class="p">=</span> <span class="p">((</span><span class="n">targetEndTimeMillis</span> <span class="p">-</span> <span class="n">currentMillis</span><span class="p">)</span> <span class="p">/</span> <span class="mi">1000L</span><span class="p">).</span><span class="nf">toInt</span><span class="p">()</span>
+            <span class="nc">NotificationUtils</span><span class="p">.</span><span class="nf">showTimerRunningNotification</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">timerRemainingSeconds</span><span class="p">,</span> <span class="n">timerTotalSeconds</span><span class="p">)</span>
+
+            <span class="nf">delay</span><span class="p">(</span><span class="mi">100L</span><span class="p">)</span> <span class="c1">// Quick ticks, but evaluation is time-anchored</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The key insight: we poll every 100ms, but the <em>value</em> we display is always <code>(endTime - now) / 1000</code>. No matter how delayed the coroutine wakes up, the number shown is mathematically correct.</p>
+
+<p><strong>Bonus fix:</strong> The timer now survives app minimization. Switch to YouTube mid-rest, come back after 20 seconds — the timer shows exactly 20 fewer seconds.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bug-2-the-viewmodel-zombie" href="#bug-2-the-viewmodel-zombie">
+  </a>
+  Bug 2: The ViewModel Zombie
+</h2>
+
+<p>This one killed us. The symptom: sign out, try to sign in with Google again, and the app freezes on the auth screen doing absolutely nothing.</p>
+
+<h3>
+  <a name="root-cause-stale-stateflow" href="#root-cause-stale-stateflow">
+  </a>
+  Root Cause: Stale StateFlow
+</h3>
+
+<p>Our navigation was driven by a <code>StateFlow</code> in <code>MainViewModel</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// In MainViewModel</span>
+<span class="kd">val</span> <span class="py">startDestinationFlow</span> <span class="p">=</span> <span class="n">savedStateHandle</span><span class="p">.</span><span class="n">getStateFlow</span><span class="p">&lt;</span><span class="nc">String</span><span class="p">?&gt;(</span><span class="s">"startDestination"</span><span class="p">,</span> <span class="k">null</span><span class="p">)</span>
+
+<span class="k">fun</span> <span class="nf">updateStartDestination</span><span class="p">(</span><span class="n">dest</span><span class="p">:</span> <span class="nc">String</span><span class="p">?)</span> <span class="p">{</span>
+    <span class="n">savedStateHandle</span><span class="p">[</span><span class="s">"startDestination"</span><span class="p">]</span> <span class="p">=</span> <span class="n">dest</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And in <code>MainActivity</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="nc">LaunchedEffect</span><span class="p">(</span><span class="n">startDestination</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">dest</span> <span class="p">=</span> <span class="n">startDestination</span> <span class="o">?:</span> <span class="k">return</span><span class="nd">@LaunchedEffect</span>
+    <span class="n">navController</span><span class="p">.</span><span class="nf">navigate</span><span class="p">(</span><span class="n">dest</span><span class="p">)</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Here's what happened on the second login attempt:</p>
+
+<ol>
+<li>First login → <code>startDestination = "fitness_main"</code> → navigation works ✅</li>
+<li>Sign out → Firebase tokens cleared, navigated to Login screen</li>
+<li>But <code>startDestination</code> in the ViewModel was <strong>still <code>"fitness_main"</code></strong>
+</li>
+<li>Second Google login succeeds → calls <code>updateStartDestination("fitness_main")</code>
+</li>
+<li>
+<code>StateFlow</code> sees the same value → <strong>emits nothing</strong> → <code>LaunchedEffect</code> never triggers</li>
+</ol>
+
+<p>The ViewModel survived the sign-out. We called it the "Zombie ViewModel."</p>
+
+<h3>
+  <a name="the-fix-reset-before-set" href="#the-fix-reset-before-set">
+  </a>
+  The Fix: Reset Before Set
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// In MainAppContainer.kt — onSignOut</span>
+<span class="n">onSignOut</span> <span class="p">=</span> <span class="p">{</span>
+    <span class="n">firebaseEmailAuthManager</span><span class="p">.</span><span class="nf">signOut</span><span class="p">()</span>
+    <span class="n">firebaseGoogleAuthManager</span><span class="p">.</span><span class="nf">signOut</span><span class="p">()</span>
+    <span class="n">userDataManager</span><span class="p">.</span><span class="nf">clearAllListeners</span><span class="p">()</span>
+    <span class="nc">ThemeManager</span><span class="p">.</span><span class="n">currentGenderTheme</span> <span class="p">=</span> <span class="k">null</span>
+
+    <span class="c1">// ✅ Kill the zombie — reset state before navigating</span>
+    <span class="n">mainViewModel</span><span class="p">.</span><span class="nf">updateStartDestination</span><span class="p">(</span><span class="k">null</span><span class="p">)</span>
+
+    <span class="n">mainNavController</span><span class="p">.</span><span class="nf">navigate</span><span class="p">(</span><span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">AUTH</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nf">popUpTo</span><span class="p">(</span><span class="n">mainNavController</span><span class="p">.</span><span class="n">graph</span><span class="p">.</span><span class="n">startDestinationId</span><span class="p">)</span> <span class="p">{</span> <span class="n">inclusive</span> <span class="p">=</span> <span class="k">true</span> <span class="p">}</span>
+        <span class="n">launchSingleTop</span> <span class="p">=</span> <span class="k">true</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// In MainActivity.kt — before setting new destination</span>
+<span class="k">private</span> <span class="k">suspend</span> <span class="k">fun</span> <span class="nf">checkOnboardingAndSetDestination</span><span class="p">(</span><span class="n">userId</span><span class="p">:</span> <span class="nc">String</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">mainViewModel</span><span class="p">.</span><span class="nf">updateStartDestination</span><span class="p">(</span><span class="k">null</span><span class="p">)</span> <span class="c1">// ✅ Reset first</span>
+
+    <span class="kd">val</span> <span class="py">userDataResult</span> <span class="p">=</span> <span class="n">firebaseEmailAuthManager</span><span class="p">.</span><span class="nf">getUserData</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+    <span class="c1">// ... determine destination</span>
+    <span class="n">mainViewModel</span><span class="p">.</span><span class="nf">updateStartDestination</span><span class="p">(</span><span class="n">dest</span><span class="p">)</span> <span class="c1">// Then set new value</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>null</code> reset forces a new emission even when the destination is the same string.</p>
+
+
+<hr>
+
+<h2>
+  <a name="feature-1-offlinefirst-set-logging" href="#feature-1-offlinefirst-set-logging">
+  </a>
+  Feature 1: Offline-First Set Logging
+</h2>
+
+<h3>
+  <a name="the-challenge" href="#the-challenge">
+  </a>
+  The Challenge
+</h3>
+
+<p>Gym WiFi is notoriously bad. If we wait for Firebase to confirm before showing the set in the UI, users see loading spinners mid-workout.</p>
+
+<h3>
+  <a name="optimistic-ui-updates" href="#optimistic-ui-updates">
+  </a>
+  Optimistic UI Updates
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">recordSet</span><span class="p">(</span><span class="n">exerciseName</span><span class="p">:</span> <span class="nc">String</span><span class="p">,</span> <span class="n">reps</span><span class="p">:</span> <span class="nc">Int</span><span class="p">,</span> <span class="n">weightInput</span><span class="p">:</span> <span class="nc">Double</span><span class="p">,</span> 
+              <span class="n">notes</span><span class="p">:</span> <span class="nc">String</span><span class="p">,</span> <span class="n">currentUser</span><span class="p">:</span> <span class="nc">FirebaseUser</span><span class="p">?)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">ts</span> <span class="p">=</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">()</span>
+    <span class="kd">val</span> <span class="py">optimisticDocId</span> <span class="p">=</span> <span class="s">"pending_${java.util.UUID.randomUUID()}"</span>
+
+    <span class="c1">// ✅ Update UI immediately — zero latency</span>
+    <span class="nf">updateLocalExerciseSetInList</span><span class="p">(</span><span class="n">exerciseName</span><span class="p">,</span> <span class="n">reps</span><span class="p">,</span> <span class="n">weightInput</span><span class="p">,</span> <span class="n">notes</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="n">optimisticDocId</span><span class="p">)</span>
+
+    <span class="c1">// Firebase write happens in background</span>
+    <span class="c1">// Native offline persistence queues it if no internet</span>
+    <span class="n">currentUser</span><span class="o">?.</span><span class="n">uid</span><span class="o">?.</span><span class="nf">let</span> <span class="p">{</span> <span class="n">userId</span> <span class="p">-&gt;</span>
+        <span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">).</span><span class="nf">document</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"dailyActivity"</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">document</span><span class="p">(</span><span class="n">todayDate</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"recordedSets"</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">setData</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">addOnFailureListener</span> <span class="p">{</span> <span class="n">e</span> <span class="p">-&gt;</span>
+                <span class="nc">Log</span><span class="p">.</span><span class="nf">e</span><span class="p">(</span><span class="s">"Firestore"</span><span class="p">,</span> <span class="s">"Error adding set"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+            <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Firebase Android SDK's offline persistence handles the rest. When connectivity returns, the queued writes sync automatically — completely invisible to the user.</p>
+
+<p><strong>Test this yourself:</strong> Enable Airplane Mode, log 5 sets, re-enable WiFi. Watch Firestore populate in the console.</p>
+
+
+<hr>
+
+<h2>
+  <a name="feature-2-process-death-resilience" href="#feature-2-process-death-resilience">
+  </a>
+  Feature 2: Process Death Resilience
+</h2>
+
+<h3>
+  <a name="the-problem" href="#the-problem">
+  </a>
+  The Problem
+</h3>
+
+<p>On low-memory devices, Android can kill your app's process while it's in the background. When the user returns, <code>onCreate</code> is called again — but <code>MainActivity</code>'s <code>startDestination</code> was just a plain <code>mutableStateOf</code>, which resets to <code>null</code>.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ Lost on process death</span>
+<span class="k">private</span> <span class="kd">var</span> <span class="py">startDestination</span> <span class="k">by</span> <span class="n">mutableStateOf</span><span class="p">&lt;</span><span class="nc">String</span><span class="p">?&gt;(</span><span class="k">null</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="savedstatehandle-to-the-rescue" href="#savedstatehandle-to-the-rescue">
+  </a>
+  SavedStateHandle to the Rescue
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">class</span> <span class="nc">MainViewModel</span><span class="p">(</span>
+    <span class="n">application</span><span class="p">:</span> <span class="nc">Application</span><span class="p">,</span>
+    <span class="k">private</span> <span class="kd">val</span> <span class="py">savedStateHandle</span><span class="p">:</span> <span class="nc">SavedStateHandle</span> <span class="c1">// ✅ Survives process death</span>
+<span class="p">)</span> <span class="p">:</span> <span class="nc">AndroidViewModel</span><span class="p">(</span><span class="n">application</span><span class="p">)</span> <span class="p">{</span>
+
+    <span class="kd">val</span> <span class="py">startDestinationFlow</span> <span class="p">=</span> <span class="n">savedStateHandle</span><span class="p">.</span><span class="n">getStateFlow</span><span class="p">&lt;</span><span class="nc">String</span><span class="p">?&gt;(</span><span class="s">"startDestination"</span><span class="p">,</span> <span class="k">null</span><span class="p">)</span>
+
+    <span class="k">fun</span> <span class="nf">updateStartDestination</span><span class="p">(</span><span class="n">dest</span><span class="p">:</span> <span class="nc">String</span><span class="p">?)</span> <span class="p">{</span>
+        <span class="n">savedStateHandle</span><span class="p">[</span><span class="s">"startDestination"</span><span class="p">]</span> <span class="p">=</span> <span class="n">dest</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>SavedStateHandle</code> is backed by the same mechanism as <code>Bundle</code> in <code>onSaveInstanceState</code>. The OS serializes it before killing the process and restores it when the user returns.</p>
+
+
+<hr>
+
+<h2>
+  <a name="feature-3-debounced-exercise-search" href="#feature-3-debounced-exercise-search">
+  </a>
+  Feature 3: Debounced Exercise Search
+</h2>
+
+<p>A naive search implementation re-filters on every keystroke:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ Filters on every character typed — causes lag</span>
+<span class="kd">var</span> <span class="py">searchQuery</span> <span class="k">by</span> <span class="nf">remember</span> <span class="p">{</span> <span class="nf">mutableStateOf</span><span class="p">(</span><span class="s">""</span><span class="p">)</span> <span class="p">}</span>
+<span class="kd">val</span> <span class="py">filtered</span> <span class="p">=</span> <span class="n">exercises</span><span class="p">.</span><span class="nf">filter</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="nf">contains</span><span class="p">(</span><span class="n">searchQuery</span><span class="p">)</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>With 200+ exercises, this creates visible stuttering. Our fix uses <code>StateFlow</code> debouncing in the ViewModel:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// In MainViewModel</span>
+<span class="k">private</span> <span class="kd">val</span> <span class="py">_searchQuery</span> <span class="p">=</span> <span class="nc">MutableStateFlow</span><span class="p">(</span><span class="s">""</span><span class="p">)</span>
+<span class="kd">val</span> <span class="py">searchQuery</span> <span class="p">=</span> <span class="n">_searchQuery</span><span class="p">.</span><span class="nf">asStateFlow</span><span class="p">()</span>
+
+<span class="k">private</span> <span class="kd">val</span> <span class="py">_debouncedSearchQuery</span> <span class="p">=</span> <span class="nc">MutableStateFlow</span><span class="p">(</span><span class="s">""</span><span class="p">)</span>
+<span class="kd">val</span> <span class="py">debouncedSearchQuery</span> <span class="p">=</span> <span class="n">_debouncedSearchQuery</span><span class="p">.</span><span class="nf">asStateFlow</span><span class="p">()</span>
+
+<span class="nf">init</span> <span class="p">{</span>
+    <span class="n">_searchQuery</span>
+        <span class="p">.</span><span class="nf">debounce</span><span class="p">(</span><span class="mi">300L</span><span class="p">)</span> <span class="c1">// Wait 300ms after last keystroke</span>
+        <span class="p">.</span><span class="nf">onEach</span> <span class="p">{</span> <span class="n">_debouncedSearchQuery</span><span class="p">.</span><span class="n">value</span> <span class="p">=</span> <span class="n">it</span> <span class="p">}</span>
+        <span class="p">.</span><span class="nf">launchIn</span><span class="p">(</span><span class="n">viewModelScope</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The UI binds to <code>searchQuery</code> for immediate display, but filtering uses <code>debouncedSearchQuery</code>. The keyboard stays perfectly responsive; filtering happens 300ms after the user stops typing.</p>
+
+
+<hr>
+
+<h2>
+  <a name="architecture-win-listener-memory-leak-fix" href="#architecture-win-listener-memory-leak-fix">
+  </a>
+  Architecture Win: Listener Memory Leak Fix
+</h2>
+
+<p>The most dangerous silent bug: Firestore snapshot listeners that never get removed.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ Before — listeners lived forever</span>
+<span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">).</span><span class="nf">document</span><span class="p">(</span><span class="n">userId</span><span class="p">).</span><span class="nf">addSnapshotListener</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+<span class="c1">// No reference kept, no way to remove</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If a user logged in, logged out, and logged in again — they'd have duplicate listeners writing to the same state. On the third login, triple listeners. Classic memory leak.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ✅ After — managed listener registry</span>
+<span class="kd">class</span> <span class="nc">UserDataManager</span><span class="p">(</span><span class="o">..</span><span class="p">.)</span> <span class="p">{</span>
+    <span class="k">private</span> <span class="kd">val</span> <span class="py">listeners</span> <span class="p">=</span> <span class="n">mutableListOf</span><span class="p">&lt;</span><span class="nc">ListenerRegistration</span><span class="p">&gt;()</span>
+
+    <span class="k">fun</span> <span class="nf">setupFirestoreListeners</span><span class="p">(</span><span class="n">currentUser</span><span class="p">:</span> <span class="nc">FirebaseUser</span><span class="p">?)</span> <span class="p">{</span>
+        <span class="kd">val</span> <span class="py">reg</span> <span class="p">=</span> <span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"commonExercises"</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">addSnapshotListener</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+        <span class="n">listeners</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">reg</span><span class="p">)</span> <span class="c1">// Track it</span>
+    <span class="p">}</span>
+
+    <span class="k">fun</span> <span class="nf">clearAllListeners</span><span class="p">()</span> <span class="p">{</span>
+        <span class="n">listeners</span><span class="p">.</span><span class="nf">forEach</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="nf">remove</span><span class="p">()</span> <span class="p">}</span> <span class="c1">// Remove all on logout</span>
+        <span class="n">listeners</span><span class="p">.</span><span class="nf">clear</span><span class="p">()</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>clearAllListeners()</code> is now called in three places: sign out, account deletion, and <code>onCleared()</code> in the ViewModel.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-analytics-engine" href="#the-analytics-engine">
+  </a>
+  The Analytics Engine
+</h2>
+
+<h3>
+  <a name="historical-data-with-dynamic-yaxis" href="#historical-data-with-dynamic-yaxis">
+  </a>
+  Historical Data with Dynamic Y-Axis
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">loadHistoricalAnalytics</span><span class="p">(</span><span class="n">userId</span><span class="p">:</span> <span class="nc">String</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">currentTime</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span>
+    <span class="kd">val</span> <span class="py">isCacheExpired</span> <span class="p">=</span> <span class="n">currentTime</span> <span class="p">-</span> <span class="n">lastAnalyticsLoadTimeMillis</span> <span class="p">&gt;</span> <span class="nc">CACHE_EXPIRY_MS</span>
+
+    <span class="k">if</span> <span class="p">(!</span><span class="n">isCacheExpired</span> <span class="p">&amp;&amp;</span> <span class="n">_analyticsGraphData</span><span class="p">.</span><span class="n">value</span><span class="p">.</span><span class="nf">isNotEmpty</span><span class="p">())</span> <span class="k">return</span>
+
+    <span class="n">viewModelScope</span><span class="p">.</span><span class="nf">launch</span> <span class="p">{</span>
+        <span class="c1">// Fetch last 90 days — caps Firestore reads</span>
+        <span class="kd">val</span> <span class="py">daysSnapshot</span> <span class="p">=</span> <span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">).</span><span class="nf">document</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"dailyActivity"</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">orderBy</span><span class="p">(</span><span class="nc">FieldPath</span><span class="p">.</span><span class="nf">documentId</span><span class="p">(),</span> <span class="nc">Query</span><span class="p">.</span><span class="nc">Direction</span><span class="p">.</span><span class="nc">DESCENDING</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">limit</span><span class="p">(</span><span class="mi">90</span><span class="p">)</span>
+            <span class="p">.</span><span class="k">get</span><span class="p">().</span><span class="nf">await</span><span class="p">()</span>
+
+        <span class="c1">// Heavy computation off the main thread</span>
+        <span class="kd">val</span> <span class="py">chartPoints</span> <span class="p">=</span> <span class="nf">withContext</span><span class="p">(</span><span class="nc">Dispatchers</span><span class="p">.</span><span class="nc">Default</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">allSets</span><span class="p">.</span><span class="nf">groupBy</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">exerciseId</span> <span class="p">}</span>
+                <span class="p">.</span><span class="nf">mapValues</span> <span class="p">{</span> <span class="p">(</span><span class="n">_</span><span class="p">,</span> <span class="n">sets</span><span class="p">)</span> <span class="p">-&gt;</span>
+                    <span class="n">sets</span><span class="p">.</span><span class="nf">groupBy</span> <span class="p">{</span> <span class="nf">truncateToDay</span><span class="p">(</span><span class="n">it</span><span class="p">.</span><span class="n">timestamp</span><span class="p">)</span> <span class="p">}</span>
+                        <span class="p">.</span><span class="nf">map</span> <span class="p">{</span> <span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">daySets</span><span class="p">)</span> <span class="p">-&gt;</span>
+                            <span class="nc">ChartDataPoint</span><span class="p">(</span><span class="n">day</span><span class="p">,</span> <span class="n">daySets</span><span class="p">.</span><span class="nf">sumOf</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">volume</span> <span class="p">})</span>
+                        <span class="p">}</span>
+                        <span class="p">.</span><span class="nf">sortedBy</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">timestampDate</span> <span class="p">}</span>
+                <span class="p">}</span>
+        <span class="p">}</span>
+
+        <span class="n">_analyticsGraphData</span><span class="p">.</span><span class="n">value</span> <span class="p">=</span> <span class="n">chartPoints</span>
+        <span class="n">lastAnalyticsLoadTimeMillis</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The Canvas renderer uses dynamic Y-axis clamping to prevent one outlier session from compressing all your other data:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="nd">@Composable</span>
+<span class="k">fun</span> <span class="nf">ProgressChartCanvas</span><span class="p">(</span><span class="n">dataPoints</span><span class="p">:</span> <span class="nc">List</span><span class="p">&lt;</span><span class="nc">ChartDataPoint</span><span class="p">&gt;,</span> <span class="n">modifier</span><span class="p">:</span> <span class="nc">Modifier</span> <span class="p">=</span> <span class="nc">Modifier</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">maxVolume</span> <span class="p">=</span> <span class="n">dataPoints</span><span class="p">.</span><span class="nf">maxOf</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">totalVolume</span> <span class="p">}.</span><span class="nf">toFloat</span><span class="p">()</span>
+    <span class="kd">val</span> <span class="py">minVolume</span> <span class="p">=</span> <span class="n">dataPoints</span><span class="p">.</span><span class="nf">minOf</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">totalVolume</span> <span class="p">}.</span><span class="nf">toFloat</span><span class="p">()</span>
+
+    <span class="c1">// ✅ Safe division — handles all-equal values</span>
+    <span class="kd">val</span> <span class="py">volumeRange</span> <span class="p">=</span> <span class="k">if</span> <span class="p">(</span><span class="n">maxVolume</span> <span class="p">&gt;</span> <span class="n">minVolume</span><span class="p">)</span> <span class="p">(</span><span class="n">maxVolume</span> <span class="p">-</span> <span class="n">minVolume</span><span class="p">)</span> <span class="k">else</span> <span class="mf">1f</span>
+
+    <span class="nc">Canvas</span><span class="p">(</span><span class="n">modifier</span> <span class="p">=</span> <span class="n">modifier</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">dataPoints</span><span class="p">.</span><span class="nf">forEachIndexed</span> <span class="p">{</span> <span class="n">index</span><span class="p">,</span> <span class="n">point</span> <span class="p">-&gt;</span>
+            <span class="kd">val</span> <span class="py">normalizedY</span> <span class="p">=</span> <span class="k">if</span> <span class="p">(</span><span class="n">maxVolume</span> <span class="p">==</span> <span class="n">minVolume</span><span class="p">)</span> <span class="mf">0.5f</span> 
+                              <span class="k">else</span> <span class="mf">1f</span> <span class="p">-</span> <span class="p">((</span><span class="n">point</span><span class="p">.</span><span class="n">totalVolume</span><span class="p">.</span><span class="nf">toFloat</span><span class="p">()</span> <span class="p">-</span> <span class="n">minVolume</span><span class="p">)</span> <span class="p">/</span> <span class="n">volumeRange</span><span class="p">)</span>
+            <span class="kd">val</span> <span class="py">yPos</span> <span class="p">=</span> <span class="p">(</span><span class="n">normalizedY</span> <span class="p">*</span> <span class="n">height</span> <span class="p">*</span> <span class="mf">0.8f</span><span class="p">)</span> <span class="p">+</span> <span class="p">(</span><span class="n">height</span> <span class="p">*</span> <span class="mf">0.1f</span><span class="p">)</span>
+            <span class="c1">// ...draw path</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="v130-whats-next" href="#v130-whats-next">
+  </a>
+  v1.3.0: What's Next
+</h2>
+
+<p>Here's what we're shipping next:</p>
+
+<h3>
+  <a name="co2-screen-transition-animations" href="#co2-screen-transition-animations">
+  </a>
+  CO-2: Screen Transition Animations
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// Replacing default NavHost with animated transitions</span>
+<span class="nc">NavHost</span><span class="p">(</span>
+    <span class="n">navController</span> <span class="p">=</span> <span class="n">navController</span><span class="p">,</span>
+    <span class="n">enterTransition</span> <span class="p">=</span> <span class="p">{</span> <span class="nf">slideInHorizontally</span> <span class="p">{</span> <span class="n">it</span> <span class="p">}</span> <span class="p">+</span> <span class="nf">fadeIn</span><span class="p">()</span> <span class="p">},</span>
+    <span class="n">exitTransition</span> <span class="p">=</span> <span class="p">{</span> <span class="nf">slideOutHorizontally</span> <span class="p">{</span> <span class="p">-</span><span class="n">it</span> <span class="p">}</span> <span class="p">+</span> <span class="nf">fadeOut</span><span class="p">()</span> <span class="p">},</span>
+    <span class="n">popEnterTransition</span> <span class="p">=</span> <span class="p">{</span> <span class="nf">slideInHorizontally</span> <span class="p">{</span> <span class="p">-</span><span class="n">it</span> <span class="p">}</span> <span class="p">+</span> <span class="nf">fadeIn</span><span class="p">()</span> <span class="p">},</span>
+    <span class="n">popExitTransition</span> <span class="p">=</span> <span class="p">{</span> <span class="nf">slideOutHorizontally</span> <span class="p">{</span> <span class="n">it</span> <span class="p">}</span> <span class="p">+</span> <span class="nf">fadeOut</span><span class="p">()</span> <span class="p">}</span>
+<span class="p">)</span> <span class="p">{</span> <span class="o">..</span><span class="p">.</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="co3-savedstatehandle-for-analytics" href="#co3-savedstatehandle-for-analytics">
+  </a>
+  CO-3: SavedStateHandle for Analytics
+</h3>
+
+<p>The analytics cache currently lives in a <code>MutableStateFlow</code> — it's lost on process death. Moving it to <code>SavedStateHandle</code> with JSON serialization:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">private</span> <span class="k">fun</span> <span class="nf">cacheAnalytics</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nc">Map</span><span class="p">&lt;</span><span class="nc">String</span><span class="p">,</span> <span class="nc">List</span><span class="p">&lt;</span><span class="nc">ChartDataPoint</span><span class="p">&gt;&gt;)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">json</span> <span class="p">=</span> <span class="n">gson</span><span class="p">.</span><span class="nf">toJson</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="n">savedStateHandle</span><span class="p">[</span><span class="s">"analytics_cache"</span><span class="p">]</span> <span class="p">=</span> <span class="n">json</span>
+    <span class="n">savedStateHandle</span><span class="p">[</span><span class="s">"analytics_cache_time"</span><span class="p">]</span> <span class="p">=</span> <span class="nc">System</span><span class="p">.</span><span class="nf">currentTimeMillis</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="f1-real-activity-indicators-on-daypill-already-shipped" href="#f1-real-activity-indicators-on-daypill-already-shipped">
+  </a>
+  F-1: Real Activity Indicators on DayPill ✅ (Already shipped)
+</h3>
+
+<p>The horizontal day strip now shows a dot under days with recorded workouts, derived from the analytics data:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">val</span> <span class="py">activeDays</span> <span class="p">=</span> <span class="nf">remember</span><span class="p">(</span><span class="n">analyticsData</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">analyticsData</span><span class="p">.</span><span class="n">values</span><span class="p">.</span><span class="nf">flatten</span><span class="p">().</span><span class="nf">map</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">timestampDate</span> <span class="p">}.</span><span class="nf">toSet</span><span class="p">()</span>
+<span class="p">}</span>
+
+<span class="c1">// In DayPill</span>
+<span class="k">if</span> <span class="p">(</span><span class="n">dayItem</span><span class="p">.</span><span class="n">hasActivity</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nc">Box</span><span class="p">(</span>
+        <span class="n">modifier</span> <span class="p">=</span> <span class="nc">Modifier</span>
+            <span class="p">.</span><span class="nf">size</span><span class="p">(</span><span class="mi">6</span><span class="p">.</span><span class="n">dp</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">background</span><span class="p">(</span><span class="nc">MaterialTheme</span><span class="p">.</span><span class="n">colorScheme</span><span class="p">.</span><span class="n">primary</span><span class="p">,</span> <span class="nc">CircleShape</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="f2-perexercise-chart-selector" href="#f2-perexercise-chart-selector">
+  </a>
+  F-2: Per-Exercise Chart Selector
+</h3>
+
+<p>Currently shows the exercise with the most data points. Next version adds a horizontal chip selector to pick any exercise.</p>
+
+<h3>
+  <a name="q3-move-onboarding-logic-to-viewmodel" href="#q3-move-onboarding-logic-to-viewmodel">
+  </a>
+  Q-3: Move Onboarding Logic to ViewModel
+</h3>
+
+<p><code>checkOnboardingAndSetDestination</code> currently lives in <code>MainActivity</code>. The right home is <code>MainViewModel</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// Target architecture</span>
+<span class="k">fun</span> <span class="nf">determineStartDestination</span><span class="p">(</span><span class="n">userId</span><span class="p">:</span> <span class="nc">String</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">viewModelScope</span><span class="p">.</span><span class="nf">launch</span> <span class="p">{</span>
+        <span class="nf">updateStartDestination</span><span class="p">(</span><span class="k">null</span><span class="p">)</span> <span class="c1">// Reset zombie state</span>
+        <span class="kd">val</span> <span class="py">userData</span> <span class="p">=</span> <span class="n">firebaseAuth</span><span class="p">.</span><span class="nf">getUserData</span><span class="p">(</span><span class="n">userId</span><span class="p">).</span><span class="nf">getOrNull</span><span class="p">()</span>
+        <span class="kd">val</span> <span class="py">dest</span> <span class="p">=</span> <span class="k">when</span> <span class="p">{</span>
+            <span class="n">userData</span> <span class="p">==</span> <span class="k">null</span> <span class="p">-&gt;</span> <span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">ONBOARDING</span>
+            <span class="n">userData</span><span class="p">.</span><span class="nf">containsKey</span><span class="p">(</span><span class="s">"weeklyGoalFrequency"</span><span class="p">)</span> <span class="p">-&gt;</span> <span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">FITNESS_MAIN</span>
+            <span class="c1">// ... onboarding resume logic</span>
+            <span class="k">else</span> <span class="p">-&gt;</span> <span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">ONBOARDING</span>
+        <span class="p">}</span>
+        <span class="nf">updateStartDestination</span><span class="p">(</span><span class="n">dest</span><span class="p">)</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="removing-f6-and-f8-from-the-roadmap" href="#removing-f6-and-f8-from-the-roadmap">
+  </a>
+  Removing F-6 and F-8 From the Roadmap
+</h2>
+
+<p>We originally planned to replace all background images with programmatic gradients. After shipping v1.2.0, we reconsidered.</p>
+
+<p>The login/register screens already use image backgrounds with a semi-transparent overlay — they look good and the images are small. The onboarding screens were already simplified. The remaining gradient work would add complexity without meaningful user-visible improvement.</p>
+
+<p><strong>Removed from roadmap:</strong></p>
+
+<ul>
+<li><del>F-6: Diagonal split with gradient (GenderSelectionScreen)</del></li>
+<li><del>F-8: Replace login/register backgrounds with gradient</del></li>
+</ul>
+
+<p>Engineering time is better spent on stability and features users actually see.</p>
+
+
+<hr>
+
+<h2>
+  <a name="lessons-learned" href="#lessons-learned">
+  </a>
+  Lessons Learned
+</h2>
+
+<p><strong>1. StateFlow doesn't emit duplicate values.</strong> If you set a StateFlow to the same value twice, the second set is silently dropped. Always reset to <code>null</code> before setting a new value if you need guaranteed re-emission.</p>
+
+<p><strong>2. Firestore listeners are not garbage-collected.</strong> You must manually remove them. Build a listener registry from day one.</p>
+
+<p><strong>3. Optimistic UI is the right default for logged-in users.</strong> Don't make users wait for network confirmation on actions they've already committed to.</p>
+
+<p><strong>4. <code>SavedStateHandle</code> is not just for rotation.</strong> It's your defense against OS process death — a real scenario on low-memory devices, not just an edge case.</p>
+
+<p><strong>5. Delta math for timers, always.</strong> <code>delay(1000L)</code> in a loop is never exactly 1000ms. If correctness matters, anchor to <code>System.currentTimeMillis()</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="source-code" href="#source-code">
+  </a>
+  Source Code
+</h2>
+
+<p>The full source is available on GitHub:</p>
+
+<p><a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p>The project is MIT licensed. Issues and PRs welcome.</p>
+
+
+<hr>
+
+<p><em>Built with Kotlin, Jetpack Compose, Firebase, and too many gym sessions to count. 🦖</em></p>
+
+
+<hr>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-built-a-crash-resistant-workout-tracker-shredzilla-v120-deep-dive-1441" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-built-a-crash-resistant-workout-tracker-shredzilla-v120-deep-dive-1441#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

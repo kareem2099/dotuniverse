@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Inside DotFetch v2.1.0: Auth Boundaries, WebView Security, and Request Architecture — FreeRave</title>
+<meta name="description" content="A deep dive into building DotFetch v2.1.0: Modular architecture in VS Code WebViews, RFC 6749 OAuth...">
+<link rel="canonical" href="https://dev.to/freerave/inside-dotfetch-v210-auth-boundaries-webview-security-and-request-architecture-4knf">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/inside-dotfetch-v210-auth-boundaries-webview-security-and-request-architecture-4knf">
+<meta property="og:title" content="Inside DotFetch v2.1.0: Auth Boundaries, WebView Security, and Request Architecture — FreeRave">
+<meta property="og:description" content="A deep dive into building DotFetch v2.1.0: Modular architecture in VS Code WebViews, RFC 6749 OAuth...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F812i1nkzkts4k47vece5.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F812i1nkzkts4k47vece5.png" alt="">
+  <h1 class="post-title">Inside DotFetch v2.1.0: Auth Boundaries, WebView Security, and Request Architecture</h1>
+  <div class="post-meta">
+    <time datetime="2026-08-20T14:05:17Z">20 August 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#typescript</span><span class="post-tag">#vscode</span><span class="post-tag">#webdev</span><span class="post-tag">#architecture</span></div>
+  </div>
+  <article class="post-body">
+<p>A deep dive into building DotFetch v2.1.0: Modular architecture in VS Code WebViews, RFC 6749 OAuth 2.0, backend-owned Basic Auth with environment variables, and safe credential isolation.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-context-switching-problem" href="#the-context-switching-problem">
+  </a>
+  The Context Switching Problem
+</h2>
+
+<p>Context switching is one of the most frustrating parts of building backend services.</p>
+
+<p>Every time you write an API endpoint in VS Code, you switch windows to a standalone API client, wait for it to load, configure environment variables, run the request, and switch back to your editor.</p>
+
+<p>We created <strong><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotfetch" target="_blank" rel="noopener noreferrer">DotFetch</a></strong> to bring a lightweight, dark-themed HTTP client directly into your VS Code workspace — native <code>.env</code> variable support, collections, cURL import/export, and zero UI bloat.</p>
+
+<p>In <strong>v2.0.0</strong>, we built the initial request builder with structured parameter and header tables.</p>
+
+<p>For <strong>v2.1.0</strong>, our focus shifted to engineering <strong>a hardened authentication and security layer designed for real-world API workflows</strong>. The challenge was resolving the architectural edge cases that appeared once authentication, persistence, and environment substitution started interacting.</p>
+
+<p>Here is an inside look at how we designed and refactored <strong>DotFetch v2.1.0</strong>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="1-architecture-modular-frontend-in-a-sandboxed-webview" href="#1-architecture-modular-frontend-in-a-sandboxed-webview">
+  </a>
+  🏗️ 1. Architecture: Modular Frontend in a Sandboxed WebView
+</h2>
+
+<p>A common problem in VS Code extension development is stuffing DOM manipulation, business logic, and IPC handling into a single monolithic script.</p>
+
+<p>In <strong>DotFetch v2.1.0</strong>, we structured the frontend into an <strong>MVC-inspired modular frontend architecture</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>DotFetch Architecture
+├── Extension Host (Node.js Runtime)
+│   ├── RequestService.ts       ← Axios execution engine, SSL Agent, OAuth token fetcher
+│   ├── DataManager.ts          ← globalState persistence (History &amp; Collections)
+│   ├── EnvironmentManager.ts   ← .env parsing &amp; {{VAR}} substitution
+│   └── webviewPanel.ts         ← IPC Message Router &amp; CSP builder
+│
+└── Frontend WebView (Browser Runtime - src/webview/)
+    ├── main.js                 ← Central Controller &amp; event dispatcher
+    ├── request.js              ← Form state, live assembly &amp; send logic
+    ├── auth.js                 ← Auth rendering, live previews &amp; RFC validation
+    ├── ui.js                   ← Structured tables, response tabs &amp; badges
+    ├── shortcuts.js            ← Configurable keyboard shortcuts
+    ├── state.js                ← Single source of truth &amp; canonical schemas
+    └── api.js                  ← postMessage transport layer
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-bundling-strategy-under-strict-csp" href="#the-bundling-strategy-under-strict-csp">
+  </a>
+  The Bundling Strategy under Strict CSP
+</h3>
+
+<p>DotFetch applies a strict Content-Security-Policy to its VS Code WebView, using nonce-based script execution:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight html"><code><span class="nt">&lt;meta</span> <span class="na">http-equiv=</span><span class="s">"Content-Security-Policy"</span> <span class="na">content=</span><span class="s">"default-src 'none'; script-src 'nonce-${nonce}'; ..."</span><span class="nt">&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Bundling simplifies WebView resource loading and CSP management while keeping the source code modular during development.</p>
+
+<p>We maintain clean ES modules in <code>src/webview/</code> during development, and use <code>esbuild</code> to bundle <code>src/webview/main.js</code> into a single <strong>IIFE bundle</strong> (<code>media/script.js</code>) in <strong>~30ms local build time in our development setup</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="nl">"esbuild-base"</span><span class="p">:</span><span class="w"> </span><span class="s2">"esbuild ./src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node &amp;&amp; esbuild ./src/webview/main.js --bundle --outfile=media/script.js --format=iife --platform=browser"</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This keeps the codebase modular and readable in source control while shipping a single, CSP-compliant script at runtime.</p>
+
+
+<hr>
+
+<h2>
+  <a name="2-the-authentication-suite" href="#2-the-authentication-suite">
+  </a>
+  🔐 2. The Authentication Suite
+</h2>
+
+<h3>
+  <a name="api-key-authentication-header-vs-query-mode" href="#api-key-authentication-header-vs-query-mode">
+  </a>
+  🔑 API Key Authentication (Header vs. Query Mode)
+</h3>
+
+<p>APIs accept keys differently. Some require custom HTTP headers (<code>X-API-Key: secret</code>), while others expect query parameters (<code>?api_key=secret</code>).</p>
+
+<p>We built an interactive UI that lets developers switch modes with real-time visual previews and a copy button:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/auth.js</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">updateApiKeyPreview</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">preview</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">auth-preview</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">preview</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">keyName</span> <span class="o">=</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">keyName</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">keyValue</span> <span class="o">=</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">keyValue</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">keyIn</span> <span class="o">=</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">.</span><span class="nx">keyIn</span> <span class="o">||</span> <span class="dl">'</span><span class="s1">header</span><span class="dl">'</span><span class="p">;</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">keyName</span> <span class="o">&amp;&amp;</span> <span class="nx">keyValue</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">text</span> <span class="o">=</span> <span class="nx">keyIn</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">header</span><span class="dl">'</span> <span class="p">?</span> <span class="s2">`</span><span class="p">${</span><span class="nx">keyName</span><span class="p">}</span><span class="s2">: </span><span class="p">${</span><span class="nx">keyValue</span><span class="p">}</span><span class="s2">`</span> <span class="p">:</span> <span class="s2">`?</span><span class="p">${</span><span class="nx">keyName</span><span class="p">}</span><span class="s2">=</span><span class="p">${</span><span class="nx">keyValue</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+        <span class="nx">preview</span><span class="p">.</span><span class="nx">innerHTML</span> <span class="o">=</span> <span class="s2">`&lt;span&gt;</span><span class="p">${</span><span class="nx">text</span><span class="p">}</span><span class="s2">&lt;/span&gt;&lt;button type="button" class="tool-btn" id="copy-auth-preview"&gt;Copy&lt;/button&gt;`</span><span class="p">;</span>
+        <span class="nx">preview</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="dl">'</span><span class="s1">hidden</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdtk2qb6ycewue5kbytwq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdtk2qb6ycewue5kbytwq.png" alt="API Key auth with real-time masked header preview and instant response inspection." loading="lazy" width="800" height="830"></a></p>
+
+<p>When sent in <strong>Query Parameter mode</strong>, the headers table remains untouched and <code>RequestService</code> injects the key into the URL string on the Node.js side right before execution.</p>
+
+
+<hr>
+
+<h3>
+  <a name="oauth-20-client-credentials-flow" href="#oauth-20-client-credentials-flow">
+  </a>
+  ⚡ OAuth 2.0 (Client Credentials Flow)
+</h3>
+
+<p>Machine-to-machine APIs (Spotify, Twitch, Azure, Auth0) frequently rely on OAuth 2.0 Client Credentials.</p>
+
+<p>Instead of writing separate shell scripts:</p>
+
+<ol>
+<li>Enter your <code>Token URL</code>, <code>Client ID</code>, <code>Client Secret</code>, and <code>Scope</code>.</li>
+<li>Click <strong>"⚡ Fetch &amp; Inject Token"</strong>.</li>
+<li>DotFetch contacts the OAuth provider, extracts the <code>access_token</code>, displays an active token status card with expiration metadata, and injects <code>Authorization: Bearer &lt;token&gt;</code> into your live requests.
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/requestService.ts - RFC 6749 §2.3.1 Compliance</span>
+<span class="k">public</span> <span class="k">async</span> <span class="nf">fetchOAuthToken</span><span class="p">(</span><span class="nx">message</span><span class="p">:</span> <span class="kr">any</span><span class="p">,</span> <span class="nx">webview</span><span class="p">:</span> <span class="nx">vscode</span><span class="p">.</span><span class="nx">Webview</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">tokenUrl</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">tokenUrl</span><span class="p">,</span> <span class="nx">env</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">clientId</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">clientId</span><span class="p">,</span> <span class="nx">env</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">clientSecret</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">clientSecret</span><span class="p">,</span> <span class="nx">env</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">scope</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">scope</span><span class="p">,</span> <span class="nx">env</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+
+    <span class="kd">const</span> <span class="nx">params</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">URLSearchParams</span><span class="p">();</span>
+    <span class="nx">params</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="dl">'</span><span class="s1">grant_type</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">client_credentials</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">scope</span><span class="p">)</span> <span class="p">{</span> <span class="nx">params</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="dl">'</span><span class="s1">scope</span><span class="dl">'</span><span class="p">,</span> <span class="nx">scope</span><span class="p">);</span> <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">headers</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="kr">string</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/x-www-form-urlencoded</span><span class="dl">'</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">Accept</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/json</span><span class="dl">'</span>
+    <span class="p">};</span>
+
+    <span class="c1">// RFC 6749 §2.3.1: client_id &amp; client_secret MUST be URL-encoded before Base64 encoding</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">clientId</span> <span class="o">&amp;&amp;</span> <span class="nx">clientSecret</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">formEncode</span> <span class="o">=</span> <span class="p">(</span><span class="nx">value</span><span class="p">:</span> <span class="kr">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nf">encodeURIComponent</span><span class="p">(</span><span class="nx">value</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/%20/g</span><span class="p">,</span> <span class="dl">'</span><span class="s1">+</span><span class="dl">'</span><span class="p">);</span>
+        <span class="kd">const</span> <span class="nx">basicCreds</span> <span class="o">=</span> <span class="nx">Buffer</span><span class="p">.</span><span class="k">from</span><span class="p">(</span>
+            <span class="s2">`</span><span class="p">${</span><span class="nf">formEncode</span><span class="p">(</span><span class="nx">clientId</span><span class="p">)}</span><span class="s2">:</span><span class="p">${</span><span class="nf">formEncode</span><span class="p">(</span><span class="nx">clientSecret</span><span class="p">)}</span><span class="s2">`</span><span class="p">,</span>
+            <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span>
+        <span class="p">).</span><span class="nf">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">headers</span><span class="p">[</span><span class="dl">'</span><span class="s1">Authorization</span><span class="dl">'</span><span class="p">]</span> <span class="o">=</span> <span class="s2">`Basic </span><span class="p">${</span><span class="nx">basicCreds</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span><span class="nx">tokenUrl</span><span class="p">,</span> <span class="nx">params</span><span class="p">.</span><span class="nf">toString</span><span class="p">(),</span> <span class="p">{</span> <span class="nx">headers</span><span class="p">,</span> <span class="na">timeout</span><span class="p">:</span> <span class="mi">15000</span> <span class="p">});</span>
+    <span class="c1">// Returns access_token, token_type, expires_in to WebView...</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fwiamvevkfx726v8d1l0d.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fwiamvevkfx726v8d1l0d.png" alt="OAuth 2.0 Token Fetching with active token card, expiry tracking, and toast feedback" loading="lazy" width="800" height="830"></a></p>
+
+
+<hr>
+
+<h3>
+  <a name="ssltls-toggle-for-local-development" href="#ssltls-toggle-for-local-development">
+  </a>
+  🛡️ SSL/TLS Toggle for Local Development
+</h3>
+
+<p>When testing microservices locally with self-signed SSL certificates (<code>https://localhost:8080</code>), Node.js rejects the connection with certificate verification errors.</p>
+
+<p>DotFetch v2.1.0 provides an <strong>SSL Toggle</strong> with a prominent toolbar warning badge (<code>⚠️ SSL Ignored</code>):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="kd">const</span> <span class="nx">httpsAgent</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">sslVerify</span> <span class="o">===</span> <span class="kc">false</span>
+    <span class="p">?</span> <span class="k">new</span> <span class="nx">https</span><span class="p">.</span><span class="nc">Agent</span><span class="p">({</span> <span class="na">rejectUnauthorized</span><span class="p">:</span> <span class="kc">false</span> <span class="p">})</span>
+    <span class="p">:</span> <span class="kc">undefined</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>To prevent accidental security gaps, every request load enforces a <strong>secure default</strong> (<code>sslVerify: true</code>).</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F6g0332ytkh6effy1g32q.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F6g0332ytkh6effy1g32q.png" alt="SSL/TLS verification toggle with active toolbar warning badge and self-signed localhost 200 OK response" loading="lazy" width="800" height="830"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="3-solving-the-hard-architectural-edge-cases" href="#3-solving-the-hard-architectural-edge-cases">
+  </a>
+  🛠️ 3. Solving the Hard Architectural Edge Cases
+</h2>
+
+<p>The auth features were straightforward. The difficult part was keeping authentication, persistence, and request execution from contaminating each other.</p>
+
+<h3>
+  <a name="1-the-draft-vs-wire-headers-contamination" href="#1-the-draft-vs-wire-headers-contamination">
+  </a>
+  🧩 1. The "Draft vs. Wire" Headers Contamination
+</h3>
+
+<p><strong>The Problem:</strong> When you send a request with Bearer Auth, the client injects <code>Authorization: Bearer &lt;token&gt;</code> into the outgoing wire headers. If the user clicked <strong>"Save to Collection"</strong>, that injected header was saved into the raw headers table. Later, loading that request and switching to "No Auth" caused the old token to remain in manual headers and still be sent.</p>
+
+<p><strong>The Solution:</strong> We decoupled <strong>Draft Data</strong> (for storage) from <strong>Wire Data</strong> (for execution):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/request.js</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">getRequestData</span><span class="p">({</span> <span class="nx">forSend</span> <span class="o">=</span> <span class="kc">false</span> <span class="p">}</span> <span class="o">=</span> <span class="p">{})</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">rawHeaders</span> <span class="o">=</span> <span class="nf">serializeHeaders</span><span class="p">();</span>
+
+    <span class="c1">// Wire headers get auth injection; Saved draft headers stay clean</span>
+    <span class="kd">const</span> <span class="nx">headers</span> <span class="o">=</span> <span class="nx">forSend</span> <span class="p">?</span> <span class="nf">applyAuthHeaderToRawHeaders</span><span class="p">(</span><span class="nx">rawHeaders</span><span class="p">)</span> <span class="p">:</span> <span class="nx">rawHeaders</span><span class="p">;</span>
+
+    <span class="c1">// Live send keeps in-memory secrets; Storage strips them</span>
+    <span class="kd">const</span> <span class="nx">auth</span> <span class="o">=</span> <span class="nx">forSend</span> <span class="p">?</span> <span class="p">{</span> <span class="p">...</span><span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span> <span class="p">}</span> <span class="p">:</span> <span class="nf">createPersistableAuthConfig</span><span class="p">();</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="na">method</span><span class="p">:</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">method</span><span class="dl">'</span><span class="p">)?.</span><span class="nx">value</span> <span class="o">||</span> <span class="dl">'</span><span class="s1">GET</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">url</span><span class="p">:</span> <span class="nf">constructFullUrl</span><span class="p">(),</span>
+        <span class="nx">headers</span><span class="p">,</span>
+        <span class="nx">auth</span><span class="p">,</span>
+        <span class="na">sslVerify</span><span class="p">:</span> <span class="nx">state</span><span class="p">.</span><span class="nx">settings</span><span class="p">.</span><span class="nx">sslVerify</span> <span class="o">!==</span> <span class="kc">false</span>
+    <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="2-basic-auth-environment-variables-base64-deadlock" href="#2-basic-auth-environment-variables-base64-deadlock">
+  </a>
+  🧩 2. Basic Auth + Environment Variables Base64 Deadlock
+</h3>
+
+<p><strong>The Problem:</strong> The UI allows <code>Username: {{API_USER}}</code> and <code>Password: {{API_PASS}}</code>.</p>
+
+<p>If the WebView constructs <code>Authorization: Basic ${btoa(</code>${user}:${pass}<code>)}</code>, it produces Base64 ciphertext of the literal string <code>{{API_USER}}:{{API_PASS}}</code>. When the Extension Host receives it, it cannot substitute the environment variables because they are locked inside Base64.</p>
+
+<p><strong>The Solution:</strong> Make Basic Auth <strong>100% Backend-Owned</strong>:</p>
+
+<ol>
+<li>The WebView strips any conflicting manual <code>Authorization</code> header.</li>
+<li>
+<code>RequestService</code> on the Extension Host performs variable substitution <em>first</em>, and <em>then</em> computes the Base64 header in Node.js runtime:
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/requestService.ts</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">auth</span><span class="p">?.</span><span class="kd">type</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">basic</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">rawUser</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">auth</span><span class="p">.</span><span class="nx">username</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">rawPass</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">auth</span><span class="p">.</span><span class="nx">password</span> <span class="o">||</span> <span class="dl">''</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">user</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">rawUser</span><span class="p">,</span> <span class="nx">selectedEnv</span><span class="p">);</span>
+    <span class="kd">const</span> <span class="nx">pass</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">environmentManager</span><span class="p">.</span><span class="nf">substituteVariables</span><span class="p">(</span><span class="nx">rawPass</span><span class="p">,</span> <span class="nx">selectedEnv</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">user</span> <span class="o">||</span> <span class="nx">pass</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">basicCreds</span> <span class="o">=</span> <span class="nx">Buffer</span><span class="p">.</span><span class="k">from</span><span class="p">(</span><span class="s2">`</span><span class="p">${</span><span class="nx">user</span><span class="p">}</span><span class="s2">:</span><span class="p">${</span><span class="nx">pass</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">).</span><span class="nf">toString</span><span class="p">(</span><span class="dl">'</span><span class="s1">base64</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">substitutedHeaders</span><span class="p">[</span><span class="dl">'</span><span class="s1">Authorization</span><span class="dl">'</span><span class="p">]</span> <span class="o">=</span> <span class="s2">`Basic </span><span class="p">${</span><span class="nx">basicCreds</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="3-zeropersistence-plaintext-secrets-across-collections-favorites-amp-history" href="#3-zeropersistence-plaintext-secrets-across-collections-favorites-amp-history">
+  </a>
+  🧩 3. Zero-Persistence Plaintext Secrets across Collections, Favorites &amp; History
+</h3>
+
+<p><strong>The Problem:</strong> <code>vscode.ExtensionContext.globalState</code> is used for persisting collections and history. Storing raw passwords, tokens, API key values, or OAuth secrets as plaintext JSON in globalState is an unnecessary security risk.</p>
+
+<p><strong>The Solution:</strong> Plaintext runtime credentials are stripped before DotFetch persists request metadata to globalState across Collections, Favorites, and History:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// src/webview/state.js</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">createPersistableAuthConfig</span><span class="p">(</span><span class="nx">authConfig</span> <span class="o">=</span> <span class="nx">state</span><span class="p">.</span><span class="nx">authConfig</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="p">...</span><span class="nx">authConfig</span><span class="p">,</span>
+        <span class="na">password</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">token</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">keyValue</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">clientSecret</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">accessToken</span><span class="p">:</span> <span class="dl">''</span><span class="p">,</span>
+        <span class="na">expiresIn</span><span class="p">:</span> <span class="kc">null</span><span class="p">,</span>
+        <span class="na">tokenReceivedAt</span><span class="p">:</span> <span class="kc">null</span>
+    <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When a request executes, <code>sendRequest()</code> passes both <code>requestData</code> (live wire credentials) and <code>historyData</code> (sanitized snapshot). On success, <code>webviewPanel.ts</code> persists only the sanitized snapshot:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/webviewPanel.ts</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">capturedResponse</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">safeRequest</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">historyData</span> <span class="o">||</span> <span class="p">{};</span>
+    <span class="kd">const</span> <span class="nx">historyEntry</span><span class="p">:</span> <span class="nx">RequestData</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="na">name</span><span class="p">:</span> <span class="nx">safeRequest</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span>
+        <span class="na">url</span><span class="p">:</span> <span class="nx">safeRequest</span><span class="p">.</span><span class="nx">url</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="nx">safeRequest</span><span class="p">.</span><span class="nx">headers</span><span class="p">,</span> <span class="c1">// Clean manual headers</span>
+        <span class="na">auth</span><span class="p">:</span> <span class="nx">safeRequest</span><span class="p">.</span><span class="nx">auth</span><span class="p">,</span>       <span class="c1">// Stripped secrets</span>
+        <span class="na">status</span><span class="p">:</span> <span class="nx">capturedResponse</span><span class="p">.</span><span class="nx">status</span><span class="p">,</span>
+        <span class="na">duration</span><span class="p">:</span> <span class="nx">capturedResponse</span><span class="p">.</span><span class="nx">duration</span><span class="p">,</span>
+        <span class="na">createdAt</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">()</span>
+    <span class="p">};</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">dataManager</span><span class="p">.</span><span class="nf">addHistory</span><span class="p">(</span><span class="nx">historyEntry</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h3>
+  <a name="4-guarding-against-memoryexploding-payloads" href="#4-guarding-against-memoryexploding-payloads">
+  </a>
+  🧩 4. Guarding Against Memory-Exploding Payloads
+</h3>
+
+<p><strong>The Problem:</strong> If an API endpoint returns a 50MB JSON payload, transferring that full payload across the VS Code <code>postMessage</code> IPC boundary will freeze the WebView and lag the editor.</p>
+
+<p><strong>The Solution:</strong> We implemented double-layered response protection:</p>
+
+<ol>
+<li>
+<strong>Network Layer:</strong> Axios enforces <code>maxContentLength: 10 * 1024 * 1024</code> (10 MB).</li>
+<li>
+<strong>Display Layer:</strong> If the response exceeds 1 MB (<code>DISPLAY_THRESHOLD</code>), we compute accurate UTF-8 byte length via <code>Buffer.byteLength()</code> and truncate the WebView preview to the first 1000 characters with a helpful badge:
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/requestService.ts</span>
+<span class="kd">const</span> <span class="nx">serializedResponse</span> <span class="o">=</span> <span class="k">typeof</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">string</span><span class="dl">'</span>
+    <span class="p">?</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span>
+    <span class="p">:</span> <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">(</span><span class="nx">response</span><span class="p">.</span><span class="nx">data</span> <span class="o">??</span> <span class="dl">''</span><span class="p">);</span>
+
+<span class="kd">const</span> <span class="nx">responseSize</span> <span class="o">=</span> <span class="nx">Buffer</span><span class="p">.</span><span class="nf">byteLength</span><span class="p">(</span><span class="nx">serializedResponse</span><span class="p">,</span> <span class="dl">'</span><span class="s1">utf8</span><span class="dl">'</span><span class="p">);</span>
+<span class="kd">const</span> <span class="nx">isLarge</span> <span class="o">=</span> <span class="nx">responseSize</span> <span class="o">&gt;</span> <span class="nx">RequestService</span><span class="p">.</span><span class="nx">DISPLAY_THRESHOLD</span><span class="p">;</span>
+
+<span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+    <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">response</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">status</span><span class="p">:</span> <span class="nx">response</span><span class="p">.</span><span class="nx">status</span><span class="p">,</span>
+    <span class="nx">duration</span><span class="p">,</span>
+    <span class="na">size</span><span class="p">:</span> <span class="nx">responseSize</span><span class="p">,</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="nx">response</span><span class="p">.</span><span class="nx">headers</span><span class="p">,</span>
+    <span class="nx">isLarge</span><span class="p">,</span>
+    <span class="na">data</span><span class="p">:</span> <span class="nx">isLarge</span>
+        <span class="p">?</span> <span class="s2">`[Response too large: </span><span class="p">${(</span><span class="nx">responseSize</span> <span class="o">/</span> <span class="mi">1024</span><span class="p">).</span><span class="nf">toFixed</span><span class="p">(</span><span class="mi">2</span><span class="p">)}</span><span class="s2"> KB]\n\nFirst 1000 characters:\n</span><span class="p">${</span><span class="nx">serializedResponse</span><span class="p">.</span><span class="nf">substring</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1000</span><span class="p">)}</span><span class="s2">...`</span>
+        <span class="p">:</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span>
+<span class="p">});</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="4-how-we-verified-it" href="#4-how-we-verified-it">
+  </a>
+  🧪 4. How We Verified It
+</h2>
+
+<p>Before tagging v2.1.0, we run our quality gates:</p>
+
+<ul>
+<li><code>npm run compile</code></li>
+<li><code>npm run typecheck</code></li>
+<li><code>npm run lint</code></li>
+</ul>
+
+<p>Then we validate the runtime test matrix manually across scenarios:</p>
+
+<ul>
+<li>
+<strong>No Auth</strong>: Raw headers sent unchanged; no injected tokens</li>
+<li>
+<strong>Basic Auth (Literal)</strong>: Safe UTF-8 Base64 encoding; manual headers overridden</li>
+<li>
+<strong>Basic Auth (Variables)</strong>: <code>{{USER}}</code> &amp; <code>{{PASS}}</code> substituted before Base64</li>
+<li>
+<strong>Bearer Token</strong>: Injected on wire only; excluded from saved collections</li>
+<li>
+<strong>API Key (Header)</strong>: Custom header injection; live preview works</li>
+<li>
+<strong>API Key (Query)</strong>: Injected into URL query string; headers table untouched</li>
+<li>
+<strong>OAuth 2.0 Flow</strong>: RFC 6749 URL encoding; active token card display; expired token blocks send</li>
+<li>
+<strong>Save &amp; Reload</strong>: Schema restored cleanly; zero header contamination</li>
+<li>
+<strong>History Sanitization</strong>: Plaintext secrets omitted from globalState</li>
+<li>
+<strong>SSL Toggle</strong>: Localhost bypasses SSL when disabled with active warning badge</li>
+<li>
+<strong>Memory Guard</strong>: Payloads &gt; 1MB safely truncated in preview</li>
+<li>
+<strong>Cancel &amp; Retry</strong>: AbortController halts execution; network retry with exponential backoff</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="summary-of-what-dotfetch-v210-delivers" href="#summary-of-what-dotfetch-v210-delivers">
+  </a>
+  📊 Summary of What DotFetch v2.1.0 Delivers
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th style="text-align: left">Feature Area</th>
+<th style="text-align: left">What You Get</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left"><strong>Authentication</strong></td>
+<td style="text-align: left">Bearer Token, Basic Auth (env-aware), API Key (Header &amp; Query), OAuth 2.0 Client Credentials</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>UI &amp; Visibility</strong></td>
+<td style="text-align: left">Interactive eye toggles (👁️ / 🙈), Response Headers Inspector table, Live previews</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Security &amp; Privacy</strong></td>
+<td style="text-align: left">Zero-persistence plaintext secret policy across Collections, Favorites &amp; History, SSL Toggle</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Performance</strong></td>
+<td style="text-align: left">10MB payload size limits, 1MB large response truncation, modular WebView source bundled into a single CSP-compatible runtime</td>
+</tr>
+<tr>
+<td style="text-align: left"><strong>Code Health</strong></td>
+<td style="text-align: left">Zero TypeScript typecheck errors, strict ESLint pass, clean IPC separation</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="try-dotfetch" href="#try-dotfetch">
+  </a>
+  🚀 Try DotFetch
+</h2>
+
+<p>DotFetch is free, open-source, and built for developers who appreciate clean tools.</p>
+
+<ul>
+<li><p>📦 <strong>VS Code Marketplace:</strong> <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotfetch" target="_blank" rel="noopener noreferrer">Install DotFetch</a></p></li>
+<li><p>🌐 <strong>Open VSX Registry:</strong> <a href="https://open-vsx.org/extension/freerave/dotfetch" target="_blank" rel="noopener noreferrer">Install DotFetch</a></p></li>
+<li><p>⭐ <strong>GitHub Repository:</strong> <a href="https://github.com/kareem2099/DotFetch" target="_blank" rel="noopener noreferrer">kareem2099/DotFetch</a></p></li>
+</ul>
+
+<p><em>Have feedback or feature suggestions for v2.2? Drop a comment below or open an issue on GitHub!</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/inside-dotfetch-v210-auth-boundaries-webview-security-and-request-architecture-4knf" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/inside-dotfetch-v210-auth-boundaries-webview-security-and-request-architecture-4knf#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

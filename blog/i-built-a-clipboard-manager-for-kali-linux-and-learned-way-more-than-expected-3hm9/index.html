@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built a Clipboard Manager for Kali Linux — And Learned Way More Than Expected — FreeRave</title>
+<meta name="description" content="So here's how it started: I kept losing code snippets, IP addresses, and payloads between windows...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-a-clipboard-manager-for-kali-linux-and-learned-way-more-than-expected-3hm9">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-a-clipboard-manager-for-kali-linux-and-learned-way-more-than-expected-3hm9">
+<meta property="og:title" content="I Built a Clipboard Manager for Kali Linux — And Learned Way More Than Expected — FreeRave">
+<meta property="og:description" content="So here's how it started: I kept losing code snippets, IP addresses, and payloads between windows...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fawlwasewtzomb0uhx4l7.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fawlwasewtzomb0uhx4l7.png" alt="">
+  <h1 class="post-title">I Built a Clipboard Manager for Kali Linux — And Learned Way More Than Expected</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-25T09:00:00Z">25 March 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#linux</span><span class="post-tag">#opensource</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<p>So here's how it started: I kept losing code snippets, IP addresses, and payloads between windows during a pentest session. CopyQ felt too heavy. <code>xclip</code> has no UI. I decided to build my own.</p>
+
+<p>What I expected: a weekend project.<br>
+What I got: a full-blown v1.2.0 release with a settings panel, video thumbnails, drag-and-drop reordering, and 94 passing tests.</p>
+
+<p>This is the story of <strong>DotGhostBoard</strong> 👻</p>
+
+<hr>
+<h2>
+  <a name="what-is-it" href="#what-is-it">
+  </a>
+  What Is It?
+</h2>
+
+<p>A clipboard manager for Linux (built for Kali, works everywhere with PyQt6 and a dark neon soul).</p>
+
+<p><strong>Core features:</strong></p>
+
+<ul>
+<li>Captures text, images, and video file paths automatically</li>
+<li>Persistent SQLite storage — survives reboots</li>
+<li>Pin system — important items can never be deleted</li>
+<li>System tray — lives quietly in the background</li>
+<li>
+<code>Ctrl+Alt+V</code> hotkey — shows the window from anywhere (Wayland-safe)</li>
+<li>Settings panel, keyboard navigation, image viewer, video thumbnails</li>
+</ul>
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fn1n3gkgh8r7z567qozkf.png" alt="Screenshot of the main DotGhostBoard window with a few clipboard cards visible" loading="lazy" width="800" height="876">
+</h2>
+<h2>
+  <a name="the-architecture-decision-that-changed-everything" href="#the-architecture-decision-that-changed-everything">
+  </a>
+  The Architecture Decision That Changed Everything
+</h2>
+
+<p>The original plan had a <code>pynput</code>-based global hotkey listener:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ❌ The bad version — DON'T do this
+</span><span class="kn">from</span> <span class="n">pynput</span> <span class="kn">import</span> <span class="n">keyboard</span>
+
+<span class="k">class</span> <span class="nc">HotkeyListener</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_hotkey</span> <span class="o">=</span> <span class="n">keyboard</span><span class="p">.</span><span class="nc">HotKey</span><span class="p">(</span>
+            <span class="n">keyboard</span><span class="p">.</span><span class="n">HotKey</span><span class="p">.</span><span class="nf">parse</span><span class="p">(</span><span class="sh">'</span><span class="s">&lt;ctrl&gt;+&lt;alt&gt;+v</span><span class="sh">'</span><span class="p">),</span>
+            <span class="n">callback</span>
+        <span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_listener</span> <span class="o">=</span> <span class="n">keyboard</span><span class="p">.</span><span class="nc">Listener</span><span class="p">(</span>
+            <span class="n">on_press</span><span class="o">=</span><span class="n">self</span><span class="p">.</span><span class="n">_on_press</span><span class="p">,</span>
+            <span class="n">on_release</span><span class="o">=</span><span class="n">self</span><span class="p">.</span><span class="n">_on_release</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_listener</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>  <span class="c1"># This is basically a keylogger
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The problems:</p>
+
+<ol>
+<li>
+<code>pynput</code> runs a background keylogger that reads <strong>every keypress</strong>
+</li>
+<li>It's Wayland-incompatible — breaks on modern GNOME/KDE</li>
+<li>It consumes resources even when idle</li>
+<li>It's conceptually wrong — we don't need to monitor the keyboard globally</li>
+</ol>
+
+<p><strong>The fix:</strong> use <code>QLocalServer</code> — PyQt6's IPC mechanism.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ✅ The right way — core/main.py
+</span><span class="kn">from</span> <span class="n">PyQt6.QtNetwork</span> <span class="kn">import</span> <span class="n">QLocalServer</span><span class="p">,</span> <span class="n">QLocalSocket</span>
+
+<span class="k">def</span> <span class="nf">_setup_ipc</span><span class="p">(</span><span class="n">app</span><span class="p">,</span> <span class="n">dashboard</span><span class="p">):</span>
+    <span class="n">server</span> <span class="o">=</span> <span class="nc">QLocalServer</span><span class="p">()</span>
+    <span class="n">server</span><span class="p">.</span><span class="nf">listen</span><span class="p">(</span><span class="sh">"</span><span class="s">DotGhostBoard_IPC</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_on_new_connection</span><span class="p">():</span>
+        <span class="n">conn</span> <span class="o">=</span> <span class="n">server</span><span class="p">.</span><span class="nf">nextPendingConnection</span><span class="p">()</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">waitForReadyRead</span><span class="p">(</span><span class="mi">300</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="nf">bytes</span><span class="p">(</span><span class="n">conn</span><span class="p">.</span><span class="nf">readAll</span><span class="p">()).</span><span class="nf">decode</span><span class="p">(</span><span class="n">errors</span><span class="o">=</span><span class="sh">"</span><span class="s">ignore</span><span class="sh">"</span><span class="p">).</span><span class="nf">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">msg</span> <span class="o">==</span> <span class="sh">"</span><span class="s">SHOW</span><span class="sh">"</span><span class="p">:</span>
+            <span class="n">dashboard</span><span class="p">.</span><span class="nf">show_and_raise</span><span class="p">()</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">disconnectFromServer</span><span class="p">()</span>
+
+    <span class="n">server</span><span class="p">.</span><span class="n">newConnection</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">_on_new_connection</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">server</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When you press <code>Ctrl+Alt+V</code> (registered as a system shortcut), the OS runs:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>python3 main.py <span class="nt">--show</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>…which launches a second instance, sends <code>b"SHOW"</code> to the IPC socket, and exits immediately. No keylogger. No root. No Wayland issues.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-clipboard-watcher" href="#the-clipboard-watcher">
+  </a>
+  The Clipboard Watcher
+</h2>
+
+<p>The watcher is a <code>QObject</code> with a <code>QTimer</code> polling every 500ms. The key insight was using a <strong>content signature</strong> instead of calling <code>.tobytes()</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/watcher.py
+</span><span class="k">elif</span> <span class="n">content_type</span> <span class="o">==</span> <span class="sh">"</span><span class="s">image</span><span class="sh">"</span><span class="p">:</span>
+    <span class="n">qimage</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_clipboard</span><span class="p">.</span><span class="nf">image</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">qimage</span> <span class="ow">is</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">qimage</span><span class="p">.</span><span class="nf">isNull</span><span class="p">():</span>
+        <span class="k">return</span>
+
+    <span class="c1"># ✅ Safe: dimensional signature — no raw bytes
+</span>    <span class="c1"># ❌ NOT: qimage.bits().tobytes() — causes IOT instruction / SIGABRT
+</span>    <span class="n">img_sig</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">qimage</span><span class="p">.</span><span class="nf">width</span><span class="p">()</span><span class="si">}</span><span class="s">x</span><span class="si">{</span><span class="n">qimage</span><span class="p">.</span><span class="nf">height</span><span class="p">()</span><span class="si">}</span><span class="s">_</span><span class="si">{</span><span class="n">qimage</span><span class="p">.</span><span class="nf">sizeInBytes</span><span class="p">()</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="k">if</span> <span class="n">img_sig</span> <span class="o">!=</span> <span class="n">self</span><span class="p">.</span><span class="n">_last_content</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_last_content</span> <span class="o">=</span> <span class="n">img_sig</span>
+        <span class="n">file_path</span> <span class="o">=</span> <span class="n">media</span><span class="p">.</span><span class="nf">save_image_from_qimage</span><span class="p">(</span><span class="n">qimage</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">file_path</span><span class="p">:</span>
+            <span class="n">item_id</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_item</span><span class="p">(</span><span class="sh">"</span><span class="s">image</span><span class="sh">"</span><span class="p">,</span> <span class="n">file_path</span><span class="p">,</span> <span class="n">preview</span><span class="o">=</span><span class="n">file_path</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">new_image_captured</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">file_path</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>qimage.bits().tobytes()</code> call was causing a hard crash (<code>Illegal instruction (core dumped)</code>) on PyQt6 6.6+. The dimensional signature avoids that entirely and is collision-resistant enough for clipboard deduplication.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fiq3dyfq76c6dyz0bvo8l.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fiq3dyfq76c6dyz0bvo8l.png" alt="Diagram of the clipboard polling loop — QTimer → detect type → save → emit signal → Dashboard adds card" loading="lazy" width="800" height="450"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-storage-layer" href="#the-storage-layer">
+  </a>
+  The Storage Layer
+</h2>
+
+<p>SQLite with a context manager to guarantee connection cleanup:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/storage.py
+</span><span class="kn">from</span> <span class="n">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">_db</span><span class="p">():</span>
+    <span class="n">conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">DB_PATH</span><span class="p">)</span>
+    <span class="n">conn</span><span class="p">.</span><span class="n">row_factory</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="p">.</span><span class="n">Row</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">yield</span> <span class="n">conn</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">commit</span><span class="p">()</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">rollback</span><span class="p">()</span>
+        <span class="k">raise</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>  <span class="c1"># Always closes, even on exception
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The schema — notice the <a>sort_order</a> column added in v1.2.0 for drag-and-drop reordering, and the <a>preview</a> column for thumbnails:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight sql"><code><span class="k">CREATE</span> <span class="k">TABLE</span> <span class="n">IF</span> <span class="k">NOT</span> <span class="k">EXISTS</span> <span class="n">clipboard_items</span> <span class="p">(</span>
+    <span class="n">id</span>          <span class="nb">INTEGER</span> <span class="k">PRIMARY</span> <span class="k">KEY</span> <span class="n">AUTOINCREMENT</span><span class="p">,</span>
+    <span class="k">type</span>        <span class="nb">TEXT</span>    <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>     <span class="c1">-- 'text' | 'image' | 'video'</span>
+    <span class="n">content</span>     <span class="nb">TEXT</span>    <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>     <span class="c1">-- text or file path</span>
+    <span class="n">preview</span>     <span class="nb">TEXT</span>    <span class="k">DEFAULT</span> <span class="k">NULL</span><span class="p">,</span> <span class="c1">-- thumbnail path</span>
+    <span class="n">is_pinned</span>   <span class="nb">INTEGER</span> <span class="k">DEFAULT</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">sort_order</span>  <span class="nb">INTEGER</span> <span class="k">DEFAULT</span> <span class="mi">0</span><span class="p">,</span>    <span class="c1">-- for drag-and-drop (v1.2.0)</span>
+    <span class="n">created_at</span>  <span class="nb">TEXT</span>    <span class="k">NOT</span> <span class="k">NULL</span><span class="p">,</span>
+    <span class="n">updated_at</span>  <span class="nb">TEXT</span>    <span class="k">NOT</span> <span class="k">NULL</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Adding a new column to an existing database without breaking it:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">init_db</span><span class="p">():</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">CREATE TABLE IF NOT EXISTS clipboard_items (...)</span><span class="sh">"</span><span class="p">)</span>
+        <span class="c1"># Safe migration — silently skips if column exists
+</span>        <span class="k">try</span><span class="p">:</span>
+            <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                <span class="sh">"</span><span class="s">ALTER TABLE clipboard_items ADD COLUMN sort_order INTEGER DEFAULT 0</span><span class="sh">"</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="lazy-image-loading-v120" href="#lazy-image-loading-v120">
+  </a>
+  Lazy Image Loading (v1.2.0)
+</h2>
+
+<p>The original version loaded images synchronously inside <a>_build_content()</a>. This froze the UI when loading a history of 200 items.</p>
+
+<p>The fix: defer thumbnail loading with <code>QTimer.singleShot(0, ...)</code>. This yields control back to the Qt event loop, paints the card first, then loads the pixel data.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/widgets.py
+</span><span class="k">def</span> <span class="nf">_build_content</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">type</span><span class="sh">"</span><span class="p">]</span> <span class="o">==</span> <span class="sh">"</span><span class="s">image</span><span class="sh">"</span><span class="p">:</span>
+        <span class="c1"># Show placeholder immediately
+</span>        <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span> <span class="o">=</span> <span class="nc">QLabel</span><span class="p">(</span><span class="sh">"</span><span class="s">🖼  Loading…</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span><span class="p">.</span><span class="nf">setAlignment</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">AlignmentFlag</span><span class="p">.</span><span class="n">AlignCenter</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span><span class="p">.</span><span class="n">mousePressEvent</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_on_image_click</span>  <span class="c1"># S004
+</span>
+        <span class="c1"># Defer actual disk read to after paint
+</span>        <span class="n">QTimer</span><span class="p">.</span><span class="nf">singleShot</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">_load_thumbnail</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span>
+
+<span class="k">def</span> <span class="nf">_load_thumbnail</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_preview</span> <span class="ow">or</span> <span class="n">self</span><span class="p">.</span><span class="n">_file_path</span>
+    <span class="n">pixmap</span> <span class="o">=</span> <span class="nc">QPixmap</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pixmap</span><span class="p">.</span><span class="nf">isNull</span><span class="p">():</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span><span class="p">.</span><span class="nf">setText</span><span class="p">(</span><span class="sh">"</span><span class="s">⚠ Invalid image</span><span class="sh">"</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="c1"># Cap at 300×180px, preserve aspect ratio
+</span>    <span class="k">if</span> <span class="n">pixmap</span><span class="p">.</span><span class="nf">width</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">300</span><span class="p">:</span>
+        <span class="n">pixmap</span> <span class="o">=</span> <span class="n">pixmap</span><span class="p">.</span><span class="nf">scaledToWidth</span><span class="p">(</span><span class="mi">300</span><span class="p">,</span> <span class="n">Qt</span><span class="p">.</span><span class="n">TransformationMode</span><span class="p">.</span><span class="n">SmoothTransformation</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">pixmap</span><span class="p">.</span><span class="nf">height</span><span class="p">()</span> <span class="o">&gt;</span> <span class="mi">180</span><span class="p">:</span>
+        <span class="n">pixmap</span> <span class="o">=</span> <span class="n">pixmap</span><span class="p">.</span><span class="nf">scaledToHeight</span><span class="p">(</span><span class="mi">180</span><span class="p">,</span> <span class="n">Qt</span><span class="p">.</span><span class="n">TransformationMode</span><span class="p">.</span><span class="n">SmoothTransformation</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_img_label</span><span class="p">.</span><span class="nf">setPixmap</span><span class="p">(</span><span class="n">pixmap</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Before: loading 50 image cards = 2-3 second freeze.<br>
+After: instant paint, thumbnails pop in one by one like a modern feed.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fojitk15sl5a5ma98gklo.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fojitk15sl5a5ma98gklo.png" alt="screenshot showing the loading placeholder → thumbnail transition" loading="lazy" width="800" height="876"></a></p>
+
+<hr>
+<h2>
+  <a name="video-thumbnails-via-ffmpeg-v120" href="#video-thumbnails-via-ffmpeg-v120">
+  </a>
+  Video Thumbnails via ffmpeg (v1.2.0)
+</h2>
+
+<p>When a video file path is copied, we extract the first frame using a background <code>QThread</code> — never blocking the UI:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/thumbnailer.py
+</span><span class="k">def</span> <span class="nf">extract_video_thumb</span><span class="p">(</span><span class="n">video_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="n">out_path</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">THUMB_DIR</span><span class="p">,</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">item_id</span><span class="si">}</span><span class="s">.png</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="p">.</span><span class="nf">run</span><span class="p">(</span>
+            <span class="p">[</span><span class="sh">"</span><span class="s">ffmpeg</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-ss</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">0</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-i</span><span class="sh">"</span><span class="p">,</span> <span class="n">video_path</span><span class="p">,</span>
+             <span class="sh">"</span><span class="s">-frames:v</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">1</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">-vf</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">scale=300:-1</span><span class="sh">"</span><span class="p">,</span> <span class="n">out_path</span><span class="p">,</span> <span class="sh">"</span><span class="s">-y</span><span class="sh">"</span><span class="p">],</span>
+            <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">DEVNULL</span><span class="p">,</span>
+            <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="p">.</span><span class="n">DEVNULL</span><span class="p">,</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">result</span><span class="p">.</span><span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">out_path</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">out_path</span>
+    <span class="k">except</span> <span class="nb">FileNotFoundError</span><span class="p">:</span>
+        <span class="nf">print</span><span class="p">(</span><span class="sh">"</span><span class="s">[Thumbnailer] ffmpeg not found — video thumbnails disabled</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">subprocess</span><span class="p">.</span><span class="n">TimeoutExpired</span><span class="p">:</span>
+        <span class="nf">print</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">[Thumbnailer] Timeout for: </span><span class="si">{</span><span class="n">video_path</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">None</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>QThread</code> that wraps it:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/watcher.py
+</span><span class="k">class</span> <span class="nc">_ThumbWorker</span><span class="p">(</span><span class="n">QThread</span><span class="p">):</span>
+    <span class="n">done</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>  <span class="c1"># (item_id, thumb_path)
+</span>
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="n">thumb</span> <span class="o">=</span> <span class="nf">extract_video_thumb</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_video_path</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">_item_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">thumb</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">done</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_item_id</span><span class="p">,</span> <span class="n">thumb</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three things I love about this design:</p>
+
+<ol>
+<li>If <a>ffmpeg</a> isn't installed → graceful fallback, no crash</li>
+<li>Runs in a background thread → UI never freezes</li>
+<li>The <a>done</a> signal updates the card live — the thumbnail just appears without any manual refresh</li>
+</ol>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fp5vwekvml10z14ef35zz.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fp5vwekvml10z14ef35zz.png" alt="A video card before thumbnail (showing file path)" loading="lazy" width="800" height="876"></a></p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F5nqk6wq20u9r4aapfhz0.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F5nqk6wq20u9r4aapfhz0.png" alt="after (showing first frame)" loading="lazy" width="800" height="876"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="drag-amp-drop-for-pinned-cards-v120" href="#drag-amp-drop-for-pinned-cards-v120">
+  </a>
+  Drag &amp; Drop for Pinned Cards (v1.2.0)
+</h2>
+
+<p>Pinned cards get a <code>⠿</code> drag handle and use <code>QDrag</code> with a custom MIME type carrying the <code>item_id</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/widgets.py
+</span><span class="k">def</span> <span class="nf">_do_drag</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">drag</span> <span class="o">=</span> <span class="nc">QDrag</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+    <span class="n">mime</span> <span class="o">=</span> <span class="nc">QMimeData</span><span class="p">()</span>
+    <span class="n">mime</span><span class="p">.</span><span class="nf">setData</span><span class="p">(</span>
+        <span class="sh">"</span><span class="s">application/x-dotghost-card-id</span><span class="sh">"</span><span class="p">,</span>
+        <span class="nc">QByteArray</span><span class="p">(</span><span class="nf">str</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">item_id</span><span class="p">).</span><span class="nf">encode</span><span class="p">())</span>
+    <span class="p">)</span>
+    <span class="n">drag</span><span class="p">.</span><span class="nf">setMimeData</span><span class="p">(</span><span class="n">mime</span><span class="p">)</span>
+    <span class="n">drag</span><span class="p">.</span><span class="nf">exec</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">DropAction</span><span class="p">.</span><span class="n">MoveAction</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>On drop in <a>dashboard.py</a>, we rebuild <a>sort_order</a> for all pinned cards in their new visual order and persist it:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># ui/dashboard.py
+</span><span class="k">def</span> <span class="nf">_drop_event</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="n">dragged_id</span> <span class="o">=</span> <span class="nf">int</span><span class="p">(</span>
+        <span class="n">event</span><span class="p">.</span><span class="nf">mimeData</span><span class="p">().</span><span class="nf">data</span><span class="p">(</span><span class="sh">"</span><span class="s">application/x-dotghost-card-id</span><span class="sh">"</span><span class="p">).</span><span class="nf">data</span><span class="p">().</span><span class="nf">decode</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="c1"># ... find target card at drop position ...
+</span>    <span class="n">pinned_cards</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="n">dragged_card</span><span class="p">)</span>
+    <span class="n">pinned_cards</span><span class="p">.</span><span class="nf">insert</span><span class="p">(</span><span class="n">target_idx</span><span class="p">,</span> <span class="n">dragged_card</span><span class="p">)</span>
+
+    <span class="c1"># Persist new order
+</span>    <span class="k">for</span> <span class="n">order</span><span class="p">,</span> <span class="n">card</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">pinned_cards</span><span class="p">):</span>
+        <span class="n">storage</span><span class="p">.</span><span class="nf">update_sort_order</span><span class="p">(</span><span class="n">card</span><span class="p">.</span><span class="n">item_id</span><span class="p">,</span> <span class="n">order</span><span class="p">)</span>
+
+    <span class="c1"># Re-insert in new visual order
+</span>    <span class="k">for</span> <span class="n">order</span><span class="p">,</span> <span class="n">card</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">pinned_cards</span><span class="p">):</span>
+        <span class="n">layout</span><span class="p">.</span><span class="nf">insertWidget</span><span class="p">(</span><span class="n">order</span><span class="p">,</span> <span class="n">card</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-test-suite" href="#the-test-suite">
+  </a>
+  The Test Suite
+</h2>
+
+<p><strong>94 tests, 0.26s.</strong></p>
+
+<p>The trick to testing storage without touching the real database:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># tests/test_storage.py
+</span><span class="kn">import</span> <span class="n">tempfile</span>
+<span class="kn">import</span> <span class="n">core.storage</span> <span class="k">as</span> <span class="n">storage</span>
+
+<span class="n">_tmp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="p">.</span><span class="nc">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="sh">"</span><span class="s">.db</span><span class="sh">"</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">_tmp</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+<span class="n">storage</span><span class="p">.</span><span class="n">DB_PATH</span> <span class="o">=</span> <span class="n">_tmp</span><span class="p">.</span><span class="n">name</span>  <span class="c1"># Redirect before any test runs
+</span>
+<span class="nd">@pytest.fixture</span><span class="p">(</span><span class="n">autouse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">fresh_db</span><span class="p">():</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">init_db</span><span class="p">()</span>
+    <span class="k">yield</span>
+    <span class="k">with</span> <span class="n">storage</span><span class="p">.</span><span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">DELETE FROM clipboard_items</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Testing <a>ffmpeg</a> graceful failure without actually needing ffmpeg:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># tests/test_thumbnailer.py
+</span><span class="k">def</span> <span class="nf">test_returns_none_when_ffmpeg_absent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">monkeypatch</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">fake_run</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="nc">FileNotFoundError</span><span class="p">(</span><span class="sh">"</span><span class="s">ffmpeg not found</span><span class="sh">"</span><span class="p">)</span>
+
+    <span class="n">monkeypatch</span><span class="p">.</span><span class="nf">setattr</span><span class="p">(</span><span class="n">subprocess</span><span class="p">,</span> <span class="sh">"</span><span class="s">run</span><span class="sh">"</span><span class="p">,</span> <span class="n">fake_run</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">thumbnailer</span><span class="p">.</span><span class="nf">extract_video_thumb</span><span class="p">(</span><span class="n">fake_video</span><span class="p">,</span> <span class="n">item_id</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">None</span>  <span class="c1"># Must not crash!
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>tests/test_media.py          27 passed
+tests/test_settings.py       11 passed
+tests/test_storage.py        32 passed
+tests/test_storage_v120.py   17 passed
+tests/test_thumbnailer.py     8 passed
+─────────────────────────────────────
+TOTAL                        94 passed in 0.26s ✅
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flpznjedjtq3ftd867o41.png" alt="Terminal screenshot of pytest output showing 94 passed" loading="lazy" width="800" height="666">
+</h2>
+
+<h2>
+  <a name="the-stylesheet" href="#the-stylesheet">
+  </a>
+  The Stylesheet
+</h2>
+
+<p>The whole UI runs on a single <a>ghost.qss</a> file. QSS supports <code>property</code> selectors, which makes state-based styling elegant:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="c">/* Base card */</span>
+<span class="nt">QFrame</span><span class="nf">#ItemCard</span> <span class="p">{</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="m">#141414</span><span class="p">;</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="m">#222</span><span class="p">;</span>
+    <span class="nl">border-radius</span><span class="p">:</span> <span class="m">8px</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c">/* Pinned = gold border */</span>
+<span class="nt">QFrame</span><span class="nf">#ItemCard</span><span class="o">[</span><span class="nt">pinned</span><span class="o">=</span><span class="s1">"true"</span><span class="o">]</span> <span class="p">{</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="m">#ffcc00</span><span class="p">;</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="m">#1a1800</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c">/* Keyboard focused = neon green border */</span>
+<span class="nt">QFrame</span><span class="nf">#ItemCard</span><span class="o">[</span><span class="nt">focused</span><span class="o">=</span><span class="s1">"true"</span><span class="o">]</span> <span class="p">{</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="m">#00ff41</span><span class="p">;</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="m">#0d1f0d</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c">/* Both pinned AND focused */</span>
+<span class="nt">QFrame</span><span class="nf">#ItemCard</span><span class="o">[</span><span class="nt">pinned</span><span class="o">=</span><span class="s1">"true"</span><span class="o">][</span><span class="nt">focused</span><span class="o">=</span><span class="s1">"true"</span><span class="o">]</span> <span class="p">{</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="m">#ffcc00</span><span class="p">;</span>
+    <span class="nl">background-color</span><span class="p">:</span> <span class="m">#1f1e00</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Triggering a state change from Python:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">set_focused</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">focused</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">setProperty</span><span class="p">(</span><span class="sh">"</span><span class="s">focused</span><span class="sh">"</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">focused</span><span class="p">).</span><span class="nf">lower</span><span class="p">())</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">style</span><span class="p">().</span><span class="nf">unpolish</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>  <span class="c1"># Force Qt to re-read the property
+</span>    <span class="n">self</span><span class="p">.</span><span class="nf">style</span><span class="p">().</span><span class="nf">polish</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="what-i-actually-learned" href="#what-i-actually-learned">
+  </a>
+  What I Actually Learned
+</h2>
+
+<p><strong>1. <code>pynput</code> is the wrong tool for app hotkeys.</strong><br>
+Use your desktop environment's native shortcut system + IPC. It's simpler, safer, and works on Wayland.</p>
+
+<p><strong>2. <code>QTimer.singleShot(0, fn)</code> is magic for deferred work.</strong><br>
+It doesn't mean "run in 0ms" — it means "yield to the event loop, then run." Perfect for lazy loading.</p>
+
+<p><strong>3. Raw bytes from Qt image objects can cause hard crashes.</strong><br>
+PyQt6 6.6+ changed memory ownership for <code>QImage.bits()</code>. Use dimensional signatures for deduplication instead.</p>
+
+<p><strong>4. Background threads in Qt need <code>QThread</code>, not <code>threading.Thread</code>.</strong><br>
+<code>QThread</code> integrates with the signal/slot system, so you can safely emit signals from a background thread to update the UI.</p>
+
+<p><strong>5. SQLite migrations in Python are two lines.</strong><br>
+Just try the <code>ALTER TABLE</code>, catch the exception when the column already exists. Simple and battle-tested.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v130-wraith" href="#whats-next-v130-wraith">
+  </a>
+  What's Next (v1.3.0 "Wraith")
+</h2>
+
+<ul>
+<li>Tags and collections</li>
+<li>Multi-select + bulk delete</li>
+<li>Export to JSON/Markdown</li>
+<li>AES-256 encryption coming in v1.4.0</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try It
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>git clone https://github.com/kareem2099/DotGhostBoard
+<span class="nb">cd </span>DotGhostBoard
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+python3 scripts/generate_icon.py
+bash scripts/install.sh
+python3 main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Or just use <code>Ctrl+Alt+V</code> once the installer sets up the shortcut.</p>
+
+
+<hr>
+
+<p><em>Built with PyQt6, SQLite, ffmpeg, and too many late-night commits.</em></p>
+
+<p><em>If this was useful, drop a ❤️ or leave a comment — especially if you're building something similar for your own workflow.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-a-clipboard-manager-for-kali-linux-and-learned-way-more-than-expected-3hm9" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 5 · 💬 4
+    · <a href="https://dev.to/freerave/i-built-a-clipboard-manager-for-kali-linux-and-learned-way-more-than-expected-3hm9#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

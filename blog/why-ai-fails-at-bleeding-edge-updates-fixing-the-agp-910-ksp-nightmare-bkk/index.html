@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Why AI Fails at Bleeding-Edge Updates: Fixing the AGP 9.1.0 + KSP Nightmare — FreeRave</title>
+<meta name="description" content="We all love the thrill of updating our tech stack. Moving to Android Gradle Plugin (AGP) 9.1.0,...">
+<link rel="canonical" href="https://dev.to/freerave/why-ai-fails-at-bleeding-edge-updates-fixing-the-agp-910-ksp-nightmare-bkk">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/why-ai-fails-at-bleeding-edge-updates-fixing-the-agp-910-ksp-nightmare-bkk">
+<meta property="og:title" content="Why AI Fails at Bleeding-Edge Updates: Fixing the AGP 9.1.0 + KSP Nightmare — FreeRave">
+<meta property="og:description" content="We all love the thrill of updating our tech stack. Moving to Android Gradle Plugin (AGP) 9.1.0,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbko26abc59c737rb7syo.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbko26abc59c737rb7syo.png" alt="">
+  <h1 class="post-title">Why AI Fails at Bleeding-Edge Updates: Fixing the AGP 9.1.0 + KSP Nightmare</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-16T08:37:53Z">16 March 2026</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#ai</span><span class="post-tag">#programming</span></div>
+  </div>
+  <article class="post-body">
+<p>We all love the thrill of updating our tech stack. Moving to <strong>Android Gradle Plugin (AGP) 9.1.0</strong>, <strong>Kotlin 2.3.10</strong>, and <strong>KSP 2.3.6</strong> promises massive performance boosts and built-in Kotlin support.</p>
+
+<p>But then, you hit the build button, and boom:</p>
+
+<blockquote>
+<p><code>Using kotlin.sourceSets DSL to add Kotlin sources is not allowed with built-in Kotlin.</code><br>
+<code>Solution: Use android.sourceSets DSL instead.</code></p>
+</blockquote>
+
+<p>In the modern era of coding, your first instinct is probably to paste this error into ChatGPT, Gemini, or Claude. <strong>Here is why that is a terrible idea for fast-moving frameworks.</strong></p>
+
+<h2>
+  <a name="the-ai-trap-fast-frameworks-vs-slow-training-data" href="#the-ai-trap-fast-frameworks-vs-slow-training-data">
+  </a>
+  The AI Trap: Fast Frameworks vs. Slow Training Data
+</h2>
+
+<p>AI models are incredible tools, but they have a massive blind spot: <strong>they cannot keep up with the daily, aggressive update cycles of ecosystems like Kotlin, Android, or Flutter.</strong> When you ask an AI to fix a bleeding-edge AGP 9.1.0 error, it relies on its training data, which is heavily populated with legacy solutions. The AI will confidently tell you to add these "band-aid" flags to your <code>gradle.properties</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight properties"><code><span class="c"># ❌ The AI "Hallucination" Fix
+</span><span class="py">android.builtInKotlin</span><span class="p">=</span><span class="s">false</span>
+<span class="py">android.newDsl</span><span class="p">=</span><span class="s">false</span>
+<span class="py">android.disallowKotlinSourceSets</span><span class="p">=</span><span class="s">false</span>
+
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Do NOT do this.</strong> This doesn't fix the problem; it turns off the very features you upgraded to AGP 9.1.0 to get! The AI is essentially telling you to buy a sports car and replace its engine with a lawnmower's.</p>
+
+<h2>
+  <a name="the-oldschool-way-rtfd-amp-the-community" href="#the-oldschool-way-rtfd-amp-the-community">
+  </a>
+  The Old-School Way: RTFD &amp; The Community
+</h2>
+
+<p>To solve bleeding-edge problems, you have to go back to the old method: searching the error, reading GitHub issues, and checking StackOverflow. Human developers discussing the problem in real-time will always beat an AI relying on outdated documentation.</p>
+
+<p>By doing a manual search, you quickly discover what is actually happening:</p>
+
+<ol>
+<li>
+<strong>The GitHub Issue:</strong> Over at the official KSP repository, <a href="https://github.com/google/ksp/issues/2615" target="_blank" rel="noopener noreferrer">Issue #2615</a> highlights the exact clash between KSP and AGP 9.x's new built-in Kotlin architecture. The KSP team was actively working on it.</li>
+<li>
+<strong>The StackOverflow Thread:</strong> Real developers figuring out the mess in real-time, like in this thread: <a href="https://stackoverflow.com/questions/79901152/using-kotlin-sourcesets-dsl-to-add-kotlin-sources-is-not-allowed-with-built-in-k" target="_blank" rel="noopener noreferrer">Using kotlin.sourceSets DSL to add Kotlin sources is not allowed with built-in Kotlin</a>.</li>
+</ol>
+
+<p>The community consensus? The fix isn't a workaround flag; it's simply aligning your versions properly and removing legacy plugins.</p>
+
+<h2>
+  <a name="the-real-clean-solution" href="#the-real-clean-solution">
+  </a>
+  The Real, Clean Solution
+</h2>
+
+<p>Here is how you actually migrate to AGP 9.1.0 with KSP, without any dirty hacks in your <code>gradle.properties</code>.</p>
+
+<p><strong>1. Update your Version Catalog (<code>libs.versions.toml</code>):</strong><br>
+Ensure you are using the specific KSP version that natively supports the AGP 9.x built-in Kotlin.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight toml"><code><span class="nn">[versions]</span>
+<span class="py">agp</span> <span class="p">=</span> <span class="s">"9.1.0"</span>
+<span class="py">kotlin</span> <span class="p">=</span> <span class="s">"2.3.10"</span>
+<span class="py">ksp</span> <span class="p">=</span> <span class="s">"2.3.6"</span> <span class="c"># The actual fix that handles the DSL correctly</span>
+
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>2. Clean up your Build Scripts:</strong><br>
+Since AGP 9.1.0 handles Kotlin internally, you <strong>must</strong> remove the old Kotlin Android plugin completely.</p>
+
+<p><em>In your project-level <code>build.gradle.kts</code>:</em><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="nf">plugins</span> <span class="p">{</span>
+    <span class="nf">alias</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">plugins</span><span class="p">.</span><span class="n">android</span><span class="p">.</span><span class="n">application</span><span class="p">)</span> <span class="n">apply</span> <span class="k">false</span>
+    <span class="c1">// alias(libs.plugins.kotlin.android) apply false  &lt;-- REMOVE THIS!</span>
+    <span class="nf">alias</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">plugins</span><span class="p">.</span><span class="n">ksp</span><span class="p">)</span> <span class="n">apply</span> <span class="k">false</span>
+<span class="p">}</span>
+
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><em>In your app-level <code>build.gradle.kts</code>:</em><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="nf">plugins</span> <span class="p">{</span>
+    <span class="nf">alias</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">plugins</span><span class="p">.</span><span class="n">android</span><span class="p">.</span><span class="n">application</span><span class="p">)</span>
+    <span class="c1">// kotlin("android") &lt;-- REMOVE THIS!</span>
+    <span class="nf">alias</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">plugins</span><span class="p">.</span><span class="n">ksp</span><span class="p">)</span>
+<span class="p">}</span>
+
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h2>
+  <a name="the-moral-of-the-story" href="#the-moral-of-the-story">
+  </a>
+  The Moral of the Story
+</h2>
+
+<p>AI is a fantastic co-pilot for writing boilerplate code or explaining fundamental concepts. But when you are dealing with <strong>cutting-edge updates in fast-paced environments</strong> (Android, Flutter, Next.js, etc.), the AI will fail you.</p>
+
+<p>When you encounter a fresh error after a version bump, don't rely fully on AI. Go back to the old methods: search the error, check the GitHub issues, and trust the community. Sometimes, the AI is telling you to climb through the window when the community has already built a proper door.</p>
+
+<p><strong>Happy Clean Coding!</strong> </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/why-ai-fails-at-bleeding-edge-updates-fixing-the-agp-910-ksp-nightmare-bkk" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/why-ai-fails-at-bleeding-edge-updates-fixing-the-agp-910-ksp-nightmare-bkk#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

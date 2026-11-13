@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotGhostBoard v1.5.5: Spotlight Search, SHA-256 Image Deduplication &amp; Zero-Trust Clipboard Security in PyQt6 — FreeRave</title>
+<meta name="description" content="How we built a Kali Linux-native, privacy-first clipboard manager featuring a floating...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotghostboard-v155-spotlight-search-sha-256-image-deduplication-zero-trust-clipboard-2b11">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotghostboard-v155-spotlight-search-sha-256-image-deduplication-zero-trust-clipboard-2b11">
+<meta property="og:title" content="Building DotGhostBoard v1.5.5: Spotlight Search, SHA-256 Image Deduplication &amp; Zero-Trust Clipboard Security in PyQt6 — FreeRave">
+<meta property="og:description" content="How we built a Kali Linux-native, privacy-first clipboard manager featuring a floating...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F296q2cef0eeef1524z79.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F296q2cef0eeef1524z79.png" alt="">
+  <h1 class="post-title">Building DotGhostBoard v1.5.5: Spotlight Search, SHA-256 Image Deduplication &amp; Zero-Trust Clipboard Security in PyQt6</h1>
+  <div class="post-meta">
+    <time datetime="2026-08-06T13:31:27Z">6 August 2026</time> · 10 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#pyqt6</span><span class="post-tag">#linux</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="how-we-built-a-kali-linuxnative-privacyfirst-clipboard-manager-featuring-a-floating-spotlight-search-overlay-ctrlshiftf-smart-image-hashing-search-input-debouncing-and-master-password-security" href="#how-we-built-a-kali-linuxnative-privacyfirst-clipboard-manager-featuring-a-floating-spotlight-search-overlay-ctrlshiftf-smart-image-hashing-search-input-debouncing-and-master-password-security">
+  </a>
+  How we built a Kali Linux-native, privacy-first clipboard manager featuring a floating Spotlight search overlay (Ctrl+Shift+F), smart image hashing, search input debouncing, and Master Password security.
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fuc8rt3sczn7fnd7hbmkg.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fuc8rt3sczn7fnd7hbmkg.png" alt="DotGhostBoard v1.5.5 Hero Dashboard" loading="lazy" width="800" height="450"></a></p>
+
+<p>I was working on Kali Linux, taking multiple screenshot captures of terminal error tracebacks and copying temporary API bearer tokens, when I realized two frustrating things:</p>
+
+<ol>
+<li>My disk was getting littered with dozens of duplicate PNG screenshots (<code>capture_1427.png</code>, <code>capture_1428.png</code>) taking up space and cluttering my feed.</li>
+<li>The clipboard managers available on Linux were either heavy Electron apps devouring 350MB+ RAM just sitting in the tray, or basic plain-text loggers that stored sensitive API keys unencrypted on disk.</li>
+</ol>
+
+<p>That's why we built <strong><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">DotGhostBoard</a></strong> — a Kali Linux-native, privacy-first, zero-trust clipboard manager built with <strong>Python 3</strong> and <strong>PyQt6</strong>. It features AES-256-GCM encryption, local SQLite storage, global hotkey overlays, and a dark neon aesthetic — using ~85 MB of Full Runtime RAM.</p>
+
+<p>In this article, we'll dive deep into the architecture, design choices, and <strong>actual Python code</strong> behind the new features introduced in <strong>v1.5.5 (Nexus Polish &amp; Spotlight)</strong>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="key-features-introduced-in-v155" href="#key-features-introduced-in-v155">
+  </a>
+  🚀 Key Features Introduced in v1.5.5
+</h2>
+
+<p>Here is what we engineered for this release:</p>
+
+<ul>
+<li>🔍 <strong>Spotlight Quick Search Overlay (<code>ui/spotlight.py</code>)</strong>: A frameless, floating quick-search popup accessible globally via <code>Ctrl+Shift+F</code>.</li>
+<li>🖼️ <strong>Smart Image SHA-256 Deduplication (<code>core/storage.py</code>)</strong>: Automatic pixel hashing that prevents duplicate screenshots from cluttering disk space or UI feeds.</li>
+<li>🔐 <strong>Master Password Protection for Secret Copying (<code>ui/dashboard.py</code>)</strong>: Zero-leak in-memory decryption for encrypted clipboard items.</li>
+<li>⚡ <strong>Search Input Debouncing (<code>QTimer</code>)</strong>: 150ms–200ms non-blocking debounce timers to eliminate UI lag during rapid typing.</li>
+<li>📊 <strong>Dashboard Stats Header &amp; Relative Time Refresh</strong>: Real-time state summary banner and relative timestamps ("just now", "5m ago", "2h ago").</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="1-spotlight-quick-search-overlay-raw-uispotlightpy-endraw-" href="#1-spotlight-quick-search-overlay-raw-uispotlightpy-endraw-">
+  </a>
+  1. Spotlight Quick Search Overlay (<code>ui/spotlight.py</code>)
+</h2>
+
+<p>A core goal of v1.5.5 was allowing users to query their clipboard history from <strong>any application</strong> without switching windows manually.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frmjm637ewn1vvvnkdtnk.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frmjm637ewn1vvvnkdtnk.png" alt="Spotlight Quick Search Overlay (Ctrl+Shift+F)" loading="lazy" width="800" height="450"></a></p>
+
+<p>We designed <code>SpotlightSearchDialog</code> using PyQt6's <code>QDialog</code> with frameless window hints and active screen auto-centering:</p>
+
+<p>🔗 <strong>GitHub Source Code:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/ui/spotlight.py" target="_blank" rel="noopener noreferrer"><code>ui/spotlight.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="kn">from</span> <span class="n">PyQt6.QtWidgets</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">QDialog</span><span class="p">,</span> <span class="n">QVBoxLayout</span><span class="p">,</span> <span class="n">QLineEdit</span><span class="p">,</span> <span class="n">QListWidget</span><span class="p">,</span>
+    <span class="n">QListWidgetItem</span><span class="p">,</span> <span class="n">QLabel</span><span class="p">,</span> <span class="n">QHBoxLayout</span><span class="p">,</span> <span class="n">QFrame</span><span class="p">,</span>
+    <span class="n">QApplication</span><span class="p">,</span> <span class="n">QGraphicsDropShadowEffect</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="n">PyQt6.QtCore</span> <span class="kn">import</span> <span class="n">Qt</span><span class="p">,</span> <span class="n">pyqtSignal</span><span class="p">,</span> <span class="n">QEvent</span><span class="p">,</span> <span class="n">QTimer</span>
+<span class="kn">from</span> <span class="n">PyQt6.QtGui</span> <span class="kn">import</span> <span class="n">QColor</span><span class="p">,</span> <span class="n">QKeyEvent</span>
+
+<span class="kn">from</span> <span class="n">core</span> <span class="kn">import</span> <span class="n">storage</span>
+
+
+<span class="k">class</span> <span class="nc">SpotlightSearchDialog</span><span class="p">(</span><span class="n">QDialog</span><span class="p">):</span>
+    <span class="sh">"""</span><span class="s">
+    Spotlight-style floating search overlay.
+    - Frameless, stays on top, centered on active monitor.
+    - Up / Down / Enter keyboard navigation.
+    - Emits sig_item_selected(item) when user picks an item.
+    </span><span class="sh">"""</span>
+    <span class="n">sig_item_selected</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nf">super</span><span class="p">().</span><span class="nf">__init__</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setWindowFlags</span><span class="p">(</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">FramelessWindowHint</span> <span class="o">|</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">WindowStaysOnTopHint</span> <span class="o">|</span>
+            <span class="n">Qt</span><span class="p">.</span><span class="n">WindowType</span><span class="p">.</span><span class="n">Tool</span>
+        <span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setAttribute</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">WidgetAttribute</span><span class="p">.</span><span class="n">WA_TranslucentBackground</span><span class="p">,</span> <span class="bp">True</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setFixedWidth</span><span class="p">(</span><span class="mi">640</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">setFixedHeight</span><span class="p">(</span><span class="mi">420</span><span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="n">_items</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_pending_query</span> <span class="o">=</span> <span class="sh">""</span>
+
+        <span class="c1"># 150ms search debounce timer
+</span>        <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span> <span class="o">=</span> <span class="nc">QTimer</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">setSingleShot</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">setInterval</span><span class="p">(</span><span class="mi">150</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_do_search</span><span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="nf">_build_ui</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_center_on_screen</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="keyboard-navigation-amp-focus-loss" href="#keyboard-navigation-amp-focus-loss">
+  </a>
+  Keyboard Navigation &amp; Focus Loss
+</h3>
+
+<p>To make Spotlight feel as smooth as macOS Spotlight or Raycast:</p>
+
+<ol>
+<li>
+<code>eventFilter</code> captures <code>Up</code>, <code>Down</code>, <code>Enter</code>, and <code>Esc</code> keys regardless of whether focus is on the <code>QLineEdit</code> or <code>QListWidget</code>.</li>
+<li>Encrypted secret items (<code>is_secret == 1</code>) are masked with <code>🔒 Secret Item (Encrypted)</code> to prevent sensitive data leaks.</li>
+<li>
+<code>changeEvent</code> listens for <code>ActivationChange</code> to automatically hide Spotlight when the user clicks outside.
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code>    <span class="k">def</span> <span class="nf">eventFilter</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">event</span><span class="p">.</span><span class="nf">type</span><span class="p">()</span> <span class="o">==</span> <span class="n">QEvent</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">KeyPress</span><span class="p">:</span>
+            <span class="n">key_event</span><span class="p">:</span> <span class="n">QKeyEvent</span> <span class="o">=</span> <span class="n">event</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">key_event</span><span class="p">.</span><span class="nf">key</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Escape</span><span class="p">:</span>
+                <span class="n">self</span><span class="p">.</span><span class="nf">hide</span><span class="p">()</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Down</span><span class="p">:</span>
+                <span class="n">cur</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">currentRow</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">cur</span> <span class="o">&lt;</span> <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">count</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">setCurrentRow</span><span class="p">(</span><span class="n">cur</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Up</span><span class="p">:</span>
+                <span class="n">cur</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">currentRow</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">cur</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">setCurrentRow</span><span class="p">(</span><span class="n">cur</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+            <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Return</span><span class="p">,</span> <span class="n">Qt</span><span class="p">.</span><span class="n">Key</span><span class="p">.</span><span class="n">Key_Enter</span><span class="p">):</span>
+                <span class="n">current_item</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">results_list</span><span class="p">.</span><span class="nf">currentItem</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">current_item</span><span class="p">:</span>
+                    <span class="n">self</span><span class="p">.</span><span class="nf">_on_item_activated</span><span class="p">(</span><span class="n">current_item</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="k">return</span> <span class="nf">super</span><span class="p">().</span><span class="nf">eventFilter</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">changeEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">event</span><span class="p">.</span><span class="nf">type</span><span class="p">()</span> <span class="o">==</span> <span class="n">QEvent</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">ActivationChange</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="nf">isActiveWindow</span><span class="p">():</span>
+                <span class="n">self</span><span class="p">.</span><span class="nf">hide</span><span class="p">()</span>
+        <span class="nf">super</span><span class="p">().</span><span class="nf">changeEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="2-smart-image-deduplication-via-sha256-raw-corestoragepy-endraw-" href="#2-smart-image-deduplication-via-sha256-raw-corestoragepy-endraw-">
+  </a>
+  2. Smart Image Deduplication via SHA-256 (<code>core/storage.py</code>)
+</h2>
+
+<h3>
+  <a name="the-problem" href="#the-problem">
+  </a>
+  The Problem
+</h3>
+
+<p>When capturing screenshots or images from the system clipboard, <code>QImage.save()</code> creates a new temporary PNG file (e.g., <code>capture_20260805_142748.png</code>). Because each file gets a timestamped path, traditional string matching (<code>WHERE content = ?</code>) fails to recognize identical images. This led to duplicate cards filling the dashboard and wasting disk space.</p>
+
+<h3>
+  <a name="the-solution-sha256-image-hashing" href="#the-solution-sha256-image-hashing">
+  </a>
+  The Solution: SHA-256 Image Hashing
+</h3>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fx7p8l58vdnmg53k4gf1y.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fx7p8l58vdnmg53k4gf1y.png" alt="Image SHA-256 Deduplication Feed" loading="lazy" width="800" height="450"></a></p>
+
+<p>Inside <code>storage.add_item()</code>, when an image is saved:</p>
+
+<ol>
+<li>Compute the SHA-256 checksum of the new PNG file.</li>
+<li>Query existing <code>image</code> rows in SQLite.</li>
+<li>If an existing image has the exact same SHA-256 hash:
+
+<ul>
+<li>Purge the newly generated temporary PNG file from disk (<code>os.remove()</code>).</li>
+<li>Execute <code>UPDATE clipboard_items SET updated_at = NOW, copy_count = copy_count + 1 WHERE id = ?</code>.</li>
+<li>Return the existing item ID so the UI floats the original image card to the top with an updated frequency badge (<code>×2</code>, <code>×3</code>, <code>🔥 ×10</code>)!</li>
+</ul>
+</li>
+</ol>
+
+<p>🔗 <strong>GitHub Source Code:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/core/storage.py" target="_blank" rel="noopener noreferrer"><code>core/storage.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="kn">import</span> <span class="n">hashlib</span>
+
+<span class="k">def</span> <span class="nf">_get_file_hash</span><span class="p">(</span><span class="n">filepath</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Calculate SHA-256 hash of a file for image duplicate detection.</span><span class="sh">"""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">filepath</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">hashlib</span><span class="p">.</span><span class="nf">sha256</span><span class="p">()</span>
+        <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="sh">"</span><span class="s">rb</span><span class="sh">"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="nf">iter</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">f</span><span class="p">.</span><span class="nf">read</span><span class="p">(</span><span class="mi">65536</span><span class="p">),</span> <span class="sa">b</span><span class="sh">""</span><span class="p">):</span>
+                <span class="n">h</span><span class="p">.</span><span class="nf">update</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">h</span><span class="p">.</span><span class="nf">hexdigest</span><span class="p">()</span>
+    <span class="k">except</span> <span class="nb">OSError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">None</span>
+
+
+<span class="k">def</span> <span class="nf">add_item</span><span class="p">(</span><span class="n">item_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">preview</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="bp">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Add a new item to the database using a 3-stage cascade for optimal performance:
+    - Stage 1: Fast O(1) string match (avoids unnecessary disk IO).
+    - Stage 2: SHA-256 pixel hash match for images (resolves timestamped file duplicates).
+    - Stage 3: Clean SQL insertion for brand new unique items.
+    </span><span class="sh">"""</span>
+    <span class="c1"># ── STAGE 1: Direct Content Match ──
+</span>    <span class="c1"># Check text strings or identical paths first. This is an immediate SQL lookup,
+</span>    <span class="c1"># avoiding heavy disk reads if the exact same text or path was already recorded.
+</span>    <span class="n">existing</span> <span class="o">=</span> <span class="nf">get_item_by_content</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">existing</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+        <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                <span class="sh">"</span><span class="s">UPDATE clipboard_items SET updated_at = ?, copy_count = copy_count + 1 WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">existing</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]),</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">existing</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span>
+
+    <span class="c1"># ── STAGE 2: SHA-256 Image Content Hash Match ──
+</span>    <span class="c1"># If content paths differ (e.g. capture_1001.png vs capture_1002.png), compare actual pixel hashes.
+</span>    <span class="c1"># We filter by file size first (os.path.getsize) to avoid computing SHA-256 on non-matching sizes!
+</span>    <span class="k">if</span> <span class="n">item_type</span> <span class="o">==</span> <span class="sh">"</span><span class="s">image</span><span class="sh">"</span> <span class="ow">and</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">content</span><span class="p">):</span>
+        <span class="n">new_hash</span> <span class="o">=</span> <span class="nf">_get_file_hash</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">new_hash</span><span class="p">:</span>
+            <span class="n">new_size</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">getsize</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+                <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                    <span class="sh">"</span><span class="s">SELECT id, content FROM clipboard_items WHERE type = </span><span class="sh">'</span><span class="s">image</span><span class="sh">'</span><span class="s"> ORDER BY updated_at DESC LIMIT 100</span><span class="sh">"</span>
+                <span class="p">).</span><span class="nf">fetchall</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+                <span class="n">existing_path</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">existing_path</span> <span class="ow">and</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">isfile</span><span class="p">(</span><span class="n">existing_path</span><span class="p">):</span>
+                    <span class="c1"># Fast pre-check: Compare file size before hashing disk bytes
+</span>                    <span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">getsize</span><span class="p">(</span><span class="n">existing_path</span><span class="p">)</span> <span class="o">==</span> <span class="n">new_size</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="nf">_get_file_hash</span><span class="p">(</span><span class="n">existing_path</span><span class="p">)</span> <span class="o">==</span> <span class="n">new_hash</span><span class="p">:</span>
+                            <span class="c1"># Duplicate image pixels detected! Delete the new redundant temporary file
+</span>                            <span class="k">try</span><span class="p">:</span>
+                                <span class="n">os</span><span class="p">.</span><span class="nf">remove</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+                            <span class="k">except</span> <span class="nb">OSError</span><span class="p">:</span>
+                                <span class="k">pass</span>
+
+                            <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+                            <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+                                <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                                    <span class="sh">"</span><span class="s">UPDATE clipboard_items SET updated_at = ?, copy_count = copy_count + 1 WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+                                    <span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">row</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]),</span>
+                                <span class="p">)</span>
+                            <span class="k">return</span> <span class="n">row</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span>
+
+    <span class="c1"># ── STAGE 3: New Unique Item Insertion ──
+</span>    <span class="c1"># If neither string content nor SHA-256 hash matched, insert as a brand new item.
+</span>    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+            INSERT INTO clipboard_items (type, content, preview, is_pinned, copy_count, created_at, updated_at)
+            VALUES (?, ?, ?, 0, 1, ?, ?)
+        </span><span class="sh">"""</span><span class="p">,</span> <span class="p">(</span><span class="n">item_type</span><span class="p">,</span> <span class="n">content</span><span class="p">,</span> <span class="n">preview</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">now</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">cursor</span><span class="p">.</span><span class="n">lastrowid</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="3-zeroleak-master-password-verification-raw-uidashboardpy-endraw-" href="#3-zeroleak-master-password-verification-raw-uidashboardpy-endraw-">
+  </a>
+  3. Zero-Leak Master Password Verification (<code>ui/dashboard.py</code>)
+</h2>
+
+<p>DotGhostBoard allows users to encrypt sensitive clips (e.g., API keys, passwords) using AES-256-GCM. </p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fatr8aj7qf8gxy5snlhw3.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fatr8aj7qf8gxy5snlhw3.png" alt="Master Password Secret Lock Screen &amp; Decryption" loading="lazy" width="800" height="450"></a></p>
+
+<p>When a user copies a secret item from Spotlight or the Dashboard:</p>
+
+<ol>
+<li>
+<code>_on_copy(item_id)</code> checks if <code>item.get("is_secret")</code> is true.</li>
+<li>If the session is locked (<code>_active_key is None</code>), it prompts for the Master Password via <code>LockScreen</code>.</li>
+<li>The content is decrypted <strong>in-memory only</strong> for copying to the OS clipboard.</li>
+<li>
+<code>watcher.mark_self_paste()</code> informs the clipboard watcher to ignore the newly pasted plaintext so it is <strong>never saved back to the database as an unencrypted card</strong>.</li>
+</ol>
+
+<blockquote>
+<p>🛡️ <strong>Zero-Leak Security Architecture:</strong>  </p>
+
+<ol>
+<li>
+<strong>Zero Disk Leak:</strong> Decryption happens strictly in-memory during copy (<code>storage.decrypt_item</code>).
+</li>
+<li>
+<strong>Watcher Interception:</strong> <code>watcher.mark_self_paste()</code> intercepts the next clipboard polling tick, updating <code>_last_content</code> to ignore the text and preventing the watcher thread from re-saving the unencrypted secret back into SQLite.
+</li>
+<li>
+<strong>UI RAM Purge:</strong> When locking the session, <code>on_session_locked()</code> immediately purges plaintext from Qt UI labels (<code>setText("")</code>) so sensitive data never lingers in widget memory.
+</li>
+</ol>
+
+<p><em>Note: These protections completely prevent secrets from leaking back into DotGhostBoard's SQLite database or UI widgets. They do not yet control how long the plaintext sits on the OS-level clipboard buffer after pasting — which is why our upcoming v2.0 release introduces an automated 30-second clipboard wipe.</em></p>
+</blockquote>
+
+<p>🔗 <strong>GitHub Source Code:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/ui/dashboard.py" target="_blank" rel="noopener noreferrer"><code>ui/dashboard.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code>    <span class="k">def</span> <span class="nf">_on_copy</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">item</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">is_secret</span><span class="sh">"</span><span class="p">):</span>
+            <span class="c1"># Check if session is unlocked
+</span>            <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">_active_key</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">dlg</span> <span class="o">=</span> <span class="nc">LockScreen</span><span class="p">(</span><span class="n">setup</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">dlg</span><span class="p">.</span><span class="nf">exec</span><span class="p">()</span> <span class="o">==</span> <span class="n">LockScreen</span><span class="p">.</span><span class="n">DialogCode</span><span class="p">.</span><span class="n">Accepted</span><span class="p">:</span>
+                    <span class="n">self</span><span class="p">.</span><span class="n">_active_key</span> <span class="o">=</span> <span class="n">dlg</span><span class="p">.</span><span class="nf">get_key</span><span class="p">()</span>
+                    <span class="n">self</span><span class="p">.</span><span class="nf">_reset_auto_lock</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sh">"</span><span class="s">⚠ Session is locked — unlock to copy secret.</span><span class="sh">"</span><span class="p">)</span>
+                    <span class="k">return</span>
+
+            <span class="c1"># Decrypt item content in-memory for copying
+</span>            <span class="n">plaintext</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">decrypt_item</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">_active_key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">plaintext</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sh">"</span><span class="s">⚠ Decryption failed — wrong key or corrupted data.</span><span class="sh">"</span><span class="p">)</span>
+                <span class="k">return</span>
+
+            <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">plaintext</span>
+
+        <span class="c1"># Mark as self-paste so watcher updates _last_content without re-capturing
+</span>        <span class="n">self</span><span class="p">.</span><span class="n">watcher</span><span class="p">.</span><span class="nf">mark_self_paste</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">watcher</span><span class="p">.</span><span class="nf">paste_item_to_clipboard</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+        <span class="c1"># Increment copy count in DB and refresh UI badge
+</span>        <span class="n">new_count</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">increment_copy_count</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+        <span class="n">card</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">card</span><span class="p">:</span>
+            <span class="n">card</span><span class="p">.</span><span class="nf">update_copy_count</span><span class="p">(</span><span class="n">new_count</span><span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Copied! ⏘  (×</span><span class="si">{</span><span class="n">new_count</span><span class="si">}</span><span class="s">)</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="4-search-input-debouncing-with-raw-qtimer-endraw-" href="#4-search-input-debouncing-with-raw-qtimer-endraw-">
+  </a>
+  4. Search Input Debouncing with <code>QTimer</code>
+</h2>
+
+<p>Connecting <code>QLineEdit.textChanged</code> directly to database queries causes UI freezing during rapid typing because every single keystroke executes an SQL query and clears/rebuilds PyQt6 widgets.</p>
+
+<p>We implemented a single-shot <code>QTimer</code> debounce pattern in both the main Dashboard (200ms) and Spotlight (150ms):</p>
+
+<p>🔗 <strong>GitHub Source Code:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/ui/dashboard.py" target="_blank" rel="noopener noreferrer"><code>ui/dashboard.py</code></a> | <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/ui/spotlight.py" target="_blank" rel="noopener noreferrer"><code>ui/spotlight.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code>    <span class="c1"># Inside Dashboard.__init__
+</span>    <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span> <span class="o">=</span> <span class="nc">QTimer</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">setSingleShot</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">setInterval</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_do_search</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_pending_search_query</span> <span class="o">=</span> <span class="sh">""</span>
+
+    <span class="k">def</span> <span class="nf">_on_search</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="sh">"""</span><span class="s">Debounce search box input by 200ms.</span><span class="sh">"""</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_pending_search_query</span> <span class="o">=</span> <span class="n">query</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">query</span><span class="p">.</span><span class="nf">strip</span><span class="p">():</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">stop</span><span class="p">()</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_do_search</span><span class="p">()</span>  <span class="c1"># Instant clear on empty input
+</span>        <span class="k">else</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_search_timer</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_do_search</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="sh">"""</span><span class="s">Execute SQL query &amp; UI rebuild after 200ms pause in typing.</span><span class="sh">"""</span>
+        <span class="n">query</span> <span class="o">=</span> <span class="nf">getattr</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="sh">"</span><span class="s">_pending_search_query</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span>
+        <span class="c1"># ... SQL search &amp; widget pagination ...
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="5-dashboard-state-summary-banner-raw-statsheadercard-endraw-" href="#5-dashboard-state-summary-banner-raw-statsheadercard-endraw-">
+  </a>
+  5. Dashboard State Summary Banner (<code>StatsHeaderCard</code>)
+</h2>
+
+<p>At the top of the history feed, <code>StatsHeaderCard</code> provides a live state summary:</p>
+
+<ul>
+<li>
+<strong>📋 Today</strong>: Total clips captured today.</li>
+<li>
+<strong>🔥 Top</strong>: Most frequently copied clip created today (excluding encrypted secrets).</li>
+<li>
+<strong>📍 Pinned</strong>: Total count of pinned clips.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fc1wei1dwq2hu6mve4wnu.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fc1wei1dwq2hu6mve4wnu.png" alt="Dashboard Stats Header Card" loading="lazy" width="798" height="127"></a></p>
+
+<p>🔗 <strong>GitHub Source Code:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/core/storage.py" target="_blank" rel="noopener noreferrer"><code>core/storage.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">get_today_stats</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="n">today_prefix</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">strftime</span><span class="p">(</span><span class="sh">"</span><span class="s">%Y-%m-%d</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">cur1</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">SELECT COUNT(*) as cnt FROM clipboard_items WHERE created_at LIKE ?</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">today_prefix</span><span class="si">}</span><span class="s">%</span><span class="sh">"</span><span class="p">,)</span>
+        <span class="p">)</span>
+        <span class="n">total_today</span> <span class="o">=</span> <span class="n">cur1</span><span class="p">.</span><span class="nf">fetchone</span><span class="p">()[</span><span class="sh">"</span><span class="s">cnt</span><span class="sh">"</span><span class="p">]</span>
+
+        <span class="n">cur3</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"""</span><span class="s">
+            SELECT preview, content, copy_count
+            FROM clipboard_items
+            WHERE copy_count &gt; 0
+              AND created_at LIKE ?
+              AND COALESCE(is_secret, 0) = 0
+            ORDER BY copy_count DESC, updated_at DESC
+            LIMIT 1
+            </span><span class="sh">"""</span><span class="p">,</span>
+            <span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">today_prefix</span><span class="si">}</span><span class="s">%</span><span class="sh">"</span><span class="p">,)</span>
+        <span class="p">)</span>
+        <span class="n">top_row</span> <span class="o">=</span> <span class="n">cur3</span><span class="p">.</span><span class="nf">fetchone</span><span class="p">()</span>
+        <span class="c1"># ... format &amp; return dict ...
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="testing-amp-verification" href="#testing-amp-verification">
+  </a>
+  🧪 Testing &amp; Verification
+</h2>
+
+<p>We maintained strict TDD practices throughout development, writing 184 unit tests using <code>pytest</code>:</p>
+
+<p>🔗 <strong>GitHub Test Suite:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/blob/main/tests/test_v155_polish.py" target="_blank" rel="noopener noreferrer"><code>tests/test_v155_polish.py</code></a><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="o">=============================</span> 184 passed <span class="k">in </span>8.40s <span class="o">==============================</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Every component — from relative timestamp calculation (<code>_format_time</code>) to SHA-256 image deduplication and <code>reset_copy_count</code> boolean return values — is covered by automated unit tests in <code>tests/test_v155_polish.py</code>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="packaging-amp-installation-on-linux" href="#packaging-amp-installation-on-linux">
+  </a>
+  📦 Packaging &amp; Installation on Linux
+</h2>
+
+<p>DotGhostBoard is packaged for multiple Linux distributions including AppImage, <code>.deb</code>, Arch Linux (<code>.pkg.tar.zst</code>), and generic <code>.tar.gz</code>:</p>
+
+<p>You can download pre-built release assets from:</p>
+
+<ul>
+<li>📦 <strong>GitHub Release v1.5.5:</strong> <a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.5" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.5</a>
+</li>
+<li>🛍️ <strong>OpenDesktop / Pling Store:</strong> <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">https://www.opendesktop.org/p/2353623/</a>
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Build DEB package locally</span>
+./scripts/build_deb.sh
+
+<span class="c"># Install on Kali Linux / Debian / Ubuntu</span>
+<span class="nb">sudo </span>dpkg <span class="nt">-i</span> dotghostboard_1.5.5_amd64.deb
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-the-roadmap-to-dotghostboard-v2x-cerberus" href="#whats-next-the-roadmap-to-dotghostboard-v2x-cerberus">
+  </a>
+  🔮 What's Next? The Roadmap to DotGhostBoard v2.x (Cerberus)
+</h2>
+
+<p>With the v1.5.x milestone complete, we are officially transitioning development to <strong>DotGhostBoard v2.x</strong>! </p>
+
+<p>Here is a sneak peek at the exciting features engineered for the upcoming <strong>v2.0.0 (Cerberus)</strong> release:</p>
+
+<ul>
+<li>🔒 <strong>The Vault (<code>vault.db</code>)</strong>: An isolated, zero-knowledge encrypted database completely separate from <code>ghost.db</code>, protected by an independent Master Password for ultimate credential security.</li>
+<li>🧠 <strong>Regex Smart Secret Detection</strong>: Pattern-based heuristic detection for API Keys, AWS credentials (<code>AKIA...</code>), GitHub PATs (<code>ghp_...</code>), JWT tokens, and high-entropy secrets — automatically prompting users to move them into The Vault.</li>
+<li>⏳ <strong>30-Second Auto-Wipe</strong>: Automatic clipboard buffer wiping 30 seconds after pasting sensitive tokens from the Vault.</li>
+<li>🕵️ <strong>Paranoia / Zero-Logging Mode</strong>: A single-click stealth mode toggle that temporarily halts all local database logging.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion-amp-performance-benchmarks" href="#conclusion-amp-performance-benchmarks">
+  </a>
+  🌟 Conclusion &amp; Performance Benchmarks
+</h2>
+
+<p>Building <strong>DotGhostBoard v1.5.5</strong> proved that Linux desktop utilities don't need heavy web runtimes to deliver modern, fluid UI experiences. By choosing Python 3, PyQt6, and SQLite, we measured significant performance advantages in our local testing compared to typical Electron alternatives:</p>
+
+<ul>
+<li>🟢 <strong>Full Runtime RAM:</strong> <strong>~85 MB</strong> process RSS (GUI + SQLite DB + Spotlight dialog loaded) vs <strong>~350 MB+</strong> in typical Electron clipboard tools.</li>
+<li>⚡ <strong>Spotlight Query Latency:</strong> <strong>~3.5 ms</strong> average execution time across 10 runs (min 2.23 ms, max 4.90 ms).</li>
+<li>💾 <strong>Disk Optimization:</strong> SHA-256 deduplication saved <strong>~85% disk space</strong> during screenshot-heavy debugging sessions.</li>
+<li>📊 <strong>Automated Suite:</strong> <strong>184 / 184 tests passing</strong> in 8.32s.</li>
+</ul>
+
+<p>Check out the full source code, download release packages, and star the repository on GitHub:<br>
+👉 <strong>GitHub Repository:</strong> <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard</a><br>
+👉 <strong>GitHub Release (v1.5.5):</strong> <a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.5" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.5</a><br>
+👉 <strong>OpenDesktop / Pling Store:</strong> <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">https://www.opendesktop.org/p/2353623/</a></p>
+
+
+<hr>
+
+<h3>
+  <a name="technical-discussion" href="#technical-discussion">
+  </a>
+  💬 Technical Discussion
+</h3>
+
+<p>If you were designing our <strong>v2.0 Regex Smart Secret Detection Engine</strong>, what would be the very first pattern or entropy rule you'd include to catch leaked keys? Drop your regex patterns or PR suggestions below! 🚀</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotghostboard-v155-spotlight-search-sha-256-image-deduplication-zero-trust-clipboard-2b11" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotghostboard-v155-spotlight-search-sha-256-image-deduplication-zero-trust-clipboard-2b11#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

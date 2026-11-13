@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Linus Torvalds Just Said What Everyone Was Thinking: AI Bug Spam Is Killing the Linux Kernel Security List — FreeRave</title>
+<meta name="description" content="AI tools are flooding the Linux kernel's security mailing list with duplicate, low-quality...">
+<link rel="canonical" href="https://dev.to/freerave/linus-torvalds-just-said-what-everyone-was-thinking-ai-bug-spam-is-killing-the-linux-kernel-1130">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/linus-torvalds-just-said-what-everyone-was-thinking-ai-bug-spam-is-killing-the-linux-kernel-1130">
+<meta property="og:title" content="Linus Torvalds Just Said What Everyone Was Thinking: AI Bug Spam Is Killing the Linux Kernel Security List — FreeRave">
+<meta property="og:description" content="AI tools are flooding the Linux kernel's security mailing list with duplicate, low-quality...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2s3zgdy6y3qk7z54vkh8.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2s3zgdy6y3qk7z54vkh8.png" alt="">
+  <h1 class="post-title">Linus Torvalds Just Said What Everyone Was Thinking: AI Bug Spam Is Killing the Linux Kernel Security List</h1>
+  <div class="post-meta">
+    <time datetime="2026-05-23T12:31:41Z">23 May 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#security</span><span class="post-tag">#opensource</span><span class="post-tag">#ai</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="ai-tools-are-flooding-the-linux-kernels-security-mailing-list-with-duplicate-lowquality-bug-reports-linus-torvalds-drew-the-line-heres-what-actually-happened-why-it-matters-and-what-real-contribution-looks-like" href="#ai-tools-are-flooding-the-linux-kernels-security-mailing-list-with-duplicate-lowquality-bug-reports-linus-torvalds-drew-the-line-heres-what-actually-happened-why-it-matters-and-what-real-contribution-looks-like">
+  </a>
+  AI tools are flooding the Linux kernel's security mailing list with duplicate, low-quality bug reports. Linus Torvalds drew the line. Here's what actually happened, why it matters, and what real contribution looks like.
+</h2>
+
+<blockquote>
+<p><strong>TL;DR:</strong> AI tools lowered the cost of <em>finding</em> potential bugs. They didn't lower the cost of <em>understanding</em> them. When that second step gets skipped at scale, maintainers absorb all the noise. That's what just broke the Linux kernel's security mailing list.</p>
+</blockquote>
+
+
+<hr>
+
+<p>On May 17, 2026, while announcing the fourth release candidate of Linux 7.1, Linus Torvalds did something he rarely does: he stopped talking about code and started talking about people.</p>
+
+<p>Not in a nice way.</p>
+
+<p>His message was direct: the Linux kernel's private security mailing list has become <strong>"almost entirely unmanageable."</strong> The reason? A relentless, accelerating flood of AI-generated bug reports — duplicate, low-quality, and most damaging of all, written by people who have no idea what they're looking at.</p>
+
+<p>This isn't a minor complaint. It's a signal that a structural problem has reached a breaking point inside one of the most critical open-source projects on the planet.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-actually-happened" href="#what-actually-happened">
+  </a>
+  What Actually Happened
+</h2>
+
+<p>Torvalds posted his weekly "state of the kernel" note alongside the Linux 7.1-rc4 release. Alongside routine notes about driver updates, GPU patches, and filesystem work, he flagged a documentation update — and then explained <em>why</em> that documentation now exists.</p>
+
+<p>The story is straightforward: AI-powered static analysis tools have become cheap and accessible. Researchers and developers have started pointing them at the Linux kernel source tree. The tools find things. Those people then report those things — directly to the private security mailing list — with zero additional investigation.</p>
+
+<p>The result? Multiple people independently scanning the same codebase with the same tools, finding the same issues, and all sending separate reports. Maintainers are spending entire work sessions doing nothing but:</p>
+
+<ul>
+<li>Forwarding reports to the correct subsystem owner (because the sender didn't know who to contact)</li>
+<li>Replying with <em>"this was fixed three weeks ago"</em>
+</li>
+<li>Explaining that the reported behavior is not, in fact, a security vulnerability under the kernel's threat model</li>
+</ul>
+
+<p>Torvalds described it bluntly:</p>
+
+<blockquote>
+<p><em>"entirely pointless churn... a waste of time for everybody involved."</em><br>
+— Linus Torvalds, Linux 7.1-rc4 announcement</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-new-rule-ai-bugs-go-public" href="#the-new-rule-ai-bugs-go-public">
+  </a>
+  The New Rule: AI Bugs Go Public
+</h2>
+
+<p>The kernel project responded with a documentation update that now formally addresses this. The rule is simple:</p>
+
+<blockquote>
+<p>If you found a potential bug using an AI tool, you report it <strong>publicly</strong> — not through the private security list.</p>
+</blockquote>
+
+<p>This isn't punitive. It's architectural. The private security list exists for coordinated disclosure of genuine, undisclosed, exploitable vulnerabilities. It requires maintainers to treat every incoming report as potentially sensitive, investigate quietly, coordinate patches, and manage disclosure timing. That process has a real cost.</p>
+
+<p>Flooding it with AI-scanner output that hasn't been manually triaged destroys the signal-to-noise ratio that makes the channel valuable in the first place. By routing AI-assisted findings to public channels, the kernel team can apply community triage, filter duplicates openly, and avoid burning out the handful of people who manage private security coordination.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-real-problem-nobody-read-the-threat-model" href="#the-real-problem-nobody-read-the-threat-model">
+  </a>
+  The Real Problem: Nobody Read the Threat Model
+</h2>
+
+<p>Here's the part most coverage glossed over.</p>
+
+<p>A significant portion of these reports aren't just duplicates — they're <strong>misclassified</strong>. Regular bugs being reported as security vulnerabilities because the person submitting them didn't understand the Linux kernel's threat model.</p>
+
+<p>The Linux kernel has a well-documented threat model. Not everything that looks dangerous in isolation is actually exploitable in a real attack scenario. Memory patterns that look like vulnerabilities to an AI scanner may be:</p>
+
+<ul>
+<li>Intentional design decisions with documented trade-offs</li>
+<li>Already behind access controls that prevent exploitation</li>
+<li>Not within the kernel's defined attack surface</li>
+<li>Already fixed and the reporter just hasn't checked</li>
+</ul>
+
+<p>When someone dumps an AI report without reading the threat model, without checking the bug tracker, without verifying against recent commits — they generate noise dressed as signal. And they force experienced maintainers to spend time they don't have dismantling it.</p>
+
+<p>Torvalds was explicit: he doesn't want <strong>drive-by contributors</strong> who send a random report and disappear. If you found something, he wants you to:</p>
+
+<ol>
+<li>Understand what you found</li>
+<li>Check if it's already fixed</li>
+<li>Read the relevant subsystem documentation</li>
+<li>Submit a <strong>patch</strong>, not just a report</li>
+</ol>
+
+
+<hr>
+
+<h2>
+  <a name="not-everyone-agrees-with-torvalds-and-thats-fine" href="#not-everyone-agrees-with-torvalds-and-thats-fine">
+  </a>
+  Not Everyone Agrees With Torvalds (And That's Fine)
+</h2>
+
+<p>This wouldn't be a real Linux story without disagreement.</p>
+
+<p>In March 2026, kernel maintainer <strong>Greg Kroah-Hartman</strong> told The Register something different: AI bug reports had shifted from low-quality noise to genuinely useful contributions. His experience was that the quality had improved meaningfully.</p>
+
+<p>Separately, Nvidia kernel engineer <strong>Sasha Levin</strong> proposed a completely different architectural response — a Linux kernel <strong>killswitch mechanism</strong> that would allow administrators to disable vulnerable kernel functions temporarily while waiting for patches to land. A defensive posture rather than a gatekeeping one.</p>
+
+<p>So even inside the kernel community, people are landing on different solutions. Torvalds is focused on the noise problem. Levin is thinking about operational response when real bugs exist. Kroah-Hartman sees the glass half full.</p>
+
+<p>All three perspectives are legitimate. The situation is genuinely complex.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-this-looks-like-from-outside-the-kernel" href="#what-this-looks-like-from-outside-the-kernel">
+  </a>
+  What This Looks Like From Outside the Kernel
+</h2>
+
+<p>Step back and the pattern is recognizable anywhere large-scale open source intersects with AI tooling.</p>
+
+<p>AI lowers the <strong>cost of finding</strong> something. It does not lower the <strong>cost of understanding</strong> it. The gap between those two things is where the problem lives.</p>
+
+<p>When you run a static analyzer on a 30-million-line codebase and it returns 400 potential issues, the analyst's job — the expensive, skilled, irreplaceable part — is to figure out which 5 of those 400 actually matter. AI accelerated step one. It didn't automate step two.</p>
+
+<p>What's happening in the Linux security list is that people are skipping step two entirely and going straight to reporting. They've mistaken the output of a tool for the output of analysis.</p>
+
+<p>This is a workflow problem masquerading as an AI problem.</p>
+
+<p>The same thing happens in vulnerability research broadly. Automated scanners find candidates. Human researchers validate them. If you remove the validation step and ship the candidates directly, you create noise. The scanner doesn't know what it found. Only the researcher does — after they investigate.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-contribution-discipline-problem" href="#the-contribution-discipline-problem">
+  </a>
+  The Contribution Discipline Problem
+</h2>
+
+<p>There's also a more uncomfortable subtext here that's worth naming.</p>
+
+<p>Some portion of this behavior is reputation-seeking. If an AI tool surfaces a potential kernel bug and you file a report, you've done something — you found a Linux kernel vulnerability. That sounds impressive. It doesn't matter if it was already fixed, already known, or not actually a vulnerability. The action itself produces a story you can tell.</p>
+
+<p>This is the gamification of contribution. And it's corrosive to open-source projects at scale because it turns the maintainer's inbox into everyone else's achievement farm.</p>
+
+<p>As someone who maintains open-source CLI tools and VS Code extensions — projects that are nowhere near the scale of the Linux kernel — I can tell you that a single low-quality automated issue report costs more energy to process than it took to generate. You open it hoping it's a real edge case someone hit in production. Instead it's a scanner output with no reproduction steps, no context, and no indication the reporter ever ran the code. That friction kills momentum on a real roadmap.</p>
+
+<p>Real contribution to the Linux kernel — and to any serious open-source project — requires doing the boring, unglamorous work:</p>
+
+<ul>
+<li>Reading documentation nobody told you to read</li>
+<li>Tracing code paths through subsystems you didn't write</li>
+<li>Checking the git log before filing anything</li>
+<li>Writing a patch when you find something real</li>
+<li>Accepting that a maintainer might reject it and explaining why</li>
+</ul>
+
+<p>That's not a rant. That's the entry price. The kernel community has always been demanding about this because the stakes are high. You're shipping code that runs in data centers, medical devices, spacecraft, and billions of phones. "I found it with an AI scanner" is not a sufficient bar.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-the-right-process-actually-looks-like" href="#what-the-right-process-actually-looks-like">
+  </a>
+  What the Right Process Actually Looks Like
+</h2>
+
+<p>If you want to do AI-assisted security research on the Linux kernel and have it mean something, here's what that process actually requires:</p>
+
+<p><strong>Before you scan:</strong></p>
+
+<ul>
+<li>Read the <a href="https://www.kernel.org/doc/html/latest/process/security-bugs.html" target="_blank" rel="noopener noreferrer">Linux kernel security documentation</a>
+</li>
+<li>Understand the kernel's documented threat model</li>
+<li>Know which subsystem owns what you're about to look at</li>
+</ul>
+
+<p><strong>When the scanner returns results:</strong></p>
+
+<ul>
+<li>For each finding, check the git log: <code>git log --all --oneline -- &lt;file&gt;</code>
+</li>
+<li>Search the mailing list archives for the relevant function or symbol</li>
+<li>Check if there's an existing CVE or bug report</li>
+<li>Actually read the code the tool flagged — does the behavior make sense in context?</li>
+</ul>
+
+<p><strong>If you believe it's real and unfixed:</strong></p>
+
+<ul>
+<li>If it's a genuine undisclosed security vulnerability: follow the private disclosure process</li>
+<li>If it was found via AI tooling: per the new documentation, report it publicly</li>
+<li>Write a reproducer if possible</li>
+<li>Write a patch if you can</li>
+</ul>
+
+<p><strong>The gold standard:</strong></p>
+
+<ul>
+<li>Report the bug <em>and</em> attach a fix</li>
+<li>This is what Torvalds actually wants from external contributors</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-broader-signal" href="#the-broader-signal">
+  </a>
+  The Broader Signal
+</h2>
+
+<p>This situation is an early case study in what happens when AI tooling becomes commoditized and the friction of contributing drops toward zero.</p>
+
+<p>Lower friction isn't always better. In systems where quality matters — and the Linux kernel's security process absolutely qualifies — the friction was doing useful work. It filtered out reports from people who hadn't done enough thinking. Remove the friction without replacing it with something else, and you get spam at scale.</p>
+
+<p>The kernel team's response — routing AI-assisted reports publicly, requiring more documentation, being explicit about what they do and don't want — is essentially rebuilding that friction selectively. Not to keep people out, but to ensure that what gets through is worth the cost of processing it.</p>
+
+<p>That's a reasonable response to an unreasonable situation.</p>
+
+<p>What would be more interesting — and what Sasha Levin's killswitch proposal hints at — is whether the kernel community can eventually build infrastructure that uses AI on the <em>maintainer side</em> to triage incoming reports. Use AI to fight AI spam. Several Slashdot commenters made the same point: an LLM with access to the bug tracker and git history could probably classify "likely duplicate / already fixed / not a security issue" at high accuracy with minimal training.</p>
+
+<p>That's the architectural play. Not refusing AI. Not accepting the noise. Building a better filter on the receiving end.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-bottom-line" href="#the-bottom-line">
+  </a>
+  The Bottom Line
+</h2>
+
+<p>Linus Torvalds didn't say AI tools are bad. He said using them without understanding what they're telling you, without doing the subsequent analysis, and without caring whether the report is useful to anyone — that's a waste of everyone's time.</p>
+
+<p>He's right.</p>
+
+<p>AI lowers the cost of finding candidates. It doesn't replace the judgment required to know what you actually found. And when that judgment gets skipped at scale, the maintainers absorbing the impact pay the price.</p>
+
+<p>The new documentation rule is a reasonable line to draw. The harder question — how open-source projects manage contribution quality as AI tooling becomes universal — is one the entire ecosystem is going to have to answer.</p>
+
+<p>The Linux kernel just got there first.</p>
+
+
+<hr>
+
+<p><em>Have you run into AI-generated noise in open-source projects you contribute to or maintain? How are you handling triage at scale? Drop it in the comments.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/linus-torvalds-just-said-what-everyone-was-thinking-ai-bug-spam-is-killing-the-linux-kernel-1130" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/linus-torvalds-just-said-what-everyone-was-thinking-ai-bug-spam-is-killing-the-linux-kernel-1130#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

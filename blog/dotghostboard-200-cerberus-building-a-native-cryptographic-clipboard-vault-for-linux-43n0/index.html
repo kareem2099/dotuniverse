@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotGhostBoard 2.0.0 'Cerberus': Building a Native Cryptographic Clipboard &amp; Vault for Linux — FreeRave</title>
+<meta name="description" content="Meet DotGhostBoard 2.0.0 — a lightweight, zero-telemetry Linux clipboard manager featuring...">
+<link rel="canonical" href="https://dev.to/freerave/dotghostboard-200-cerberus-building-a-native-cryptographic-clipboard-vault-for-linux-43n0">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotghostboard-200-cerberus-building-a-native-cryptographic-clipboard-vault-for-linux-43n0">
+<meta property="og:title" content="DotGhostBoard 2.0.0 'Cerberus': Building a Native Cryptographic Clipboard &amp; Vault for Linux — FreeRave">
+<meta property="og:description" content="Meet DotGhostBoard 2.0.0 — a lightweight, zero-telemetry Linux clipboard manager featuring...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fxmpizat1wi3x4yi7sjlm.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fxmpizat1wi3x4yi7sjlm.png" alt="">
+  <h1 class="post-title">DotGhostBoard 2.0.0 'Cerberus': Building a Native Cryptographic Clipboard &amp; Vault for Linux</h1>
+  <div class="post-meta">
+    <time datetime="2026-09-22T12:56:36Z">22 September 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#linux</span><span class="post-tag">#opensource</span><span class="post-tag">#python</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="meet-dotghostboard-200-a-lightweight-zerotelemetry-linux-clipboard-manager-featuring-an-encrypted-vault-shannon-entropy-secret-detection-multichannel-updates-tiling-wm-support-and-native-notifications" href="#meet-dotghostboard-200-a-lightweight-zerotelemetry-linux-clipboard-manager-featuring-an-encrypted-vault-shannon-entropy-secret-detection-multichannel-updates-tiling-wm-support-and-native-notifications">
+  </a>
+  Meet DotGhostBoard 2.0.0 — a lightweight, zero-telemetry Linux clipboard manager featuring an encrypted Vault, Shannon entropy secret detection, multi-channel updates, tiling WM support, and native notifications.
+</h2>
+
+<p>Every developer and power user on Linux has wrestled with the clipboard dilemma:</p>
+
+<ol>
+<li>
+<strong>The Classic Utilities:</strong> Tools like <code>xclip</code> or basic clipboards do their job, but lack visual search, organization, and security.</li>
+<li>
+<strong>The Modern Web Wrappers:</strong> Modern tools often arrive packaged in Electron, consuming 400MB+ of RAM just to hold text strings, with opaque network calls and zero encryption.</li>
+<li>
+<strong>The Security Risk:</strong> Your clipboard regularly holds your most sensitive data — database passwords, GitHub personal access tokens, AWS keys, JWT tokens, and SSH commands. Storing that in plaintext on disk is a massive vulnerability.</li>
+</ol>
+
+<p>We built <strong><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">DotGhostBoard</a></strong> to solve this: a <strong>native, lightweight, privacy-first, and cryptographic clipboard security station</strong> designed specifically for Linux.</p>
+
+<p>Today, after months of development, architectural refactoring, and rigorous testing, we are excited to release <strong>DotGhostBoard v2.0.0 "Cerberus"</strong> — our biggest milestone yet! 🚀</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-makes-dotghostboard-different" href="#what-makes-dotghostboard-different">
+  </a>
+  ⚡ What Makes DotGhostBoard Different?
+</h2>
+
+<p>DotGhostBoard is engineered with pure native technologies: <strong>Python 3.11+</strong>, <strong>PyQt6</strong>, <strong>SQLite</strong>, and <strong>cryptography</strong>.</p>
+
+<ul>
+<li>
+<strong>Zero Cloud &amp; Zero Telemetry:</strong> Everything stays strictly local on your device. No analytics, no phone-home pings, no external network requests.</li>
+<li>
+<strong>SQLite Secure Deletion:</strong> Uses <code>PRAGMA secure_delete = ON</code> to reduce residual deleted data in SQLite storage by overwriting freed SQLite database pages, paired with explicit handling of Write-Ahead Logs (WAL) and storage cleanup.</li>
+<li>
+<strong>Fast Global Hotkeys:</strong> Low-overhead global hotkey listeners (<code>Ctrl+Alt+V</code> for Dashboard, <code>Ctrl+Alt+Space</code> for Spotlight Quick Search) with responsive window summoning and instant focus.</li>
+<li>
+<strong>Ultra-Lightweight Footprint:</strong> Starts near-instantaneously and uses a fraction of the memory footprint of web-based alternatives.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="what-changed-in-200" href="#what-changed-in-200">
+  </a>
+  🔍 What Changed in 2.0.0
+</h2>
+
+<p>Cerberus is not a single feature release. It is an architectural rebuild focused on four foundational areas:</p>
+
+<ul>
+<li>
+<strong>Local Cryptographic Storage:</strong> AES-256-GCM envelope encryption with ephemeral in-memory reveal for credentials and tokens.</li>
+<li>
+<strong>Secret Detection and Handling:</strong> Real-time Shannon entropy heuristics that intercept sensitive tokens before clipboard exposure.</li>
+<li>
+<strong>Safe Release Channels:</strong> Multi-tier delivery (Stable, Beta, Alpha) with strict opt-in pre-releases.</li>
+<li>
+<strong>Native Linux Desktop Integration:</strong> Direct X11/EWMH workspace migration and FreeDesktop notification support.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-architecture-of-200-core-subsystems" href="#the-architecture-of-200-core-subsystems">
+  </a>
+  🛡️ The Architecture of 2.0.0: Core Subsystems
+</h2>
+
+<p>Here is an engineering deep-dive into everything under the hood:</p>
+
+<h3>
+  <a name="1-the-encrypted-vault-ui-subsystem-raw-uivault-endraw-" href="#1-the-encrypted-vault-ui-subsystem-raw-uivault-endraw-">
+  </a>
+  1. The Encrypted Vault UI Subsystem (<code>ui/vault/</code>)
+</h3>
+
+<p>While DotGhostBoard has always featured <strong>Eclipse Mode</strong> for local item encryption, 2.0.0 introduces <strong>The Vault</strong> — a dedicated, sliding drawer panel accessible via <code>Ctrl+Shift+V</code> or the sidebar button.</p>
+
+<ul>
+<li>
+<strong>Envelope Encryption (AES-256-GCM):</strong> Secrets are protected with authenticated symmetric encryption; plaintexts are never persisted to disk unencrypted.</li>
+<li>
+<strong>Category Filtering:</strong> Organize passwords, API keys, tokens, SSH credentials, and secure notes with real-time filtering pills.</li>
+<li>
+<strong>In-Memory Ephemeral Reveal:</strong> Secrets stay masked (<code>••••••••••••••••</code>) by default to prevent shoulder surfing, revealing only on-demand in monospace font and auto-scrubbing from memory when locked.</li>
+<li>
+<strong>Zero-Plaintext Deduplication:</strong> Computes an in-memory HMAC digest of candidate secrets and evaluates them against existing in-memory secret signatures using constant-time <code>hmac.compare_digest</code>. This prevents storing duplicate secrets without ever persisting plaintext hashes or pre-images into SQLite storage.</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="2-zerolog-password-amp-secret-detector" href="#2-zerolog-password-amp-secret-detector">
+  </a>
+  2. Zero-Log Password &amp; Secret Detector
+</h3>
+
+<p>One of the most dangerous clipboard events is accidentally copying a production secret. DotGhostBoard 2.0.0 integrates a real-time detection engine (<code>core/security/detector.py</code>):</p>
+
+<ul>
+<li>
+<strong>Shannon Entropy Analysis:</strong> Computes the mathematical information entropy ($\ge 3.0$) of copied text alongside character class distribution (mixed casing, digits, symbols).</li>
+<li>
+<strong>Smart Heuristics:</strong> Identifies API tokens (AWS keys, GitHub PATs, JWTs, Stripe keys, generic credentials).</li>
+<li>
+<strong>False-Positive Reduction &amp; Guardrails:</strong> Intelligently filters file paths, environment variables (like <code>$PWD</code>), git branch names, code function calls, and multiline snippets to significantly minimize false positives while preserving true secret catches.</li>
+<li>
+<strong>Zero-Loss Auto-Encryption:</strong> If you copy a secret and miss the toast prompt, the 60-second TTL fallback automatically encrypts the clip into Eclipse history rather than discarding it.</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="3-direct-send-to-vault-workflow" href="#3-direct-send-to-vault-workflow">
+  </a>
+  3. Direct "Send to Vault" Workflow
+</h3>
+
+<p>Found an API token in your clipboard history that you want to keep permanently safe?</p>
+
+<ul>
+<li>Text cards now feature a dedicated <strong>🛡️ Send to Vault</strong> button and context menu action.</li>
+<li>Automatically prefills the secret dialog, decrypts on the fly if previously encrypted under Eclipse, and cleans up the history card seamlessly upon confirmation.</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="4-multichannel-update-engine-stable-beta-alpha" href="#4-multichannel-update-engine-stable-beta-alpha">
+  </a>
+  4. Multi-Channel Update Engine (Stable, Beta, Alpha)
+</h3>
+
+<p>Keeping local native desktop apps updated without waiting for distribution package maintainers can be tedious. DotGhostBoard 2.0.0 introduces an integrated <strong>Multi-Channel Release Engine</strong>:</p>
+
+<ul>
+<li>Select your desired update track in <strong>Settings → General</strong>:
+
+<ul>
+<li>
+<strong>Stable:</strong> Verified, production-ready releases.</li>
+<li>
+<strong>Beta:</strong> Pre-releases and release candidates for early adopters.</li>
+<li>
+<strong>Alpha:</strong> Bleeding-edge experimental builds.</li>
+</ul>
+</li>
+<li>
+<strong>Safe Channel Guarantee:</strong> <strong>Stable is the default channel. Pre-release builds (Beta and Alpha) are strictly opt-in.</strong>
+</li>
+<li>The update dialog features live byte-progress indicators, changelog display, and seamless one-click binary restart.</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="5-systemnative-freedesktop-notifications" href="#5-systemnative-freedesktop-notifications">
+  </a>
+  5. System-Native FreeDesktop Notifications
+</h3>
+
+<p>Instead of relying solely on system tray balloons, 2.0.0 talks directly to FreeDesktop notification daemons (<code>/usr/bin/notify-send</code> and D-Bus):</p>
+
+<ul>
+<li>Rich desktop alerts for secret detections, sync events, and updates.</li>
+<li>
+<strong>Interactive Click Callback:</strong> Clicking a notification immediately foregrounds DotGhostBoard on your active monitor.</li>
+<li>Graceful fallback to <code>QSystemTrayIcon</code> if an external notification daemon is not running.</li>
+</ul>
+
+
+<hr>
+
+<h3>
+  <a name="6-tiling-window-manager-amp-ewmh-workspace-migration" href="#6-tiling-window-manager-amp-ewmh-workspace-migration">
+  </a>
+  6. Tiling Window Manager &amp; EWMH Workspace Migration
+</h3>
+
+<p>Tiling window manager users (tested on Qtile, and compatible with EWMH-compliant window managers) often suffer from popup clipboard managers getting stuck on inactive workspaces or behaving strangely when toggled.</p>
+
+<p>DotGhostBoard 2.0.0 implements direct <strong>EWMH (Extended Window Manager Hints)</strong> interaction using Python's standard <code>ctypes</code> directly against <code>libX11.so.6</code>:</p>
+
+<ul>
+<li>When you summon DotGhostBoard (<code>Ctrl+Alt+V</code> or <code>dotghostboard --toggle</code>) from <strong>Workspace 2</strong> while the window was previously opened on <strong>Workspace 1</strong>, DotGhostBoard:
+
+<ol>
+<li>Detects <code>_NET_CURRENT_DESKTOP</code> vs <code>_NET_WM_DESKTOP</code>.</li>
+<li>Resolves the X11 limitation where Qt reports <code>isVisible() == True</code> even on unmapped workspaces.</li>
+<li>Sends <code>_NET_WM_DESKTOP</code> and <code>_NET_ACTIVE_WINDOW</code> ClientMessages with pager priority (<code>source=2</code>).</li>
+<li>Automatically migrates the window to your active workspace and focuses it instantly without hiding!</li>
+</ol>
+</li>
+<li>
+<strong>Modal Safety:</strong> Dialogs (<code>LockScreen</code>, <code>UnlockDialog</code>) are prepared with <code>prepare_dialog_for_current_workspace()</code> before <code>exec()</code>, guaranteeing modal focus without breaking the Qt event loop.</li>
+<li>
+<strong>Kill Switch:</strong> <code>DOTGHOST_NO_EWMH=1</code> is supported for users who prefer traditional window manager handling.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="cyberstealth-phantom-visual-identity" href="#cyberstealth-phantom-visual-identity">
+  </a>
+  🎨 Cyber-Stealth Phantom Visual Identity
+</h2>
+
+<p>With 2.0.0, we retired the legacy 8-bit ghost icon in favor of the <strong>Cyber-Stealth Phantom</strong>:</p>
+
+<ul>
+<li>Dark graphite matte squircle paired with a radiant neon green visor (<code>#00ff41</code>).</li>
+<li>High-precision downsampling pipeline using Lanczos resampling and unsharp masking, ensuring pixel-perfect sharpness from <code>16x16</code> system tray icons up to <code>512x512</code> desktop launchers.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="engineering-quality-amp-verification" href="#engineering-quality-amp-verification">
+  </a>
+  🧪 Engineering Quality &amp; Verification
+</h2>
+
+<p>We believe security and privacy utilities must be held to the highest code quality standards:</p>
+
+<ul>
+<li>
+<strong>489 Automated Tests (100% Passing):</strong> Unit tests, mock isolation, raw disk zero-overwrite verification, and live integration tests running inside virtual X11 displays (<code>Xvfb</code>) against both <strong>Openbox</strong> and real <strong>Qtile 0.36.0</strong>.</li>
+<li>
+<strong>Strict Modularity &amp; File Budgets:</strong> Architecture guardrails ensure complex UI components remain decoupled and maintainable (<code>ui/dashboard.py</code> strictly adheres to a $\le 500$ LOC limit to eliminate God-object bloat).</li>
+<li>
+<strong>Targeted Code Quality:</strong> Core coordination modules, window management routines, and security controllers adhere strictly to PEP8/flake8 standards.</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="how-to-get-dotghostboard-200" href="#how-to-get-dotghostboard-200">
+  </a>
+  📦 How to Get DotGhostBoard 2.0.0
+</h2>
+
+<p>DotGhostBoard is 100% open source under the <strong>Apache-2.0 License</strong>.</p>
+
+<h3>
+  <a name="1-opendesktop-kde-store-pling" href="#1-opendesktop-kde-store-pling">
+  </a>
+  1. OpenDesktop / KDE Store / Pling
+</h3>
+
+<p>You can grab the release package, AppImage, or leave a review on OpenDesktop:<br>
+👉 <strong><a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard on OpenDesktop / Pling</a></strong></p>
+
+<h3>
+  <a name="2-github-repository-amp-releases" href="#2-github-repository-amp-releases">
+  </a>
+  2. GitHub Repository &amp; Releases
+</h3>
+
+<p>Download standalone binaries, AppImages, Debian <code>.deb</code> packages, or inspect the source code:<br>
+👉 <strong><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">GitHub: kareem2099/DotGhostBoard</a></strong></p>
+
+<h3>
+  <a name="quick-install-from-source" href="#quick-install-from-source">
+  </a>
+  Quick Install from Source:
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Clone the repository</span>
+git clone https://github.com/kareem2099/DotGhostBoard.git
+<span class="nb">cd </span>DotGhostBoard
+
+<span class="c"># Set up environment</span>
+python3 <span class="nt">-m</span> venv venv
+<span class="nb">source </span>venv/bin/activate
+pip <span class="nb">install</span> <span class="nt">-r</span> requirements.txt
+
+<span class="c"># Run DotGhostBoard</span>
+python3 main.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="enable-global-shortcuts" href="#enable-global-shortcuts">
+  </a>
+  Enable Global Shortcuts:
+</h3>
+
+<ul>
+<li>
+<strong>Toggle Dashboard:</strong> <code>Ctrl+Alt+V</code>
+</li>
+<li>
+<strong>Spotlight Quick Search:</strong> <code>Ctrl+Alt+Space</code>
+</li>
+<li>
+<strong>Toggle Encrypted Vault:</strong> <code>Ctrl+Shift+V</code>
+</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="join-the-community" href="#join-the-community">
+  </a>
+  🤝 Join the Community
+</h2>
+
+<p>Whether you're on Arch, Debian, Ubuntu, Fedora, or Kali Linux — and whether you use GNOME, KDE, or Qtile — DotGhostBoard was built to give you total control and security over your clipboard.</p>
+
+<ul>
+<li>⭐ Star the repo on <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">GitHub</a>
+</li>
+<li>💬 Share feedback and submit feature requests via <a href="https://github.com/kareem2099/DotGhostBoard/issues" target="_blank" rel="noopener noreferrer">GitHub Issues</a>
+</li>
+<li>🌐 Check out our listing on <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>
+</li>
+</ul>
+
+<p>Cerberus is ultimately about one principle: sensitive clipboard data should remain under the user's control — locally stored, explicitly protected, and never silently promoted to the network.</p>
+
+<p>Happy hacking and secure copying! 👻🔒</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotghostboard-200-cerberus-building-a-native-cryptographic-clipboard-vault-for-linux-43n0" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotghostboard-200-cerberus-building-a-native-cryptographic-clipboard-vault-for-linux-43n0#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

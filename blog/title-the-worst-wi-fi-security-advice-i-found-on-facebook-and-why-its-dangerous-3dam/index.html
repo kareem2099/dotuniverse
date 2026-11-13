@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>The Worst Wi-Fi Security Advice I Found on Facebook 🤦‍♂️ (And Why It's Dangerous) — FreeRave</title>
+<meta name="description" content="I recently stumbled upon a wild discussion on Facebook regarding home router security, and as someone...">
+<link rel="canonical" href="https://dev.to/freerave/title-the-worst-wi-fi-security-advice-i-found-on-facebook-and-why-its-dangerous-3dam">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/title-the-worst-wi-fi-security-advice-i-found-on-facebook-and-why-its-dangerous-3dam">
+<meta property="og:title" content="The Worst Wi-Fi Security Advice I Found on Facebook 🤦‍♂️ (And Why It's Dangerous) — FreeRave">
+<meta property="og:description" content="I recently stumbled upon a wild discussion on Facebook regarding home router security, and as someone...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1000,height=500,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3awnx4brm0o15zqofbc9.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  
+  <h1 class="post-title">The Worst Wi-Fi Security Advice I Found on Facebook 🤦‍♂️ (And Why It's Dangerous)</h1>
+  <div class="post-meta">
+    <time datetime="2026-02-26T19:24:47Z">26 February 2026</time> · 2 min read
+    <div class="post-tags"><span class="post-tag">#security</span><span class="post-tag">#networking</span><span class="post-tag">#infosec</span><span class="post-tag">#cybersecurity</span></div>
+  </div>
+  <article class="post-body">
+<p>I recently stumbled upon a wild discussion on Facebook regarding home router security, and as someone passionate about cybersecurity, I was absolutely mind-blown by the "expert" advice being thrown around. </p>
+
+<p>I wanted to bring this discussion to the Dev community to get your thoughts and maybe share a good laugh (or cry) at the state of general InfoSec awareness.</p>
+
+<h2>
+  <a name="the-scenario" href="#the-scenario">
+  </a>
+  The Scenario
+</h2>
+
+<p>A user posted a screenshot of their router settings asking which of the following configurations provides the strongest security:</p>
+
+<ol>
+<li><code>No Security</code></li>
+<li><code>WPA2-PSK-AES</code></li>
+<li>
+<code>WPA/WPA2-PSK-TKIP/AES</code> (Mixed Mode)</li>
+<li><code>WPA2-EAP-AES</code></li>
+</ol>
+
+<h2>
+  <a name="the-wild-advice-mac-filtering-is-king" href="#the-wild-advice-mac-filtering-is-king">
+  </a>
+  The "Wild" Advice: MAC Filtering is King? 👑
+</h2>
+
+<p>To my absolute shock, a highly supported opinion in the comments was to completely disable encryption (<strong>No Security</strong>), hide the SSID, and rely entirely on <strong>MAC Filtering</strong>. </p>
+
+<p>Yes, you read that right. </p>
+
+<p>Let's break down why this is a terrible idea:</p>
+
+<ul>
+<li>
+<strong>Hidden SSIDs are a Myth:</strong> Hiding your SSID doesn't make your network invisible. It actually forces your devices to constantly broadcast "Probe Requests" looking for the hidden network. This makes you highly vulnerable to Rogue AP (Access Point) attacks.</li>
+<li>
+<strong>MAC Addresses are Plain Text:</strong> MAC addresses are broadcasted in plain text over the air. Anyone with a $15 Wi-Fi adapter in <code>Monitor Mode</code> can passively sniff the network using basic tools like <code>airodump-ng</code>. </li>
+<li>
+<strong>Spoofing is Trivial:</strong> Once an attacker sees a whitelisted MAC address communicating with the router, they can just use <code>macchanger</code> to spoof their own MAC address, disconnect the legitimate user (Deauth attack), and bypass the "filter" entirely without ever needing a password.</li>
+</ul>
+
+<p>It’s essentially leaving your front door wide open and putting up a "Do Not Enter" sign made of paper. </p>
+
+<h2>
+  <a name="the-plot-twist-the-mixed-mode-defenders" href="#the-plot-twist-the-mixed-mode-defenders">
+  </a>
+  The Plot Twist: The Mixed Mode Defenders 🛡️
+</h2>
+
+<p>Later in the thread, another group fiercely defended the <strong>Mixed Mode (<code>WPA/WPA2-PSK-TKIP/AES</code>)</strong> as the "absolute best" choice because it "covers all bases."</p>
+
+<p>Here is where I started questioning everything. Choosing TKIP is fundamentally flawed for modern networks:</p>
+
+<ol>
+<li>
+<strong>Ancient Vulnerabilities:</strong> TKIP is based on the deprecated RC4 cipher, which is riddled with known vulnerabilities.</li>
+<li>
+<strong>Goodbye Bandwidth:</strong> Enabling TKIP typically forces the router to throttle your Wi-Fi speeds down to a maximum of <strong>54 Mbps</strong> (802.11g speeds), completely wasting your modern fiber connection.</li>
+</ol>
+
+<p>The only correct answer for a standard home network in that list is, of course, <strong><code>WPA2-PSK-AES</code></strong> (paired with a strong, unpredictable passphrase).</p>
+
+<h2>
+  <a name="my-question-to-you" href="#my-question-to-you">
+  </a>
+  My Question to You 👇
+</h2>
+
+<p>Why do you think some people still believe MAC filtering and Hidden SSIDs are the ultimate security standards in 2026? </p>
+
+<p>And more importantly, how do you usually explain these critical flaws to non-technical friends or clients without sounding like an absolute nerd? </p>
+
+<p>Let me know your thoughts in the comments!</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/title-the-worst-wi-fi-security-advice-i-found-on-facebook-and-why-its-dangerous-3dam" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 2 · 💬 0
+    · <a href="https://dev.to/freerave/title-the-worst-wi-fi-security-advice-i-found-on-facebook-and-why-its-dangerous-3dam#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

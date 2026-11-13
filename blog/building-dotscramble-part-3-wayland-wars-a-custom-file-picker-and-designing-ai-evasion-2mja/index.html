@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotScramble Part 3: Wayland Wars, a Custom File Picker, and Designing AI Evasion — FreeRave</title>
+<meta name="description" content="From a PyQt6 license crisis to a fully animated PySide6 file browser that doesn't explode on...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotscramble-part-3-wayland-wars-a-custom-file-picker-and-designing-ai-evasion-2mja">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotscramble-part-3-wayland-wars-a-custom-file-picker-and-designing-ai-evasion-2mja">
+<meta property="og:title" content="Building DotScramble Part 3: Wayland Wars, a Custom File Picker, and Designing AI Evasion — FreeRave">
+<meta property="og:description" content="From a PyQt6 license crisis to a fully animated PySide6 file browser that doesn't explode on...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbzkq8u06hehai6mw3yqz.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbzkq8u06hehai6mw3yqz.png" alt="">
+  <h1 class="post-title">Building DotScramble Part 3: Wayland Wars, a Custom File Picker, and Designing AI Evasion</h1>
+  <div class="post-meta">
+    <time datetime="2026-07-10T18:08:17Z">10 July 2026</time> · 12 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#pyside6</span><span class="post-tag">#linux</span><span class="post-tag">#wayland</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="from-a-pyqt6-license-crisis-to-a-fully-animated-pyside6-file-browser-that-doesnt-explode-on-wayland-plus-nonblocking-batch-processing-and-designing-ai-evasion" href="#from-a-pyqt6-license-crisis-to-a-fully-animated-pyside6-file-browser-that-doesnt-explode-on-wayland-plus-nonblocking-batch-processing-and-designing-ai-evasion">
+  </a>
+  From a PyQt6 license crisis to a fully animated PySide6 file browser that doesn't explode on Wayland — plus non-blocking batch processing and designing AI evasion.
+</h2>
+
+<blockquote>
+<p><strong>Series recap:</strong> DotScramble is a desktop privacy tool that blurs, pixelates, and redacts sensitive regions in images. <a href="https://dev.to/freerave/inside-dotscramble-metadata-spoofing-custom-exif-control-and-advanced-faceeye-blur-29ob">Part 1</a> covered the core image processing pipeline. <a href="https://dev.to/freerave/building-dotscramble-part-2-ed25519-license-signing-machine-fingerprinting-and-a-7-day-offline-3i8p">Part 2</a> covered the licensing system using Ed25519 asymmetric signing. This post covers what happened when I tried to make the UI actually good.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-crisis-i-didnt-see-coming" href="#the-crisis-i-didnt-see-coming">
+  </a>
+  The Crisis I Didn't See Coming
+</h2>
+
+<p>I was sitting with two projects — <strong>DotScramble</strong> and <strong>DotGhostBoard</strong> — both shipping under <code>Apache 2.0</code>. I had already migrated both once before, from <code>Tkinter</code> to <code>PyQt6</code>, and that migration wasn't optional — three things made Tkinter untenable:</p>
+
+<ul>
+<li>
+<strong>Broken RTL rendering</strong> — Arabic letters showed up disconnected and reversed. Tkinter's text engine has no real bidi support, and there's no clean fix for it.</li>
+<li>
+<strong>No real Wayland support</strong> — once distros stopped defaulting to X11, window geometry, focus handling, and basic resize behavior in Tkinter became unreliable.</li>
+<li>
+<strong>Weak drag-and-drop</strong> — Tkinter's native DnD is limited and inconsistent across platforms. Dropping a file onto the canvas was a coin flip whether it registered.</li>
+</ul>
+
+<p>PyQt6 fixed all three. Here's the same Controls panel in both: Tkinter on the right, PySide6 (the version that came later, more on that below) on the left.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fc5qoazmpf3uyzp4y0y9o.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fc5qoazmpf3uyzp4y0y9o.png" alt="Tkinter (right) vs PySide6 (left) — same dark theme, completely different rendering engine underneath" loading="lazy" width="800" height="450"></a></p>
+
+<p>So, both projects were now using <code>PyQt6</code> for the GUI layer. That migration solved the immediate problems. It also planted the seed for a different crisis entirely.</p>
+
+<p>Then I read the license again.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>PyQt6 → GPL v3 (copyleft)
+Apache 2.0 → permissive
+
+GPL v3 + Apache 2.0 = 💥 license conflict
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>GPL v3 is copyleft. That means any project that <em>uses</em> PyQt6 must <em>also</em> be GPL v3. Apache 2.0 has different distribution requirements. You can't ship both at once — they're incompatible.</p>
+
+<p>My options:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Switch to GPL v3</td>
+<td>Lose permissive licensing flexibility</td>
+</tr>
+<tr>
+<td>Dual license</td>
+<td>Complicates contribution model</td>
+</tr>
+<tr>
+<td><strong>Migrate to PySide6</strong></td>
+<td><strong>LGPL v3 — compatible with Apache 2.0 ✅</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>PySide6 is the <em>official</em> Qt binding maintained by The Qt Company itself. LGPL v3 means closed-source and commercial use is fine as long as you dynamically link. For a desktop app, that's basically free.</p>
+
+<p>The API difference turned out to be mostly naming:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># PyQt6
+</span><span class="kn">from</span> <span class="n">PyQt6.QtCore</span> <span class="kn">import</span> <span class="n">pyqtSignal</span><span class="p">,</span> <span class="n">pyqtSlot</span>
+<span class="n">my_signal</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+
+<span class="c1"># PySide6
+</span><span class="kn">from</span> <span class="n">PySide6.QtCore</span> <span class="kn">import</span> <span class="n">Signal</span><span class="p">,</span> <span class="n">Slot</span>
+<span class="n">my_signal</span> <span class="o">=</span> <span class="nc">Signal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>The bigger gotcha is <strong>strict enums</strong>. PyQt6 enforces them everywhere. PySide6 is more lenient — which means some PyQt6 code actually runs <em>stricter</em> than PySide6, so migrating in that direction has fewer surprises than going the other way.</p>
+
+<p>Two projects, about two hours each. Migration done.</p>
+
+<hr>
+<h2>
+  <a name="the-wayland-window-snap-problem" href="#the-wayland-window-snap-problem">
+  </a>
+  The Wayland Window Snap Problem
+</h2>
+
+<p>Once I was on PySide6, I ran into the window management issue I'd been avoiding: <strong>snap doesn't work properly</strong> on Wayland.</p>
+
+<p>Chromium snaps fine. My Qt app doesn't. Here's why that's not a fair comparison — Chromium uses its own window management layer entirely. Qt apps on Wayland communicate through the compositor protocol, and there are three separate issues hiding inside "snap is broken":</p>
+<h3>
+  <a name="problem-1-raw-setmaximumwidth-endraw-on-the-sidebar-kills-snap-layouts" href="#problem-1-raw-setmaximumwidth-endraw-on-the-sidebar-kills-snap-layouts">
+  </a>
+  Problem 1: <code>setMaximumWidth</code> on the sidebar kills snap layouts
+</h3>
+
+<p>When the window is snapped to half-screen (~700px), the sidebar demands 350px and leaves the canvas only 330px. The fix is giving it a smaller ceiling:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Before
+</span><span class="n">self</span><span class="p">.</span><span class="n">scroll_area</span><span class="p">.</span><span class="nf">setMinimumWidth</span><span class="p">(</span><span class="mi">350</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">scroll_area</span><span class="p">.</span><span class="nf">setMaximumWidth</span><span class="p">(</span><span class="mi">450</span><span class="p">)</span>  <span class="c1"># too rigid
+</span>
+<span class="c1"># After
+</span><span class="n">self</span><span class="p">.</span><span class="n">scroll_area</span><span class="p">.</span><span class="nf">setMinimumWidth</span><span class="p">(</span><span class="mi">260</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">scroll_area</span><span class="p">.</span><span class="nf">setMaximumWidth</span><span class="p">(</span><span class="mi">400</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="problem-2-canvas-resize-fires-hundreds-of-times-during-snap-animation" href="#problem-2-canvas-resize-fires-hundreds-of-times-during-snap-animation">
+  </a>
+  Problem 2: Canvas resize fires hundreds of times during snap animation
+</h3>
+
+<p><code>ImageCanvas.resizeEvent</code> calls <code>display_image()</code> on every frame of the snap animation, causing visible flicker. The fix is a debounce timer:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># In __init__
+</span><span class="n">self</span><span class="p">.</span><span class="n">_resize_timer</span> <span class="o">=</span> <span class="nc">QTimer</span><span class="p">()</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_resize_timer</span><span class="p">.</span><span class="nf">setSingleShot</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">_resize_timer</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_do_canvas_resize</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">on_canvas_resize</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_resize_timer</span><span class="p">.</span><span class="nf">start</span><span class="p">(</span><span class="mi">60</span><span class="p">)</span>  <span class="c1"># 60ms debounce
+</span>
+<span class="k">def</span> <span class="nf">_do_canvas_resize</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">processed_image</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">display_image</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">processed_image</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">self</span><span class="p">.</span><span class="n">original_image</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">display_image</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">original_image</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">canvas</span><span class="p">.</span><span class="nf">update</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="problem-3-raw-restorewindowstate-endraw-on-wayland" href="#problem-3-raw-restorewindowstate-endraw-on-wayland">
+  </a>
+  Problem 3: <code>restore_window_state</code> on Wayland
+</h3>
+
+<p>Window geometry on Wayland isn't available until after the window is actually shown. Calling <code>resize()</code> and <code>move()</code> in <code>__init__</code> does nothing reliable. The fix is to delay restoration:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">showEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="nf">super</span><span class="p">().</span><span class="nf">showEvent</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nf">hasattr</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="sh">'</span><span class="s">_state_restored</span><span class="sh">'</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_state_restored</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">restore_window_state</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">restore_user_settings</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Also save and restore the splitter state across sessions:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># on close
+</span><span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">save_setting</span><span class="p">(</span>
+    <span class="sh">'</span><span class="s">splitter_state</span><span class="sh">'</span><span class="p">,</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">splitter</span><span class="p">.</span><span class="nf">saveState</span><span class="p">().</span><span class="nf">toHex</span><span class="p">().</span><span class="nf">data</span><span class="p">().</span><span class="nf">decode</span><span class="p">(),</span>
+    <span class="sh">'</span><span class="s">window</span><span class="sh">'</span>
+<span class="p">)</span>
+
+<span class="c1"># on restore
+</span><span class="n">splitter_bytes</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">db_manager</span><span class="p">.</span><span class="nf">get_setting</span><span class="p">(</span><span class="sh">'</span><span class="s">splitter_state</span><span class="sh">'</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">splitter_bytes</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="n">PySide6.QtCore</span> <span class="kn">import</span> <span class="n">QByteArray</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">splitter</span><span class="p">.</span><span class="nf">restoreState</span><span class="p">(</span><span class="n">QByteArray</span><span class="p">.</span><span class="nf">fromHex</span><span class="p">(</span><span class="n">splitter_bytes</span><span class="p">.</span><span class="nf">encode</span><span class="p">()))</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<blockquote>
+<p><strong>Note:</strong> The KDE/GNOME snap grid that appears when hovering the maximize button is a <em>compositor</em> feature, not something Qt apps can opt into. <code>Meta + arrow key</code> is your friend here.</p>
+</blockquote>
+
+<hr>
+<h2>
+  <a name="replacing-the-native-file-dialog" href="#replacing-the-native-file-dialog">
+  </a>
+  Replacing the Native File Dialog
+</h2>
+
+<p>The file picker looked like this:</p>
+
+<p>GTK. White. On a dark cyberpunk app. No.</p>
+
+<p>The typical fix is <code>QFileDialog.Option.DontUseNativeDialog</code> — but that gives you the Qt default dialog, which also ignores your stylesheet. I wanted something that actually <em>fits</em>.</p>
+
+<p>So I built one from scratch.</p>
+<h3>
+  <a name="the-design" href="#the-design">
+  </a>
+  The design
+</h3>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌─ 📷 Select Image ─────────────── [🔍 Filter] [✕] ─┐
+├───────────────────────────────────────────────────────┤
+│ QUICK ACCESS  │ Home › Pictures          │  Preview  │
+│               │ ┌────┐ ┌────┐ ┌────┐    │  [image]  │
+│ 🏠 Home       │ │img │ │img │ │img │    │           │
+│ 🖼️ Pictures   │ └────┘ └────┘ └────┘    │  file.jpg │
+│ ⬇️ Downloads  │ ┌────┐ ┌────┐           │  1920×1080│
+│ 🖥️ Desktop    │ │📁  │ │img │           │  2.3 MB   │
+│               │ └────┘ └────┘           │           │
+├───────────────────────────────────────────────────────┤
+│ /home/kareem/Pictures          [Cancel]    [ Open ]  │
+└───────────────────────────────────────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F3owt1wsa93koogwogysi.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F3owt1wsa93koogwogysi.png" alt="Our custom PySide6 File Dialog in action — featuring dark mode, quick access bookmarks, staggered animations, and a right-hand preview panel" loading="lazy" width="800" height="450"></a></p>
+
+<p>Three animations:</p>
+
+<ol>
+<li>Dialog opens with a fade-in</li>
+<li>File tiles appear with a staggered cascade (each 18ms apart)</li>
+<li>Preview panel slides in from the right when you select an image</li>
+</ol>
+<h3>
+  <a name="the-wayland-painter-trap" href="#the-wayland-painter-trap">
+  </a>
+  The Wayland painter trap
+</h3>
+
+<p>My first implementation used <code>QGraphicsOpacityEffect</code> for the tile animations. On Linux, the terminal filled up with this:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight console"><code><span class="go">QPainter::begin: A paint device can only be painted by one painter at a time.
+QWidgetEffectSourcePrivate::pixmap: Painter not active
+QPainter::save: Painter not active
+</span><span class="c">...
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Hundreds of lines. The dialog still opened, but something was clearly wrong.</p>
+
+<p>Here's what happens: when you put a <code>QGraphicsOpacityEffect</code> on a widget that has a <em>custom <code>paintEvent</code></em>, Qt's effect pipeline tries to grab the widget's pixels using an internal painter — while your <code>paintEvent</code> is <em>already holding</em> a painter on the same device. On Wayland, this conflict is loud.</p>
+
+<p>The fix: <strong>don't use <code>QGraphicsOpacityEffect</code> on widgets with custom paint</strong>. Instead, expose opacity as a <code>Property</code> and apply it directly inside the painter:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">FileTile</span><span class="p">(</span><span class="n">QWidget</span><span class="p">):</span>
+    <span class="c1"># ── opacity as animatable property ─────────────────────────
+</span>    <span class="k">def</span> <span class="nf">_get_tile_opacity</span><span class="p">(</span><span class="n">self</span><span class="p">):</span> <span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">_tile_opacity</span>
+    <span class="k">def</span> <span class="nf">_set_tile_opacity</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_tile_opacity</span> <span class="o">=</span> <span class="nf">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="nf">min</span><span class="p">(</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">update</span><span class="p">()</span>
+    <span class="n">tile_opacity</span> <span class="o">=</span> <span class="nc">Property</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">_get_tile_opacity</span><span class="p">,</span> <span class="n">_set_tile_opacity</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">paintEvent</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">_</span><span class="p">):</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="nc">QPainter</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+        <span class="n">p</span><span class="p">.</span><span class="nf">setRenderHint</span><span class="p">(</span><span class="n">QPainter</span><span class="p">.</span><span class="n">RenderHint</span><span class="p">.</span><span class="n">Antialiasing</span><span class="p">)</span>
+        <span class="c1"># Single painter, opacity baked in — no effect pipeline
+</span>        <span class="n">p</span><span class="p">.</span><span class="nf">setOpacity</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_tile_opacity</span><span class="p">)</span>
+        <span class="c1"># ... rest of paint
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>And in the grid loader, staggered reveal without effects:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">tile</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_tiles</span><span class="p">):</span>
+    <span class="n">tile</span><span class="p">.</span><span class="n">_tile_opacity</span> <span class="o">=</span> <span class="mf">0.0</span>
+    <span class="k">def</span> <span class="nf">_fade</span><span class="p">(</span><span class="n">t</span><span class="o">=</span><span class="n">tile</span><span class="p">):</span>
+        <span class="n">a</span> <span class="o">=</span> <span class="nc">QPropertyAnimation</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="sa">b</span><span class="sh">'</span><span class="s">tile_opacity</span><span class="sh">'</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">.</span><span class="nf">setDuration</span><span class="p">(</span><span class="mi">200</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">.</span><span class="nf">setStartValue</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">.</span><span class="nf">setEndValue</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">.</span><span class="nf">setEasingCurve</span><span class="p">(</span><span class="n">QEasingCurve</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">OutCubic</span><span class="p">)</span>
+        <span class="n">a</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>
+        <span class="n">t</span><span class="p">.</span><span class="n">_reveal_anim</span> <span class="o">=</span> <span class="n">a</span>  <span class="c1"># keep ref — GC would kill it otherwise
+</span>    <span class="n">QTimer</span><span class="p">.</span><span class="nf">singleShot</span><span class="p">(</span><span class="nf">min</span><span class="p">(</span><span class="n">i</span> <span class="o">*</span> <span class="mi">18</span><span class="p">,</span> <span class="mi">300</span><span class="p">),</span> <span class="n">_fade</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>The <code>t._reveal_anim = a</code> line is important. If you don't keep a reference to the <code>QPropertyAnimation</code>, Python's garbage collector kills it mid-animation and the tile stays frozen at whatever opacity it reached.</p>
+<h3>
+  <a name="the-dialog-open-animation-on-wayland" href="#the-dialog-open-animation-on-wayland">
+  </a>
+  The dialog open animation on Wayland
+</h3>
+
+<p><code>QGraphicsOpacityEffect</code> on the container had the same painter conflict. The solution is <code>setWindowOpacity()</code> — compositor-level, no painter involved:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># But first, check if the platform supports it
+</span><span class="kn">import</span> <span class="n">os</span>
+<span class="n">_is_wayland</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">WAYLAND_DISPLAY</span><span class="sh">'</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">or</span>
+    <span class="n">QApplication</span><span class="p">.</span><span class="nf">platformName</span><span class="p">()</span> <span class="o">==</span> <span class="sh">'</span><span class="s">wayland</span><span class="sh">'</span>
+<span class="p">)</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">_is_wayland</span><span class="p">:</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">setWindowOpacity</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">anim</span> <span class="o">=</span> <span class="nc">QPropertyAnimation</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="sa">b</span><span class="sh">'</span><span class="s">windowOpacity</span><span class="sh">'</span><span class="p">,</span> <span class="n">self</span><span class="p">)</span>
+    <span class="n">anim</span><span class="p">.</span><span class="nf">setDuration</span><span class="p">(</span><span class="mi">220</span><span class="p">)</span>
+    <span class="n">anim</span><span class="p">.</span><span class="nf">setStartValue</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="n">anim</span><span class="p">.</span><span class="nf">setEndValue</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="n">anim</span><span class="p">.</span><span class="nf">setEasingCurve</span><span class="p">(</span><span class="n">QEasingCurve</span><span class="p">.</span><span class="n">Type</span><span class="p">.</span><span class="n">OutCubic</span><span class="p">)</span>
+    <span class="n">anim</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Wayland compositors spam <code>This plugin does not support setting window opacity</code> to the terminal otherwise. The dialog appears instantly on Wayland — acceptable behavior.</p>
+<h3>
+  <a name="the-raw-qscrollarea-endraw-doubledelete-crash" href="#the-raw-qscrollarea-endraw-doubledelete-crash">
+  </a>
+  The <code>QScrollArea</code> double-delete crash
+</h3>
+
+<p>First run:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="nb">RuntimeError</span><span class="p">:</span> <span class="n">libshiboken</span><span class="p">:</span> <span class="n">Internal</span> <span class="n">C</span><span class="o">++</span> <span class="nf">object </span><span class="p">(</span><span class="n">QWidget</span><span class="p">)</span> <span class="n">already</span> <span class="n">deleted</span><span class="p">.</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>In <code>_load_grid()</code> I was doing:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">old</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">grid_widget</span>
+<span class="n">self</span><span class="p">.</span><span class="n">grid_widget</span> <span class="o">=</span> <span class="nc">QWidget</span><span class="p">()</span>
+<span class="n">self</span><span class="p">.</span><span class="n">scroll</span><span class="p">.</span><span class="nf">setWidget</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">grid_widget</span><span class="p">)</span>
+<span class="n">old</span><span class="p">.</span><span class="nf">deleteLater</span><span class="p">()</span>  <span class="c1"># 💥 Qt already deleted it
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>From Qt docs: <em>"The widget becomes a child of the scroll area, and will be **destroyed</em>* when a new widget is set."*</p>
+
+<p><code>setWidget()</code> already deletes the old widget. Calling <code>deleteLater()</code> on an already-deleted C++ object is a crash. The fix: remove those two lines entirely.</p>
+<h3>
+  <a name="crossplatform-bookmarks" href="#crossplatform-bookmarks">
+  </a>
+  Cross-platform bookmarks
+</h3>
+
+<p>The original sidebar was hardcoded for Linux:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">BOOKMARKS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="sh">'</span><span class="s">🏠</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Home</span><span class="sh">'</span><span class="p">,</span>      <span class="nf">str</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">())),</span>
+    <span class="p">(</span><span class="sh">'</span><span class="s">🖼️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">,</span>  <span class="nf">str</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="sh">'</span><span class="s">⬇️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="sh">'</span><span class="s">🖥️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">,</span>   <span class="nf">str</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">)),</span>
+    <span class="p">(</span><span class="sh">'</span><span class="s">📂</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Root</span><span class="sh">'</span><span class="p">,</span>      <span class="sh">'</span><span class="s">/</span><span class="sh">'</span><span class="p">),</span>  <span class="c1"># doesn't exist on Windows
+</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>On a French Linux system, <code>~/Desktop</code> might be <code>~/Bureau</code>. On Windows, <code>C:\Users\kareem\Pictures</code> might be somewhere else entirely. The fix uses XDG on Linux and platform-specific approaches elsewhere:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_read_xdg_user_dirs</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Parse ~/.config/user-dirs.dirs — handles localized folder names.</span><span class="sh">"""</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()</span> <span class="o">/</span> <span class="sh">'</span><span class="s">.config</span><span class="sh">'</span> <span class="o">/</span> <span class="sh">'</span><span class="s">user-dirs.dirs</span><span class="sh">'</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">config</span><span class="p">.</span><span class="nf">exists</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">result</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nf">open</span><span class="p">(</span><span class="n">config</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="p">.</span><span class="nf">strip</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">line</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">'</span><span class="s">#</span><span class="sh">'</span><span class="p">)</span> <span class="ow">or</span> <span class="sh">'</span><span class="s">=</span><span class="sh">'</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">line</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">key</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="n">line</span><span class="p">.</span><span class="nf">partition</span><span class="p">(</span><span class="sh">'</span><span class="s">=</span><span class="sh">'</span><span class="p">)</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">key</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sh">'</span><span class="s">XDG_</span><span class="sh">'</span><span class="p">,</span> <span class="sh">''</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="sh">'</span><span class="s">_DIR</span><span class="sh">'</span><span class="p">,</span> <span class="sh">''</span><span class="p">)</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">strip</span><span class="p">(</span><span class="sh">'"'</span><span class="p">).</span><span class="nf">replace</span><span class="p">(</span><span class="sh">'</span><span class="s">$HOME</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()))</span>
+                <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+    <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="n">result</span>
+
+
+<span class="k">def</span> <span class="nf">get_bookmarks</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+    <span class="n">home</span>  <span class="o">=</span> <span class="n">Path</span><span class="p">.</span><span class="nf">home</span><span class="p">()</span>
+    <span class="n">marks</span> <span class="o">=</span> <span class="p">[(</span><span class="sh">'</span><span class="s">🏠</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Home</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">home</span><span class="p">))]</span>
+
+    <span class="k">if</span> <span class="n">sys</span><span class="p">.</span><span class="n">platform</span> <span class="o">==</span> <span class="sh">'</span><span class="s">win32</span><span class="sh">'</span><span class="p">:</span>
+        <span class="c1"># Windows drives + user folders
+</span>        <span class="kn">import</span> <span class="n">string</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖼️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">,</span>  <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">USERPROFILE</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">home</span><span class="p">))</span> <span class="o">+</span> <span class="sh">'</span><span class="se">\\</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">⬇️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">)),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖥️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">,</span>   <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">)),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">📄</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Documents</span><span class="sh">'</span><span class="p">,</span> <span class="n">os</span><span class="p">.</span><span class="n">environ</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">DOCUMENTS</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Documents</span><span class="sh">'</span><span class="p">))),</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                <span class="n">marks</span><span class="p">.</span><span class="nf">append</span><span class="p">((</span><span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">letter</span> <span class="ow">in</span> <span class="n">string</span><span class="p">.</span><span class="n">ascii_uppercase</span><span class="p">:</span>
+            <span class="n">drive</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">'</span><span class="si">{</span><span class="n">letter</span><span class="si">}</span><span class="s">:</span><span class="se">\\</span><span class="sh">'</span>
+            <span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">exists</span><span class="p">(</span><span class="n">drive</span><span class="p">):</span>
+                <span class="n">marks</span><span class="p">.</span><span class="nf">append</span><span class="p">((</span><span class="sh">'</span><span class="s">💾</span><span class="sh">'</span><span class="p">,</span> <span class="sa">f</span><span class="sh">'</span><span class="si">{</span><span class="n">letter</span><span class="si">}</span><span class="s">:</span><span class="sh">'</span><span class="p">,</span> <span class="n">drive</span><span class="p">))</span>
+
+    <span class="k">elif</span> <span class="n">sys</span><span class="p">.</span><span class="n">platform</span> <span class="o">==</span> <span class="sh">'</span><span class="s">darwin</span><span class="sh">'</span><span class="p">:</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖼️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">,</span>  <span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">⬇️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">,</span> <span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖥️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">,</span>   <span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">📂</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Volumes</span><span class="sh">'</span><span class="p">,</span>   <span class="nc">Path</span><span class="p">(</span><span class="sh">'</span><span class="s">/Volumes</span><span class="sh">'</span><span class="p">)),</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nc">Path</span><span class="p">(</span><span class="n">path</span><span class="p">).</span><span class="nf">exists</span><span class="p">():</span>
+                <span class="n">marks</span><span class="p">.</span><span class="nf">append</span><span class="p">((</span><span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">path</span><span class="p">)))</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Linux — XDG first, fallback to English names
+</span>        <span class="n">xdg</span> <span class="o">=</span> <span class="nf">_read_xdg_user_dirs</span><span class="p">()</span>
+        <span class="n">candidates</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖼️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">,</span>  <span class="n">xdg</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">PICTURES</span><span class="sh">'</span><span class="p">,</span>  <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Pictures</span><span class="sh">'</span><span class="p">))),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">⬇️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">,</span> <span class="n">xdg</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">DOWNLOAD</span><span class="sh">'</span><span class="p">,</span>  <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Downloads</span><span class="sh">'</span><span class="p">))),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🖥️</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">,</span>   <span class="n">xdg</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">DESKTOP</span><span class="sh">'</span><span class="p">,</span>   <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Desktop</span><span class="sh">'</span><span class="p">))),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">📄</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Documents</span><span class="sh">'</span><span class="p">,</span> <span class="n">xdg</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">DOCUMENTS</span><span class="sh">'</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Documents</span><span class="sh">'</span><span class="p">))),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">🎵</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Music</span><span class="sh">'</span><span class="p">,</span>     <span class="n">xdg</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">MUSIC</span><span class="sh">'</span><span class="p">,</span>     <span class="nf">str</span><span class="p">(</span><span class="n">home</span> <span class="o">/</span> <span class="sh">'</span><span class="s">Music</span><span class="sh">'</span><span class="p">))),</span>
+            <span class="p">(</span><span class="sh">'</span><span class="s">📂</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">Root</span><span class="sh">'</span><span class="p">,</span>      <span class="sh">'</span><span class="s">/</span><span class="sh">'</span><span class="p">),</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">os</span><span class="p">.</span><span class="n">path</span><span class="p">.</span><span class="nf">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+                <span class="n">marks</span><span class="p">.</span><span class="nf">append</span><span class="p">((</span><span class="n">icon</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">path</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">marks</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<blockquote>
+<p><strong>Pyrefly IDE users:</strong> The <code>win32</code> and <code>darwin</code> branches will appear dimmed/dead on Linux because Pyrefly does platform narrowing — static analysis treats unreachable-on-current-platform code as dead. The code is correct. Add <code>_PLATFORM = sys.platform</code> and check against that variable to suppress it, or set <code>platform = "all"</code> in <code>pyrefly.toml</code>.</p>
+</blockquote>
+<h3>
+  <a name="thumbnail-loading" href="#thumbnail-loading">
+  </a>
+  Thumbnail loading
+</h3>
+
+<p>Thumbnails load in a <code>QThreadPool</code> so scrolling stays smooth:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">ThumbLoader</span><span class="p">(</span><span class="n">QRunnable</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="n">PIL</span> <span class="kn">import</span> <span class="n">Image</span>
+            <span class="n">img</span> <span class="o">=</span> <span class="n">Image</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">img</span><span class="p">.</span><span class="nf">thumbnail</span><span class="p">((</span><span class="mi">140</span><span class="p">,</span> <span class="mi">140</span><span class="p">),</span> <span class="n">Image</span><span class="p">.</span><span class="n">LANCZOS</span><span class="p">)</span>
+            <span class="n">img</span>  <span class="o">=</span> <span class="n">img</span><span class="p">.</span><span class="nf">convert</span><span class="p">(</span><span class="sh">'</span><span class="s">RGBA</span><span class="sh">'</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">img</span><span class="p">.</span><span class="nf">tobytes</span><span class="p">(</span><span class="sh">'</span><span class="s">raw</span><span class="sh">'</span><span class="p">,</span> <span class="sh">'</span><span class="s">RGBA</span><span class="sh">'</span><span class="p">)</span>
+            <span class="n">qimg</span> <span class="o">=</span> <span class="nc">QImage</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">img</span><span class="p">.</span><span class="n">width</span><span class="p">,</span> <span class="n">img</span><span class="p">.</span><span class="n">height</span><span class="p">,</span>
+                          <span class="n">QImage</span><span class="p">.</span><span class="n">Format</span><span class="p">.</span><span class="n">Format_RGBA8888</span><span class="p">)</span>
+            <span class="n">qimg</span><span class="p">.</span><span class="n">_pil_data</span> <span class="o">=</span> <span class="n">data</span>   <span class="c1"># keep alive until QImage is done
+</span>            <span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">done</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">path</span><span class="p">,</span> <span class="n">QPixmap</span><span class="p">.</span><span class="nf">fromImage</span><span class="p">(</span><span class="n">qimg</span><span class="p">))</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Using Pillow instead of <code>QImage</code> directly avoids <code>qt.gui.imageio.jpeg: Corrupt JPEG data</code> warnings for slightly malformed JPEGs — Pillow is more lenient and the visual difference is zero.</p>
+
+<hr>
+<h2>
+  <a name="multithreading-in-qt-nonblocking-batch-processing" href="#multithreading-in-qt-nonblocking-batch-processing">
+  </a>
+  Multithreading in Qt: Non-Blocking Batch Processing
+</h2>
+
+<p>Adding a batch processing feature poses a major UI challenge. If you try to process 100 images sequentially on the main GUI thread, the Qt event loop locks up. The application window freezes, visual elements stop repainting, and the operating system eventually prompts the user to force-close the "Not Responding" application.</p>
+
+<p>To solve this, the processing must happen asynchronously in the background. But there is a catch: <strong>Qt widgets are not thread-safe</strong>. You cannot modify GUI elements (like updating a progress bar or changing a label's text) directly from a background worker thread without triggering random segfaults.</p>
+<h3>
+  <a name="threadsafe-communication-via-custom-signals" href="#threadsafe-communication-via-custom-signals">
+  </a>
+  Thread-Safe Communication via Custom Signals
+</h3>
+
+<p>The standard way to bridge this gap in PySide6 is using custom <code>Signal</code>s. Since PySide6 signals are inherently thread-safe when using a queued connection, emitting a signal from a worker thread safely marshals the event back to the main thread's event loop.</p>
+
+<p>First, we define a small <code>QObject</code> to hold our signals:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">BatchSignals</span><span class="p">(</span><span class="n">QObject</span><span class="p">):</span>
+    <span class="sh">"""</span><span class="s">Signals for thread-safe UI updates from the processing worker thread</span><span class="sh">"""</span>
+    <span class="n">progress</span> <span class="o">=</span> <span class="nc">Signal</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
+    <span class="n">error</span> <span class="o">=</span> <span class="nc">Signal</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+    <span class="n">complete</span> <span class="o">=</span> <span class="nc">Signal</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Inside our dialog initialization, we connect these signals to the GUI update slots:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">self</span><span class="p">.</span><span class="n">signals</span> <span class="o">=</span> <span class="nc">BatchSignals</span><span class="p">()</span>
+<span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">progress</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">on_progress</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">error</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">on_error</span><span class="p">)</span>
+<span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">complete</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">on_complete</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="the-worker-thread-lifecycle" href="#the-worker-thread-lifecycle">
+  </a>
+  The Worker Thread Lifecycle
+</h3>
+
+<p>When the user clicks "Start", we launch a standard Python <code>threading.Thread</code> as a daemon thread. We pass nested callbacks that do nothing but emit our thread-safe signals:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">start_processing</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="c1"># ... read UI values and settings ...
+</span>    <span class="n">self</span><span class="p">.</span><span class="n">processing</span> <span class="o">=</span> <span class="bp">True</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">update_ui_state</span><span class="p">(</span><span class="n">processing</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">process_worker</span><span class="p">():</span>
+        <span class="k">def</span> <span class="nf">progress_cb</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">result</span><span class="p">):</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">progress</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="n">total</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">error_cb</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">):</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">error</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">error_msg</span><span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="n">batch_processor</span><span class="p">.</span><span class="nf">process_batch</span><span class="p">(</span>
+            <span class="n">valid_files</span><span class="p">,</span>
+            <span class="n">output_dir</span><span class="p">,</span>
+            <span class="n">settings</span><span class="p">,</span>
+            <span class="n">progress_callback</span><span class="o">=</span><span class="n">progress_cb</span><span class="p">,</span>
+            <span class="n">error_callback</span><span class="o">=</span><span class="n">error_cb</span><span class="p">,</span>
+            <span class="n">is_cancelled</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">processing</span>
+        <span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">signals</span><span class="p">.</span><span class="n">complete</span><span class="p">.</span><span class="nf">emit</span><span class="p">()</span>
+
+    <span class="n">thread</span> <span class="o">=</span> <span class="n">threading</span><span class="p">.</span><span class="nc">Thread</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="n">process_worker</span><span class="p">,</span> <span class="n">daemon</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">thread</span><span class="p">.</span><span class="nf">start</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="graceful-cancellation-and-license-gating" href="#graceful-cancellation-and-license-gating">
+  </a>
+  Graceful Cancellation and License Gating
+</h3>
+
+<p>The <code>is_cancelled</code> parameter passes a lambda <code>lambda: not self.processing</code> down to the batch loop. Inside the processing loop, <code>BatchProcessor</code> checks this condition on every iteration:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">input_path</span> <span class="ow">in</span> <span class="nf">enumerate</span><span class="p">(</span><span class="n">input_paths</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">is_cancelled</span> <span class="ow">and</span> <span class="nf">is_cancelled</span><span class="p">():</span>
+        <span class="k">break</span>  <span class="c1"># Exit early if the user clicked "Stop"
+</span>    <span class="c1"># ... process image ...
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Additionally, because batch processing is a resource-intensive "PRO" feature, we gate the GUI. If the license manager detects that the Max tier is not activated, the window restricts input selection:<br>
+</p>
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="n">FREE_FILE_LIMIT</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="k">def</span> <span class="nf">_is_max</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">self</span><span class="p">.</span><span class="n">license_manager</span><span class="p">.</span><span class="n">is_max_activated</span>
+
+<span class="c1"># When adding files:
+</span><span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="nf">_is_max</span><span class="p">()</span> <span class="ow">and</span> <span class="nf">len</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">selected_files</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">self</span><span class="p">.</span><span class="n">FREE_FILE_LIMIT</span><span class="p">:</span>
+    <span class="n">QMessageBox</span><span class="p">.</span><span class="nf">warning</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="sh">"</span><span class="s">Limit Reached</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">Free tier is limited to 3 files.</span><span class="sh">"</span><span class="p">)</span>
+    <span class="c1"># ... slice list to limit ...
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>This keeps the GUI perfectly responsive, gives the user real-time feedback with zero crashes, and ties in the licensing system we built in Part 2.</p>
+
+<hr>
+<h2>
+  <a name="whats-next-designing-ai-evasion-adversarial-perturbation" href="#whats-next-designing-ai-evasion-adversarial-perturbation">
+  </a>
+  What's Next: Designing AI Evasion (Adversarial Perturbation)
+</h2>
+
+<p>DotScramble can now blur, pixelate, or black out sensitive regions like faces. While that visual degradation is enough to prevent a human from recognizing the subject, it turns out it is not enough for modern AI-driven facial recognition systems.</p>
+<h3>
+  <a name="the-threat-model-ai-face-recognition" href="#the-threat-model-ai-face-recognition">
+  </a>
+  The Threat Model: AI Face Recognition
+</h3>
+
+<p>Deep learning models extract abstract <em>feature vectors</em> from faces. Even if a face is heavily blurred or partially pixelated, the neural network can still reconstruct or match the underlying features with surprisingly high confidence. In my tests, a blurred face run through an open-source face recognition model still yielded a cosine similarity match of over <strong>0.7</strong> against the original unblurred image—well above typical detection thresholds.</p>
+
+<p>To achieve true privacy in the age of scraping pipelines and surveillance, DotScramble needs a second line of defense: <strong>adversarial perturbations</strong>.</p>
+<h3>
+  <a name="fooling-the-neural-network" href="#fooling-the-neural-network">
+  </a>
+  Fooling the Neural Network
+</h3>
+
+<p>Adversarial machine learning involves adding a mathematically optimized, imperceptible noise pattern to an image. To a human, the image looks virtually unchanged, but to a neural network, the features are completely scrambled, leading to an incorrect classification or a failed match:</p>
+
+<p><link rel="stylesheet" href="https://assets.dev.to/assets/katex-7b986a08a52ed11e0e3379cd9c4bb3ccb187f09c249a1de099b16c423e34bb76.css">
+
+</p>
+<div class="katex-element">
+  <span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mtext>Original image</mtext><mo>+</mo><mi>ε</mi><mo>×</mo><mtext>noise</mtext><mo>=</mo><mtext>Adversarial example (gibbon/unrecognized)</mtext></mrow><annotation encoding="application/x-tex">
+\text{Original image} + \varepsilon \times \text{noise} = \text{Adversarial example (gibbon/unrecognized)}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8889em;vertical-align:-0.1944em;"></span><span class="mord text"><span class="mord">Original image</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6667em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">ε</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.6679em;"></span><span class="mord text"><span class="mord">noise</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord text"><span class="mord">Adversarial example (gibbon/unrecognized)</span></span></span></span></span></span>
+</div>
+
+
+
+<h3>
+  <a name="the-blackbox-challenge-spsa" href="#the-blackbox-challenge-spsa">
+  </a>
+  The Black-Box Challenge (SPSA)
+</h3>
+
+<p>Most standard adversarial attack methods (like FGSM) are "white-box" attacks—they require full access to the target model's architecture, weights, and gradients so you can perform backpropagation. </p>
+
+<p>For DotScramble, we don't know what model the end-user (or scraper) will use. We need a <strong>black-box</strong> attack. To solve this, we can design an estimation engine using <strong>Simultaneous Perturbation Stochastic Approximation (SPSA)</strong>. SPSA approximates gradients by evaluating the loss function at just two perturbed points per iteration, regardless of parameter count:</p>
+
+
+<div class="katex-element">
+  <span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mover accent="true"><mi>g</mi><mo>^</mo></mover><mo stretchy="false">(</mo><mi>θ</mi><mo stretchy="false">)</mo><mo>≈</mo><mfrac><mrow><mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo>+</mo><mi>c</mi><mi mathvariant="normal">Δ</mi><mo stretchy="false">)</mo><mo>−</mo><mi>L</mi><mo stretchy="false">(</mo><mi>θ</mi><mo>−</mo><mi>c</mi><mi mathvariant="normal">Δ</mi><mo stretchy="false">)</mo></mrow><mrow><mn>2</mn><mi>c</mi></mrow></mfrac><mo>×</mo><msup><mi mathvariant="normal">Δ</mi><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow><annotation encoding="application/x-tex">
+\hat{g}(\theta) \approx \frac{L(\theta + c\Delta) - L(\theta - c\Delta)}{2c} \times \Delta^{-1}
+</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord accent"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.6944em;"><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="mord mathnormal" style="margin-right:0.03588em;">g</span></span><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span class="accent-body" style="left:-0.2222em;"><span class="mord">^</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.1944em;"><span></span></span></span></span></span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.113em;vertical-align:-0.686em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.427em;"><span style="top:-2.314em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord">2</span><span class="mord mathnormal">c</span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.677em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord mathnormal">L</span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">c</span><span class="mord">Δ</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">L</span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.02778em;">θ</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathnormal">c</span><span class="mord">Δ</span><span class="mclose">)</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.686em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.8641em;"></span><span class="mord"><span class="mord">Δ</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8641em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">−</span><span class="mord mtight">1</span></span></span></span></span></span></span></span></span></span></span></span></span>
+</div>
+
+
+<p>This allows us to optimize adversarial perturbations on the fly using a local proxy model, ensuring the face remains unrecognizable to AI systems.</p>
+
+
+<hr>
+
+<h2>
+  <a name="bugs-i-hit-and-what-they-actually-were" href="#bugs-i-hit-and-what-they-actually-were">
+  </a>
+  Bugs I Hit and What They Actually Were
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Looked Like</th>
+<th>Actually Was</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RuntimeError: Internal C++ object already deleted</code></td>
+<td>Memory bug</td>
+<td>
+<code>deleteLater()</code> on widget Qt already deleted via <code>setWidget()</code>
+</td>
+</tr>
+<tr>
+<td><code>QPainter: A paint device can only be painted by one painter at a time</code></td>
+<td>Concurrent threads</td>
+<td>
+<code>QGraphicsOpacityEffect</code> + custom <code>paintEvent</code> on same widget</td>
+</tr>
+<tr>
+<td><code>This plugin does not support setting window opacity</code></td>
+<td>Qt bug</td>
+<td>
+<code>setWindowOpacity()</code> not supported on Wayland compositor</td>
+</tr>
+<tr>
+<td><code>Corrupt JPEG data: 1 extraneous bytes before marker 0xd9</code></td>
+<td>Broken images</td>
+<td>Cameras that write slightly nonstandard JPEG — images load fine</td>
+</tr>
+<tr>
+<td>Sidebar items dimmed in IDE</td>
+<td>Code wrong</td>
+<td>Pyrefly platform-narrowing dead code detection</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="key-takeaways" href="#key-takeaways">
+  </a>
+  Key Takeaways
+</h2>
+
+<p><strong>On Wayland:</strong> Don't use <code>QGraphicsOpacityEffect</code> on widgets with custom <code>paintEvent</code>. The effect pipeline creates a painter conflict. Use <code>p.setOpacity()</code> inside your custom paint instead.</p>
+
+<p><strong>On Qt object lifetime:</strong> <code>QScrollArea::setWidget()</code> destroys the previous widget. Don't call <code>deleteLater()</code> on it afterward. Same pattern appears in <code>QStackedWidget</code>, <code>QDockWidget</code>, and others.</p>
+
+<p><strong>On file dialogs:</strong> The native file dialog on Linux is GTK and ignores your stylesheet. Building a custom one is maybe 400 lines and gives you full control over layout, animations, and behavior — worth it for a premium feel.</p>
+
+<p><strong>On Qt multithreading:</strong> Never update GUI elements directly from a background thread; it leads to memory corruption and instant crashes. Use <code>QObject</code> with <code>Signal</code>s to safely bridge communication from the worker thread to the main GUI thread.</p>
+
+<p><strong>On adversarial perturbations:</strong> Blurring or pixelating a face might fool a human, but modern neural networks can still recognize it. Adversarial noise slightly alters pixels to break the model's feature extraction while keeping the image recognizable to humans.</p>
+
+<p><strong>On black-box optimization:</strong> When you don't have access to model weights or gradients, black-box optimization algorithms like SPSA (Simultaneous Perturbation Stochastic Approximation) let you estimate gradients efficiently with just a few forward passes.</p>
+
+
+<hr>
+
+<p><em>DotScramble is part of DotSuite — a collection of developer privacy tools. Part 4 covers the AI Evasion system — why blurring alone isn't enough against modern face recognition, and how SPSA black-box adversarial perturbations add a second layer of protection that works without access to any model weights.</em></p>
+
+<p><em><a href="https://github.com/kareem2099/DotScramble/releases/tag/v1.4.1" target="_blank" rel="noopener noreferrer">GitHub (v1.4.1)</a> · <a href="https://www.opendesktop.org/p/2362477/" target="_blank" rel="noopener noreferrer">OpenDesktop</a> · <a href="https://ko-fi.com/freerave" target="_blank" rel="noopener noreferrer">Ko-fi</a> · <a href="https://buymeacoffee.com/freerave" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a></em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotscramble-part-3-wayland-wars-a-custom-file-picker-and-designing-ai-evasion-2mja" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotscramble-part-3-wayland-wars-a-custom-file-picker-and-designing-ai-evasion-2mja#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

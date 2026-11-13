@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Scaling Shredzilla: Slaying Memory Leaks &amp; Mastering State in Jetpack Compose — FreeRave</title>
+<meta name="description" content="Building a fitness app is easy. Building a production-ready, offline-capable, memory-efficient...">
+<link rel="canonical" href="https://dev.to/freerave/scaling-shredzilla-slaying-memory-leaks-mastering-state-in-jetpack-compose-10ff">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/scaling-shredzilla-slaying-memory-leaks-mastering-state-in-jetpack-compose-10ff">
+<meta property="og:title" content="Scaling Shredzilla: Slaying Memory Leaks &amp; Mastering State in Jetpack Compose — FreeRave">
+<meta property="og:description" content="Building a fitness app is easy. Building a production-ready, offline-capable, memory-efficient...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frryouspjkfgok8lw39c3.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frryouspjkfgok8lw39c3.png" alt="">
+  <h1 class="post-title">Scaling Shredzilla: Slaying Memory Leaks &amp; Mastering State in Jetpack Compose</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-22T09:14:45Z">22 March 2026</time> · 4 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>Building a fitness app is easy. Building a <em>production-ready</em>, offline-capable, memory-efficient fitness app that survives Android's brutal lifecycle changes? That's a different beast entirely. </p>
+
+<p>Over the past few weeks, I’ve been heavily refactoring my open-source workout tracker, <strong><a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">Shredzilla</a></strong>, moving it from a "working prototype" to a rock-solid, production-ready architecture. </p>
+
+<p>In this article, I want to share the critical architectural lessons learned during the <strong>v1.1.0 Refactoring Sprint</strong>, how we solved some nasty memory leaks, and what’s coming next in the <strong>v1.2.0 Performance Update</strong>.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-we-achieved-in-v110-the-great-refactoring" href="#what-we-achieved-in-v110-the-great-refactoring">
+  </a>
+  What We Achieved in v1.1.0: The Great Refactoring
+</h2>
+
+<p>Version 1.1.0 was all about <strong>Stability, Security, and DRY Principles</strong>. Here are the biggest wins:</p>
+
+<h3>
+  <a name="1-slaying-the-eternal-firestore-memory-leak" href="#1-slaying-the-eternal-firestore-memory-leak">
+  </a>
+  1. Slaying the Eternal Firestore Memory Leak 🧛‍♂️
+</h3>
+
+<p>If you use Firebase Firestore's <code>addSnapshotListener</code>, you might be leaking memory without realizing it. Previously, Shredzilla's listeners stayed alive in the background even after a user logged out, consuming memory and unnecessary quota.</p>
+
+<p><strong>The Fix:</strong> We implemented a strict caching system for <code>ListenerRegistration</code> inside our <code>UserDataManager</code>.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// Inside UserDataManager.kt</span>
+<span class="k">private</span> <span class="kd">val</span> <span class="py">listeners</span> <span class="p">=</span> <span class="n">mutableListOf</span><span class="p">&lt;</span><span class="nc">ListenerRegistration</span><span class="p">&gt;()</span>
+
+<span class="k">fun</span> <span class="nf">setupFirestoreListeners</span><span class="p">(</span><span class="n">currentUser</span><span class="p">:</span> <span class="nc">FirebaseUser</span><span class="p">?)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="py">userDocRegistration</span> <span class="p">=</span> <span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">).</span><span class="nf">document</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">addSnapshotListener</span> <span class="p">{</span> <span class="n">snapshot</span><span class="p">,</span> <span class="n">e</span> <span class="p">-&gt;</span> <span class="cm">/* Update UI State */</span> <span class="p">}</span>
+
+    <span class="n">listeners</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">userDocRegistration</span><span class="p">)</span> <span class="c1">// Cache the listener</span>
+<span class="p">}</span>
+
+<span class="c1">// Called upon Sign Out or Account Deletion</span>
+<span class="k">fun</span> <span class="nf">clearAllListeners</span><span class="p">()</span> <span class="p">{</span>
+    <span class="n">listeners</span><span class="p">.</span><span class="nf">forEach</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="nf">remove</span><span class="p">()</span> <span class="p">}</span>
+    <span class="n">listeners</span><span class="p">.</span><span class="nf">clear</span><span class="p">()</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><em>Takeaway: Never leave a listener hanging. Always cache and kill them when the user session ends.</em></p>
+
+<h3>
+  <a name="2-state-hoisting-amp-surviving-process-death" href="#2-state-hoisting-amp-surviving-process-death">
+  </a>
+  2. State Hoisting &amp; Surviving Process Death 🧟‍♂️
+</h3>
+
+<p>Have you ever tried to update a username, rotated your phone while the loading spinner was spinning, and suddenly the app crashed or the state vanished? We fixed that.</p>
+
+<p>We moved heavy, non-idempotent operations (like Account Deletion and Profile Updates) entirely into the <code>MainViewModel</code>'s <code>viewModelScope</code>.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// ❌ BAD: UI handles the coroutine. Dies on rotation.</span>
+<span class="nc">Button</span><span class="p">(</span><span class="n">onClick</span> <span class="p">=</span> <span class="p">{</span> 
+    <span class="nf">rememberCoroutineScope</span><span class="p">().</span><span class="nf">launch</span> <span class="p">{</span> <span class="nf">deleteAccount</span><span class="p">()</span> <span class="p">}</span> 
+<span class="p">})</span>
+
+<span class="c1">// ✅ GOOD: ViewModel handles the launch. Survives UI recreation.</span>
+<span class="k">fun</span> <span class="nf">deleteUserAccount</span><span class="p">(</span><span class="n">onSuccess</span><span class="p">:</span> <span class="p">()</span> <span class="p">-&gt;</span> <span class="nc">Unit</span><span class="p">,</span> <span class="n">onError</span><span class="p">:</span> <span class="p">(</span><span class="nc">Exception</span><span class="p">)</span> <span class="p">-&gt;</span> <span class="nc">Unit</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">viewModelScope</span><span class="p">.</span><span class="nf">launch</span> <span class="p">{</span>
+        <span class="n">isDeletingAccount</span> <span class="p">=</span> <span class="k">true</span>
+        <span class="k">try</span> <span class="p">{</span>
+            <span class="c1">// Delete Firestore Data -&gt; Delete Auth User -&gt; Clean Local Files</span>
+            <span class="c1">// ...</span>
+            <span class="nf">onSuccess</span><span class="p">()</span>
+        <span class="p">}</span> <span class="k">finally</span> <span class="p">{</span> <span class="n">isDeletingAccount</span> <span class="p">=</span> <span class="k">false</span> <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>We also swapped standard <code>remember</code> for <code>rememberSaveable</code> in our text fields so users don't lose their typed input during configuration changes!</p>
+
+<h3>
+  <a name="3-bulletproof-navigation-amp-backstack-management" href="#3-bulletproof-navigation-amp-backstack-management">
+  </a>
+  3. Bulletproof Navigation &amp; Back-Stack Management
+</h3>
+
+<p>Onboarding flows can be tricky. You don't want a user who just finished logging in to press the "Back" button and end up back on the login screen. </p>
+
+<p>In Shredzilla, we utilized Compose Navigation's <code>popUpTo</code> forcefully:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">mainNavController</span><span class="p">.</span><span class="nf">navigate</span><span class="p">(</span><span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">FITNESS_MAIN</span><span class="p">)</span> <span class="p">{</span> 
+    <span class="c1">// Obliterate the Auth graph from the backstack!</span>
+    <span class="nf">popUpTo</span><span class="p">(</span><span class="nc">AppRoutes</span><span class="p">.</span><span class="nc">AUTH</span><span class="p">)</span> <span class="p">{</span> <span class="n">inclusive</span> <span class="p">=</span> <span class="k">true</span> <span class="p">}</span> 
+    <span class="n">launchSingleTop</span> <span class="p">=</span> <span class="k">true</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="4-data-integrity-the-dry-settings-helper" href="#4-data-integrity-the-dry-settings-helper">
+  </a>
+  4. Data Integrity: The DRY Settings Helper
+</h3>
+
+<p>Instead of repeating <code>SetOptions.merge()</code> everywhere in the UI when a user changes their Unit System (Kg/Lbs) or Theme, we abstracted it into a single, type-safe generic function in the data layer:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">updateUserSetting</span><span class="p">(</span><span class="n">userId</span><span class="p">:</span> <span class="nc">String</span><span class="p">?,</span> <span class="n">key</span><span class="p">:</span> <span class="nc">String</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nc">Any</span><span class="p">?)</span> <span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">userId</span><span class="p">.</span><span class="nf">isNullOrEmpty</span><span class="p">())</span> <span class="k">return</span>
+    <span class="n">db</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s">"users"</span><span class="p">).</span><span class="nf">document</span><span class="p">(</span><span class="n">userId</span><span class="p">)</span>
+      <span class="p">.</span><span class="k">set</span><span class="p">(</span><span class="nf">hashMapOf</span><span class="p">(</span><span class="n">key</span> <span class="n">to</span> <span class="n">value</span><span class="p">),</span> <span class="nc">SetOptions</span><span class="p">.</span><span class="nf">merge</span><span class="p">())</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-the-v120-roadmap" href="#whats-next-the-v120-roadmap">
+  </a>
+  What's Next: The v1.2.0 Roadmap
+</h2>
+
+<p>With the foundation secured, the upcoming <strong>v1.2.0 Sprint</strong> is focused purely on <strong>Speed, Analytics, and Gym-floor UX</strong>. </p>
+
+<p>Here is what we are building next:</p>
+
+<h3>
+  <a name="1-the-active-workflow-engine-today-screen" href="#1-the-active-workflow-engine-today-screen">
+  </a>
+  1. The Active Workflow Engine (Today Screen)
+</h3>
+
+<ul>
+<li>
+<strong>Offline-First Sync:</strong> Gyms have notoriously bad Wi-Fi. We are building sophisticated offline caching so weightlifters can log intense sets seamlessly in dead-zones, with implicit background syncing upon reconnection.</li>
+<li>
+<strong>Zero-Latency Timers:</strong> Decoupling the rest timer mechanics from Compose UI recomposition cycles to guarantee frame-perfect countdowns even when the app is minimized.</li>
+</ul>
+
+<h3>
+  <a name="2-exercise-database-amp-60fps-filtering" href="#2-exercise-database-amp-60fps-filtering">
+  </a>
+  2. Exercise Database &amp; 60-FPS Filtering
+</h3>
+
+<ul>
+<li>
+<strong>Debounced Search Flows:</strong> Users shouldn't experience UI lag while typing "Bench Press". We are migrating the search logic to a debounced Kotlin <code>StateFlow</code> emitted directly from the ViewModel to prevent ANRs.</li>
+<li>
+<strong>LazyColumn Optimization:</strong> Applying standard pagination blocks and keying for buttery smooth 60-FPS scrolling through massive exercise arrays.</li>
+<li>
+<strong>Shared Element Transitions:</strong> Building fluid, polished animations that morph from a standard list item directly into the <code>ExerciseDetailScreen</code>.</li>
+</ul>
+
+<h3>
+  <a name="3-analytics-processing-amp-smart-charting" href="#3-analytics-processing-amp-smart-charting">
+  </a>
+  3. Analytics Processing &amp; Smart Charting
+</h3>
+
+<ul>
+<li>
+<strong>Thread Shifting:</strong> Heavyweight calculations (like total volume summarization over months of temporal data) will be firmly shifted off the Main Thread and onto <code>Dispatchers.Default</code>.</li>
+<li>
+<strong>Dynamic Y-Axis Clamping:</strong> Designing an algorithmic bounds calculator for the <code>SetGraphScreen</code> to intelligently clamp ranges. This will prevent extreme one-off graphical spikes from masking micro-progressions in strength.</li>
+<li>
+<strong>SavedStateHandle for Analytics:</strong> Caching mathematical aggregations so that complex graphs render instantly during spontaneous orientation pivots (Portrait -&gt; Landscape).</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="lets-build-together" href="#lets-build-together">
+  </a>
+  Let's Build Together!
+</h2>
+
+<p>Shredzilla is an open-source project built with ❤️ for the Android community. If you are learning Jetpack Compose, Firebase, or Clean Architecture, diving into the codebase is a great way to see these concepts in action.</p>
+
+<p><strong>Check out the repository here:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<ul>
+<li>Drop a star if you find the architecture helpful!</li>
+<li>Found a bug or have an idea? Open an issue!</li>
+<li>Want to tackle one of the v1.2.0 roadmap items? PRs are always welcome.</li>
+</ul>
+
+<p>*<em>What is your favorite way to handle State Hoisting in Jetpack Compose? Let's discuss in the comments below! *</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/scaling-shredzilla-slaying-memory-leaks-mastering-state-in-jetpack-compose-10ff" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/scaling-shredzilla-slaying-memory-leaks-mastering-state-in-jetpack-compose-10ff#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

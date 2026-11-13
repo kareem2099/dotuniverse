@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Refactored My Developer Portfolio Into a Modular, Secure, and Playfully Destructive Playground (v1.1.0) — FreeRave</title>
+<meta name="description" content="A deep dive into refactoring a 1500+ line JS monolith into elegant ES6 modules, boosting...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-refactored-my-developer-portfolio-into-a-modular-secure-and-playfully-destructive-2m1a">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-refactored-my-developer-portfolio-into-a-modular-secure-and-playfully-destructive-2m1a">
+<meta property="og:title" content="How I Refactored My Developer Portfolio Into a Modular, Secure, and Playfully Destructive Playground (v1.1.0) — FreeRave">
+<meta property="og:description" content="A deep dive into refactoring a 1500+ line JS monolith into elegant ES6 modules, boosting...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fko2s393hlcd48p19ww38.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fko2s393hlcd48p19ww38.png" alt="">
+  <h1 class="post-title">How I Refactored My Developer Portfolio Into a Modular, Secure, and Playfully Destructive Playground (v1.1.0)</h1>
+  <div class="post-meta">
+    <time datetime="2026-07-17T20:25:39Z">17 July 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#javascript</span><span class="post-tag">#webdev</span><span class="post-tag">#performance</span><span class="post-tag">#security</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-dive-into-refactoring-a-1500-line-js-monolith-into-elegant-es6-modules-boosting-performance-by-95-fixing-xss-vectors-and-adding-a-treacherous-textbased-game-easter-egg" href="#a-deep-dive-into-refactoring-a-1500-line-js-monolith-into-elegant-es6-modules-boosting-performance-by-95-fixing-xss-vectors-and-adding-a-treacherous-textbased-game-easter-egg">
+  </a>
+  A deep dive into refactoring a 1500+ line JS monolith into elegant ES6 modules, boosting performance by 95%, fixing XSS vectors, and adding a treacherous text-based game easter egg.
+</h2>
+
+<p>A developer's portfolio is more than just a resume—it is a playground. When I built <strong>dotUniverse</strong>, a cyberpunk-themed portfolio simulating a Kali Linux terminal, it quickly grew into a massive playground. But like many rapid prototypes, it eventually hit a wall: a 1500+ line monolithic <code>script.js</code> file, performance lag on mobile, security warnings, and missing interactive elements.</p>
+
+<p>In this article, I will walk you through how I completed a <strong>1.1.0 Modular Refactor</strong>, boosting performance by 95%, hardening security, and adding a highly engaging (and slightly treacherous) easter egg game that lets users "destroy" and restore the site.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-architecture-breaking-the-monolith" href="#the-architecture-breaking-the-monolith">
+  </a>
+  🛠️ The Architecture: Breaking the Monolith
+</h2>
+
+<p>Originally, the terminal commands, particle physics, scrolling, and UI triggers lived in a single script. I refactored this into clean, scoped <strong>ES6 Modules</strong> managed by a single entry point:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>js/
+├── app.js                      # Entry point (initializes modules &amp; defines commands)
+└── modules/
+    ├── particle-system.js       # Custom canvas particles + spatial grid optimization
+    ├── math-eval.js             # Safe mathematical parser (No eval/new Function)
+    ├── terminal-emulator.js     # CLI input handling &amp; tab-completion state
+    ├── challenges.js            # Challenge progress tracking
+    ├── scroll-effects.js        # Lazy-loading scroll reveals
+    └── theme-manager.js         # Color theme manager
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fal62ytz55tfbimnmojtq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fal62ytz55tfbimnmojtq.png" alt="VS Code Folder Structure of ES6 modules" loading="lazy" width="309" height="205"></a></p>
+
+<h3>
+  <a name="the-terminal-state-controller" href="#the-terminal-state-controller">
+  </a>
+  The Terminal State Controller
+</h3>
+
+<p>To allow interactive sub-prompts (like confirmations or games), I introduced a <code>promptHook</code> mechanism in the terminal. When a command sets <code>promptHook</code>, all subsequent keypresses are redirected to that function instead of being parsed as new terminal commands.</p>
+
+<p>Here is the key logic in <a href="https://github.com/kareem2099/dotuniverse/blob/main/js/modules/terminal-emulator.js" target="_blank" rel="noopener noreferrer">terminal-emulator.js</a>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// Inside TerminalEmulator</span>
+<span class="k">async</span> <span class="nf">executeCommand</span><span class="p">()</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">cmd</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">inputEl</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">();</span>
+  <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">inputEl</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="dl">''</span><span class="p">;</span>
+
+  <span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="nx">cmd</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+  <span class="k">this</span><span class="p">.</span><span class="nf">addPromptLine</span><span class="p">(</span><span class="nx">cmd</span><span class="p">);</span>
+  <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">history</span><span class="p">.</span><span class="nf">push</span><span class="p">(</span><span class="nx">cmd</span><span class="p">);</span>
+  <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">histIdx</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">history</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
+
+  <span class="c1">// Intercept input if an active game/prompt hook is set</span>
+  <span class="k">if </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">promptHook</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nf">promptHook</span><span class="p">(</span><span class="nx">cmd</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kd">const</span> <span class="nx">parts</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sr">/</span><span class="se">\s</span><span class="sr">+/</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">command</span> <span class="o">=</span> <span class="nx">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nf">toLowerCase</span><span class="p">();</span>
+  <span class="kd">const</span> <span class="nx">args</span> <span class="o">=</span> <span class="nx">cmd</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">command</span><span class="p">.</span><span class="nx">length</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+
+  <span class="k">if</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">COMMANDS</span><span class="p">[</span><span class="nx">command</span><span class="p">])</span> <span class="p">{</span>
+    <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">COMMANDS</span><span class="p">[</span><span class="nx">command</span><span class="p">].</span><span class="nf">call</span><span class="p">(</span><span class="k">this</span><span class="p">,</span> <span class="nx">args</span><span class="p">);</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="s2">`  &lt;span class="t-error"&gt;Error: </span><span class="p">${</span><span class="nx">command</span><span class="p">}</span><span class="s2">: command not found&lt;/span&gt;`</span><span class="p">);</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="hardening-security-banishing-raw-new-function-endraw-" href="#hardening-security-banishing-raw-new-function-endraw-">
+  </a>
+  🔒 Hardening Security: Banishing <code>new Function</code>
+</h2>
+
+<p>The terminal calculator (<code>calc</code>) originally used <code>new Function()</code> to execute math operations. While convenient, parsing unsanitized input is a dangerous vector for <strong>Cross-Site Scripting (XSS)</strong>.</p>
+
+<p>I replaced it with a safe evaluation parsing engine in <a href="https://github.com/kareem2099/dotuniverse/blob/main/js/modules/math-eval.js" target="_blank" rel="noopener noreferrer">math-eval.js</a> using strict whitelist validation:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// Whitelist pattern allowing numbers, basic math operators, parentheses, and letters</span>
+<span class="k">if</span><span class="p">(</span><span class="o">!</span><span class="sr">/^</span><span class="se">[\d\s</span><span class="sr">+</span><span class="se">\-</span><span class="sr">*</span><span class="se">/</span><span class="sr">%().^a-zA-Z</span><span class="se">]</span><span class="sr">*$/</span><span class="p">.</span><span class="nf">test</span><span class="p">(</span><span class="nx">expr</span><span class="p">))</span> <span class="p">{</span>
+  <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Invalid characters</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="performance-95-cpu-savings" href="#performance-95-cpu-savings">
+  </a>
+  ⚡ Performance: 95% CPU Savings
+</h2>
+
+<p>Rendering dozens of floating particles that connect with lines is notoriously heavy. An $O(n^2)$ double-loop checking distances between every particle leads to massive lag at 60 FPS. </p>
+
+<p>I implemented a <strong>Spatial Grid Algorithm</strong> in <a href="https://github.com/kareem2099/dotuniverse/blob/main/js/modules/particle-system.js" target="_blank" rel="noopener noreferrer">particle-system.js</a>:</p>
+
+<ol>
+<li>The canvas is divided into grid cells of 150px.</li>
+<li>Each particle is registered in its corresponding cell.</li>
+<li>Instead of checking against all particles, a particle only checks the 9 cells surrounding it.</li>
+</ol>
+
+<p>This optimized the complexity from a heavy $O(n^2)$ to an average of $O(n)$ using a Spatial Grid (specifically $O(n \cdot k)$ where $k$ is the average number of particles in neighboring cells).</p>
+
+<p>Additionally, I integrated <strong>Mobile Optimizations</strong>:</p>
+
+<ul>
+<li>
+<strong>Touch Device Detection</strong>: Automatically halves the particle count.</li>
+<li>
+<strong>FPS Cap</strong>: Capped mobile frames at 30 FPS instead of 60 FPS, reducing CPU usage by over 90% while keeping animations smooth.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjr37im5ryg84x34ku29s.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjr37im5ryg84x34ku29s.png" alt="Particle System Connected Nodes Background" loading="lazy" width="800" height="400"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-fun-part-the-quantum-root-key-betrayal" href="#the-fun-part-the-quantum-root-key-betrayal">
+  </a>
+  🎮 The Fun Part: The Quantum Root Key Betrayal
+</h2>
+
+<p>In Kali Linux, typing <code>rm -rf / --no-preserve-root</code> is the ultimate destructive command. To pay homage to this, I built an interactive easter egg game called <code>game</code>. </p>
+
+<h3>
+  <a name="the-set-up" href="#the-set-up">
+  </a>
+  The Set Up
+</h3>
+
+<p>When the user types <code>game</code>, they enter the "Quantum Key" mini-game. The terminal generates a secret number between 1 and 100 and gives them <strong>3 attempts</strong> to guess it, providing <code>Too high 👆</code> or <code>Too low 👇</code> feedback.</p>
+
+<h3>
+  <a name="the-betrayal" href="#the-betrayal">
+  </a>
+  The Betrayal
+</h3>
+
+<p>No matter what happens, the game is rigged to betray them:</p>
+
+<ul>
+<li>
+<strong>If they lose</strong>: Access is denied, and the system executes <code>rm -rf / --no-preserve-root</code> as a penalty.</li>
+<li>
+<strong>If they win</strong>: It announces success, loads <code>reward.exe</code>... and then triggers a fake XSS exploit, executing <code>rm -rf / --no-preserve-root</code> anyway!</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0xydqz3rsf8nu5wy4cii.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0xydqz3rsf8nu5wy4cii.png" alt="CLI Guess the Number Game and Purge sequence" loading="lazy" width="800" height="805"></a></p>
+
+<p>Here is the implementation inside <a href="https://github.com/kareem2099/dotuniverse/blob/main/js/app.js" target="_blank" rel="noopener noreferrer">app.js</a>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// game command definition in app.js</span>
+<span class="nx">game</span><span class="p">:</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-accent2"&gt;🎮  MINIGAME: GUESS THE SECRET NUMBER  🎮&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-info"&gt;I have chosen a secret number between 1 and 100.&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-info"&gt;You have 3 attempts to guess it. Good luck!&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-prompt"&gt;Enter your first guess [1-100]:&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">targetNum</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">floor</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">random</span><span class="p">()</span> <span class="o">*</span> <span class="mi">100</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="kd">let</span> <span class="nx">attempts</span> <span class="o">=</span> <span class="mi">3</span><span class="p">;</span>
+
+  <span class="nx">T</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">promptHook</span> <span class="o">=</span> <span class="k">async </span><span class="p">(</span><span class="nx">input</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">guess</span> <span class="o">=</span> <span class="nf">parseInt</span><span class="p">(</span><span class="nx">input</span><span class="p">.</span><span class="nf">trim</span><span class="p">(),</span> <span class="mi">10</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nf">isNaN</span><span class="p">(</span><span class="nx">guess</span><span class="p">)</span> <span class="o">||</span> <span class="nx">guess</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="o">||</span> <span class="nx">guess</span> <span class="o">&gt;</span> <span class="mi">100</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-error"&gt;✖ Invalid input! Please enter a number between 1 and 100:&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+      <span class="k">return</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="nx">guess</span> <span class="o">===</span> <span class="nx">targetNum</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">promptHook</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="s2">`  &lt;span class="t-success"&gt;🎉 CORRECT! The secret number was indeed </span><span class="p">${</span><span class="nx">targetNum</span><span class="p">}</span><span class="s2">!&lt;/span&gt;`</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-info"&gt;Loading your reward.exe...&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+      <span class="k">await</span> <span class="nf">sleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-error"&gt;⚠️  ERROR: Unexpected token in reward.exe!&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+      <span class="k">await</span> <span class="nf">sleep</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-error"&gt;Wait, what is this...? Root payload detected: rm -rf /&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+      <span class="k">await</span> <span class="nf">sleep</span><span class="p">(</span><span class="mi">500</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-accent2"&gt;Pranked! Total betrayal! 😂 Execute self-destruction:&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+      <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+      <span class="nf">triggerPurge</span><span class="p">();</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="nx">attempts</span><span class="o">--</span><span class="p">;</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">attempts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">hint</span> <span class="o">=</span> <span class="nx">guess</span> <span class="o">&lt;</span> <span class="nx">targetNum</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">Too low 👇</span><span class="dl">'</span> <span class="p">:</span> <span class="dl">'</span><span class="s1">Too high 👆</span><span class="dl">'</span><span class="p">;</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="s2">`  &lt;span class="t-error"&gt;❌ Incorrect! </span><span class="p">${</span><span class="nx">guess</span><span class="p">}</span><span class="s2"> is </span><span class="p">${</span><span class="nx">hint</span><span class="p">}</span><span class="s2">.&lt;/span&gt;`</span><span class="p">);</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="s2">`  &lt;span class="t-accent2"&gt;</span><span class="p">${</span><span class="nx">attempts</span><span class="p">}</span><span class="s2"> attempt(s) remaining. Enter guess:&lt;/span&gt;`</span><span class="p">);</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+      <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nx">state</span><span class="p">.</span><span class="nx">promptHook</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="s2">`  &lt;span class="t-error"&gt;❌ GAME OVER! The secret number was </span><span class="p">${</span><span class="nx">targetNum</span><span class="p">}</span><span class="s2">.&lt;/span&gt;`</span><span class="p">);</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-info"&gt;Penalty authorized: rm -rf /hope --no-preserve-root&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  &lt;span class="t-error"&gt;Executing purge... 💀&lt;/span&gt;</span><span class="dl">'</span><span class="p">);</span>
+        <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">''</span><span class="p">);</span>
+        <span class="nf">triggerPurge</span><span class="p">();</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+
+  <span class="kd">function</span> <span class="nf">triggerPurge</span><span class="p">()</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">errors</span> <span class="o">=</span> <span class="p">[</span>
+      <span class="dl">'</span><span class="s1">removing /tools/DotGhostBoard... &lt;span class="t-error"&gt;✖ GONE&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">removing /tools/dotcommand...    &lt;span class="t-error"&gt;✖ GONE&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">removing /tools/CodeTune...      &lt;span class="t-error"&gt;✖ GONE&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">removing /platforms/dev.to...    &lt;span class="t-error"&gt;✖ GONE&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">removing /stats/followers...     &lt;span class="t-error"&gt;✖ GONE&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">''</span><span class="p">,</span> <span class="dl">'</span><span class="s1">&lt;span class="t-error"&gt;💀 FATAL: filesystem destroyed&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">&lt;span class="t-error"&gt;💀 FATAL: career.exe has stopped working&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+      <span class="dl">'</span><span class="s1">&lt;span class="t-dim"&gt;Segmentation fault (core dumped)&lt;/span&gt;</span><span class="dl">'</span><span class="p">,</span>
+    <span class="p">];</span>
+    <span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">iv</span> <span class="o">=</span> <span class="nf">setInterval</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">errors</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span> <span class="p">{</span> <span class="nx">T</span><span class="p">.</span><span class="nf">addLine</span><span class="p">(</span><span class="dl">'</span><span class="s1">  </span><span class="dl">'</span> <span class="o">+</span> <span class="nx">errors</span><span class="p">[</span><span class="nx">i</span><span class="o">++</span><span class="p">]);</span> <span class="p">}</span>
+      <span class="k">else</span> <span class="p">{</span>
+        <span class="nf">clearInterval</span><span class="p">(</span><span class="nx">iv</span><span class="p">);</span>
+        <span class="nf">setTimeout</span><span class="p">(()</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="k">if </span><span class="p">(</span><span class="nb">window</span><span class="p">.</span><span class="nx">triggerDestruction</span><span class="p">)</span> <span class="nb">window</span><span class="p">.</span><span class="nf">triggerDestruction</span><span class="p">();</span> <span class="p">},</span> <span class="mi">400</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">},</span> <span class="mi">80</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-ultimate-failsafe-reverting-via-raw-git-reverse-endraw-" href="#the-ultimate-failsafe-reverting-via-raw-git-reverse-endraw-">
+  </a>
+  💻 The Ultimate Failsafe: Reverting via <code>git reverse</code>
+</h2>
+
+<p>Once the purge executes:</p>
+
+<ol>
+<li>All elements on the screen collapse, slide off, and blur out.</li>
+<li>The Blue Screen of Death (BSOD) prints simulated deletion logs and counts to 100%.</li>
+<li>
+<strong>The Raw HTML Failsafe</strong>: The page transitions into a completely blank white screen showing a raw, unstyled HTML page.
+
+<ul>
+<li>Standard default black text.</li>
+<li>
+<code>Times New Roman</code> font.</li>
+<li>
+<code>&lt;h1&gt;Hello World&lt;/h1&gt;</code> header.</li>
+<li>A basic browser <code>&lt;textarea&gt;</code> and <code>&lt;button&gt;</code> with absolutely no CSS.</li>
+</ul>
+</li>
+<li>To fix the system, the user is required to write <code>git reverse</code> in the text area. 
+<em>(Note for the Git purists: yes, in real Git we use <code>git restore</code> or <code>git revert</code>. But in this hacker-themed scenario, typing <code>git reverse</code> felt like the perfect theatrical command to undo the payload).</em>
+</li>
+</ol>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnbib51ron3go9hlxf8n4.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnbib51ron3go9hlxf8n4.png" alt="Raw Hello World HTML Page without CSS" loading="lazy" width="800" height="400"></a></p>
+
+<ol>
+<li>Entering the command triggers a dark progress bar showing the git status restoration from <strong>0% to 100%</strong>, rebuilding all project files and restoring the site layout.</li>
+</ol>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4lbgto56ryb8rhxgqpag.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4lbgto56ryb8rhxgqpag.png" alt="Restoring Environment Progress Bar" loading="lazy" width="800" height="805"></a></p>
+
+<p>Here is the raw HTML restoration flow implemented in <a href="https://github.com/kareem2099/dotuniverse/blob/main/script.js" target="_blank" rel="noopener noreferrer">script.js</a>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">function</span> <span class="nf">showBlankScreen</span><span class="p">()</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">blank</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">createElement</span><span class="p">(</span><span class="dl">'</span><span class="s1">div</span><span class="dl">'</span><span class="p">);</span>
+  <span class="nx">blank</span><span class="p">.</span><span class="nx">id</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">blankScreen</span><span class="dl">'</span><span class="p">;</span>
+  <span class="nx">blank</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">cssText</span> <span class="o">=</span> <span class="s2">`
+    position: fixed; inset: 0; background: white; color: black;
+    z-index: 99999; padding: 50px; overflow: auto; text-align: left;
+    font-family: 'Times New Roman', Times, serif;
+  `</span><span class="p">;</span>
+  <span class="nx">blank</span><span class="p">.</span><span class="nx">innerHTML</span> <span class="o">=</span> <span class="s2">`
+    &lt;h1&gt;Hello World&lt;/h1&gt;
+    &lt;p&gt;Index of /&lt;/p&gt;
+    &lt;hr&gt;
+    &lt;p&gt;The server has encountered a critical failure. All active resources have been unlinked.&lt;/p&gt;
+    &lt;p&gt;To reverse this action and restore the system to its last commit, please type the recovery command below and press Enter.&lt;/p&gt;
+    &lt;div style="margin-top: 20px;"&gt;
+      &lt;textarea id="recoveryTextArea" rows="4" cols="50" placeholder="Type command here..." style="all: revert; font-family: monospace; font-size: 14px; width: 100%; max-width: 500px; padding: 5px;"&gt;&lt;/textarea&gt;
+      &lt;br&gt;&lt;br&gt;
+      &lt;button id="recoveryBtn" style="all: revert; cursor: pointer; padding: 5px 15px;"&gt;Execute Command&lt;/button&gt;
+      &lt;p id="recoveryError" style="color: red; font-weight: bold; margin-top: 10px; display: none;"&gt;Invalid recovery command!&lt;/p&gt;
+    &lt;/div&gt;
+  `</span><span class="p">;</span>
+  <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nf">appendChild</span><span class="p">(</span><span class="nx">blank</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">ta</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">recoveryTextArea</span><span class="dl">'</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">btn</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">recoveryBtn</span><span class="dl">'</span><span class="p">);</span>
+  <span class="kd">const</span> <span class="nx">err</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="dl">'</span><span class="s1">recoveryError</span><span class="dl">'</span><span class="p">);</span>
+
+  <span class="nx">ta</span><span class="p">.</span><span class="nf">focus</span><span class="p">();</span>
+
+  <span class="kd">const</span> <span class="nx">handleRecovery</span> <span class="o">=</span> <span class="p">()</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">val</span> <span class="o">=</span> <span class="nx">ta</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nf">trim</span><span class="p">().</span><span class="nf">toLowerCase</span><span class="p">();</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">val</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">git reverse</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">blank</span><span class="p">.</span><span class="nf">remove</span><span class="p">();</span>
+      <span class="nf">runSystemRestoredProgress</span><span class="p">();</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+      <span class="nx">err</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">display</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">block</span><span class="dl">'</span><span class="p">;</span>
+      <span class="nx">ta</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="dl">''</span><span class="p">;</span>
+      <span class="nx">ta</span><span class="p">.</span><span class="nf">focus</span><span class="p">();</span>
+    <span class="p">}</span>
+  <span class="p">};</span>
+
+  <span class="nx">btn</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">click</span><span class="dl">'</span><span class="p">,</span> <span class="nx">handleRecovery</span><span class="p">);</span>
+  <span class="nx">ta</span><span class="p">.</span><span class="nf">addEventListener</span><span class="p">(</span><span class="dl">'</span><span class="s1">keydown</span><span class="dl">'</span><span class="p">,</span> <span class="p">(</span><span class="nx">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">key</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">Enter</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">e</span><span class="p">.</span><span class="nf">preventDefault</span><span class="p">();</span>
+      <span class="nf">handleRecovery</span><span class="p">();</span>
+    <span class="p">}</span>
+  <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="summary-of-improvements" href="#summary-of-improvements">
+  </a>
+  📈 Summary of Improvements
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Before Refactor (v1.0.0)</th>
+<th>After Refactor (v1.1.0)</th>
+<th>Benefit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>JS File Size</strong></td>
+<td>1500+ line Monolith</td>
+<td>Modular ES6 Files</td>
+<td>Easy maintenance and debugging</td>
+</tr>
+<tr>
+<td><strong>Particle Physics</strong></td>
+<td>$O(n^2)$ complexity</td>
+<td>Average of $O(n)$ Spatial Grid</td>
+<td>95% CPU savings</td>
+</tr>
+<tr>
+<td><strong>Mobile Refresh Rate</strong></td>
+<td>Uncapped 60 FPS (heavy CPU lag)</td>
+<td>Capped at 30 FPS + 50% particles</td>
+<td>Smooth experience, low battery drain</td>
+</tr>
+<tr>
+<td><strong>Security Risk</strong></td>
+<td>High XSS risk via <code>new Function</code>
+</td>
+<td>Mitigated (strict whitelist parsing)</td>
+<td>Zero code execution vulnerability</td>
+</tr>
+<tr>
+<td><strong>Interactive Easter Eggs</strong></td>
+<td>Static logs</td>
+<td>Rigged <code>game</code> + <code>git reverse</code> prompt</td>
+<td>Unforgettable user experience 🎮</td>
+</tr>
+</tbody>
+</table></div>
+
+<h2>
+  <a name="conclusion" href="#conclusion">
+  </a>
+  Conclusion
+</h2>
+
+<p>Refactoring doesn't have to be boring. By restructuring the codebase of <strong>dotUniverse</strong> into modular pieces, we didn't just gain a massive performance speedup and security hardening—we opened up the architecture to support complex interactive behaviors. Adding this easter egg turned a static portfolio page into a memorable, interactive game that web developers can love.</p>
+
+<p>What is your favorite terminal easter egg? Let me know in the comments below! 🚀</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-refactored-my-developer-portfolio-into-a-modular-secure-and-playfully-destructive-2m1a" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-refactored-my-developer-portfolio-into-a-modular-secure-and-playfully-destructive-2m1a#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

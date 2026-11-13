@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Got Tired of Writing JSON Configs, So I Built a Visual UI Inside VS Code (DotCommand v2.0) — FreeRave</title>
+<meta name="description" content="If you use VS Code, you probably know the drill: you install an awesome extension, and then spend 20...">
+<link rel="canonical" href="https://dev.to/freerave/i-got-tired-of-writing-json-configs-so-i-built-a-visual-ui-inside-vs-code-dotcommand-v20-24o5">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-got-tired-of-writing-json-configs-so-i-built-a-visual-ui-inside-vs-code-dotcommand-v20-24o5">
+<meta property="og:title" content="I Got Tired of Writing JSON Configs, So I Built a Visual UI Inside VS Code (DotCommand v2.0) — FreeRave">
+<meta property="og:description" content="If you use VS Code, you probably know the drill: you install an awesome extension, and then spend 20...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F370i07ilxsarl0g225u4.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F370i07ilxsarl0g225u4.png" alt="">
+  <h1 class="post-title">I Got Tired of Writing JSON Configs, So I Built a Visual UI Inside VS Code (DotCommand v2.0)</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-24T09:00:00Z">24 March 2026</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#javascript</span><span class="post-tag">#productivity</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>If you use VS Code, you probably know the drill: you install an awesome extension, and then spend 20 minutes digging through a massive <code>settings.json</code> file trying to configure it.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/ZKW4_dBEU20" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<p>As developers, we build beautiful interfaces for our users, but we often settle for raw JSON files for our own tooling.</p>
+
+<p>With the release of <strong>DotCommand v2.0.0 (The Visual Experience Overhaul)</strong>, I decided to change that. I completely transformed how developers interact with their workspace commands by introducing a native Analytics Dashboard, a drag-and-drop Visual Rule Builder, and an AI-powered Command Palette.</p>
+
+<p>And the best part? <strong>I did it all without heavy frameworks—just pure, lightning-fast Vanilla JS.</strong></p>
+
+<p>Here is how we built it and what’s new.</p>
+
+
+<hr>
+
+<h2>
+  <a name="1-native-analytics-dashboard-inside-vs-code" href="#1-native-analytics-dashboard-inside-vs-code">
+  </a>
+  1. Native Analytics Dashboard inside VS Code
+</h2>
+
+<p>You write hundreds of commands a week, but do you know which ones save you the most time? DotCommand v2.0 introduces a full-blown analytics dashboard right inside your editor.</p>
+
+<p>Instead of just logging data, I wanted a sleek, interactive way to visualize it.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fg2djz6bjpnio7h8jhdnf.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fg2djz6bjpnio7h8jhdnf.png" alt="DotCommand Analytics Dashboard showing dark mode charts and statistics" loading="lazy" width="800" height="600"></a></p>
+
+<h3>
+  <a name="the-tech-behind-it" href="#the-tech-behind-it">
+  </a>
+  The Tech Behind It:
+</h3>
+
+<p>To keep the extension lightweight, I avoided bundling React or Vue. Instead, I used a Native Webview combined with <strong>Chart.js</strong> loaded via CDN, safely secured using a Content Security Policy (CSP) with dynamic nonces.</p>
+
+<p>Here’s a snippet of how clean the Webview-to-Extension communication is for exporting data:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// Inside the Webview Controller</span>
+<span class="k">private</span> <span class="nf">exportToCsv</span><span class="p">():</span> <span class="k">void</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">analytics</span> <span class="o">=</span> <span class="nf">getAnalyticsService</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">summary</span> <span class="o">=</span> <span class="nx">analytics</span><span class="p">.</span><span class="nf">getAnalyticsSummary</span><span class="p">(</span><span class="mi">30</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">rows</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">[</span><span class="dl">'</span><span class="s1">Metric</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Value</span><span class="dl">'</span><span class="p">],</span>
+        <span class="p">[</span><span class="dl">'</span><span class="s1">Suggestions Shown</span><span class="dl">'</span><span class="p">,</span> <span class="nx">summary</span><span class="p">.</span><span class="nx">totalSuggestionsShown</span><span class="p">],</span>
+        <span class="p">[</span><span class="dl">'</span><span class="s1">Suggestions Accepted</span><span class="dl">'</span><span class="p">,</span> <span class="nx">summary</span><span class="p">.</span><span class="nx">totalSuggestionsAccepted</span><span class="p">],</span>
+        <span class="c1">// ... mapped data</span>
+    <span class="p">];</span>
+
+    <span class="kd">const</span> <span class="nx">csv</span> <span class="o">=</span> <span class="nx">rows</span><span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">r</span> <span class="o">=&gt;</span> <span class="nx">r</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="dl">'</span><span class="s1">,</span><span class="dl">'</span><span class="p">)).</span><span class="nf">join</span><span class="p">(</span><span class="dl">'</span><span class="se">\n</span><span class="dl">'</span><span class="p">);</span>
+
+    <span class="c1">// Triggering download via browser engine, bypassing VS Code file system complexity!</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">panel</span><span class="p">?.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+        <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">downloadCsv</span><span class="dl">'</span><span class="p">,</span>
+        <span class="na">content</span><span class="p">:</span> <span class="nx">csv</span><span class="p">,</span>
+        <span class="na">filename</span><span class="p">:</span> <span class="s2">`dotcommand-analytics.csv`</span>
+    <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="2-the-visual-rule-builder-goodbye-json" href="#2-the-visual-rule-builder-goodbye-json">
+  </a>
+  2. The Visual Rule Builder (Goodbye, JSON!)
+</h2>
+
+<p>DotCommand allows you to set "Context Rules" (e.g., <em>only suggest Docker commands if a <code>Dockerfile</code> exists</em>). Previously, users had to write this logic in JSON.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F0p5avmjoscmtlmv0hefv.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F0p5avmjoscmtlmv0hefv.png" alt="Visual Rule Builder UI form inside VS Code with live preview" loading="lazy" width="800" height="871"></a></p>
+
+<p>Now? You get a beautiful, native-feeling UI form.</p>
+
+<h3>
+  <a name="why-it-rocks" href="#why-it-rocks">
+  </a>
+  Why it rocks:
+</h3>
+
+<ul>
+<li>
+<strong>Live Preview:</strong> As you change dropdowns (File Pattern, Directory, Dependency), a live preview updates instantly at the bottom to show you exactly how the rule evaluates.</li>
+<li>
+<strong>Workspace Testing:</strong> Click a single "Test" button, and the extension instantly evaluates the rule against your <em>actual</em> active workspace, returning a ✅ Matched or ❌ No Match badge.</li>
+</ul>
+
+<p>By utilizing HTML5 Native data attributes (<code>data-id</code>), I built a manual two-way binding system that feels as reactive as React, but with zero overhead.</p>
+
+
+<hr>
+
+<h2>
+  <a name="3-command-palette-plus-ai-ranking-amp-fuzzy-search" href="#3-command-palette-plus-ai-ranking-amp-fuzzy-search">
+  </a>
+  3. Command Palette Plus: AI Ranking &amp; Fuzzy Search
+</h2>
+
+<p>The default <code>vscode.window.showQuickPick</code> is great, but it lacks advanced sorting out of the box.</p>
+
+<p>I supercharged it by introducing <strong>Hybrid Views, Category Filtering, and Machine Learning ranking</strong>.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyrth7ztyoxvn59qrjubj.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fyrth7ztyoxvn59qrjubj.png" alt="VS Code Command Palette showing AI fuzzy search and category filtering" loading="lazy" width="800" height="871"></a></p>
+
+<p>Now, if you type <code>#npm</code> or <code>#git</code>, it instantly filters commands by category. The commands are also sorted based on your actual usage history using an ML scoring mechanism.</p>
+
+<p>To ensure the search is incredibly fast (under a few milliseconds), I wrote a custom, zero-dependency fuzzy match algorithm:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// A blazing fast, zero-dependency fuzzy search helper</span>
+<span class="kd">const</span> <span class="nx">fuzzyMatch</span> <span class="o">=</span> <span class="p">(</span><span class="nx">text</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">query</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nx">boolean</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">t</span> <span class="o">=</span> <span class="nx">text</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">q</span> <span class="o">=</span> <span class="nx">query</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">();</span>
+    <span class="kd">let</span> <span class="nx">ti</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">qi</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">qi</span> <span class="o">&lt;</span> <span class="nx">q</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">qi</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">ti</span> <span class="o">=</span> <span class="nx">t</span><span class="p">.</span><span class="nf">indexOf</span><span class="p">(</span><span class="nx">q</span><span class="p">[</span><span class="nx">qi</span><span class="p">],</span> <span class="nx">ti</span><span class="p">);</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">ti</span> <span class="o">===</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">return</span> <span class="kc">false</span><span class="p">;</span>
+        <span class="nx">ti</span><span class="o">++</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="kc">true</span><span class="p">;</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><em>No need to install a 50kb library just to search through 500 commands!</em></p>
+
+
+<hr>
+
+<h2>
+  <a name="takeaways-from-building-this-update" href="#takeaways-from-building-this-update">
+  </a>
+  Takeaways from building this update
+</h2>
+
+<ol>
+<li> <strong>Vanilla JS is still a beast:</strong> You don't always need a heavy frontend framework for VS Code Webviews. CSS Variables (<code>var(--vscode-foreground)</code>) and standard DOM manipulation can create seamless, native-feeling experiences.</li>
+<li> <strong>UX matters for DevTools:</strong> Developers are users too. Giving them a visual interface instead of a config file drastically reduces the onboarding curve.</li>
+</ol>
+
+<h3>
+  <a name="try-it-out" href="#try-it-out">
+  </a>
+  Try it out!
+</h3>
+
+<p>DotCommand v2.0.0 is officially live on the VS Code Marketplace. It's completely free and open-source.</p>
+
+<p>🔗 <strong><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotcommand" target="_blank" rel="noopener noreferrer">Install DotCommand from VS Code Marketplace</a></strong><br>
+⭐ <strong><a href="https://github.com/kareem2099/dotcommand" target="_blank" rel="noopener noreferrer">Check out the source code on GitHub</a></strong><br>
+🎥 <strong><a href="https://youtube.com/shorts/ZKW4_dBEU20" target="_blank" rel="noopener noreferrer">Watch the 40-second Demo on YouTube</a></strong></p>
+
+<p>I'd love to hear your thoughts on the new UI! Drop a comment below if you have feature requests or feedback. Happy coding! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-got-tired-of-writing-json-configs-so-i-built-a-visual-ui-inside-vs-code-dotcommand-v20-24o5" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/i-got-tired-of-writing-json-configs-so-i-built-a-visual-ui-inside-vs-code-dotcommand-v20-24o5#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

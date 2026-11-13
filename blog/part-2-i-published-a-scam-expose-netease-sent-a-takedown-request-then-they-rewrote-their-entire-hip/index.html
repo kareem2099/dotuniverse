@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>PART 2: I Published a Scam Expose. NetEase Sent a Takedown Request. Then They Rewrote Their Entire Operation. — FreeRave</title>
+<meta name="description" content="18 days after exposing Youdao Ads, they sent a takedown request, their trust score dropped...">
+<link rel="canonical" href="https://dev.to/freerave/part-2-i-published-a-scam-expose-netease-sent-a-takedown-request-then-they-rewrote-their-entire-hip">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/part-2-i-published-a-scam-expose-netease-sent-a-takedown-request-then-they-rewrote-their-entire-hip">
+<meta property="og:title" content="PART 2: I Published a Scam Expose. NetEase Sent a Takedown Request. Then They Rewrote Their Entire Operation. — FreeRave">
+<meta property="og:description" content="18 days after exposing Youdao Ads, they sent a takedown request, their trust score dropped...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fs1bnct7eiioa5tx4gfi5.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fs1bnct7eiioa5tx4gfi5.png" alt="">
+  <h1 class="post-title">PART 2: I Published a Scam Expose. NetEase Sent a Takedown Request. Then They Rewrote Their Entire Operation.</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-29T13:04:12Z">29 April 2026</time> · 11 min read
+    <div class="post-tags"><span class="post-tag">#cybersecurity</span><span class="post-tag">#security</span><span class="post-tag">#phishing</span><span class="post-tag">#webdev</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="18-days-after-exposing-youdao-ads-they-sent-a-takedown-request-their-trust-score-dropped-from-288-to-15-their-dead-site-came-back-to-life-and-they-rewrote-their-entire-outreach-from-scratch-a-full-forensic-timeline-with-ssl-certs-whois-data-dns-chains-and-the-email-that-proves-everything" href="#18-days-after-exposing-youdao-ads-they-sent-a-takedown-request-their-trust-score-dropped-from-288-to-15-their-dead-site-came-back-to-life-and-they-rewrote-their-entire-outreach-from-scratch-a-full-forensic-timeline-with-ssl-certs-whois-data-dns-chains-and-the-email-that-proves-everything">
+  </a>
+  18 days after exposing Youdao Ads, they sent a takedown request, their trust score dropped from 28.8 to 15, their dead site came back to life, and they rewrote their entire outreach from scratch. A full forensic timeline with SSL certs, WHOIS data, DNS chains, and the email that proves everything.
+</h2>
+
+<blockquote>
+<p><strong>📌 This is Part 2 of an ongoing investigation.</strong><br>
+Part 1: <a href="https://dev.to/freerave/exposed-the-youdao-ads-influencer-marketing-scam-technical-analysis-red-flags-5cag">EXPOSED: The Youdao Ads Influencer Marketing Scam — Technical Analysis &amp; Red Flags</a></p>
+</blockquote>
+
+
+<hr>
+
+<p>I want to be upfront about something before we start.</p>
+
+<p>When I published Part 1, I called this operation a scam. After 18 days of forensic follow-up, the picture is more complex — and significantly more interesting.</p>
+
+<p>This is not a retraction. This is an upgrade.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-18day-timeline-that-changes-everything" href="#the-18day-timeline-that-changes-everything">
+  </a>
+  The 18-Day Timeline That Changes Everything
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Apr  5, 2026  → SSL certificate issued for infunease.youdaoads.com
+Apr 11, 2026  → Mass cold outreach emails sent (anjiaqi06@corp.netease.com)
+               → infunease.youdaoads.com returns 403 Forbidden
+               → Scam Detector score: 28.8/100
+               → Article published
+
+Apr 14, 2026  → WHOIS record updated (3 days post-article)
+
+Apr 28, 2026  → Takedown email received (youdaoads@rd.netease.com)
+               → Public comment posted on my article (@YoudaoAds on dev.to)
+               → infunease.youdaoads.com returns 200 OK (same day)
+               → Scam Detector score drops further: 15/100
+               → No documentation provided despite formal request
+
+Apr 29, 2026  → NEW email arrives (tangxi03@corp.netease.com)
+               → Subject: "Official Collaboration Invite for Creators"
+               → Professional NetEase 網易 branding
+               → Zero emojis. Zero urgency. Zero WhatsApp spam.
+               → Every single concern from my article — addressed.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That last entry. That's what this article is about.</p>
+
+
+<hr>
+
+<h2>
+  <a name="part-1-recap-what-i-found" href="#part-1-recap-what-i-found">
+  </a>
+  Part 1 Recap: What I Found
+</h2>
+
+<p>On April 11, I received this email:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight email"><code><span class="nt">From</span><span class="o">:</span><span class="na"> anjiaqi06@corp.netease.com</span>
+<span class="nt">Subject</span><span class="o">:</span><span class="na"> Don't scroll past 【Youdao Ads】– a paid collab 
+         that's actually your vibe 😉</span>
+
+💰 Budget's ready – just name your rate
+⏳ Spots are filling up – a few other creators in your 
+   space are already looking at them
+
+[Youdao Ads Link] [Discord] [WhatsApp]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Technical analysis showed:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>curl <span class="nt">-I</span> https://infunease.youdaoads.com
+HTTP/1.1 403 Forbidden
+x-deny-reason: host_not_allowed
+server: envoy
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Third-party security score: <strong>28.8/100 — "Risky. Dubious. Perilous."</strong></p>
+
+<p>The article went live. Google indexed it. Google AI started citing it.</p>
+
+<p>Then came the reaction.</p>
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxpcxmhz44igd6vuev162.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxpcxmhz44igd6vuev162.png" alt="The original April 11 outreach — emoji-heavy, urgency-driven, WhatsApp-first" loading="lazy" width="800" height="401"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="april-28-the-reaction" href="#april-28-the-reaction">
+  </a>
+  April 28: The Reaction
+</h2>
+
+<p>Exactly 17 days after publication, two messages arrived on the same day.</p>
+
+<h3>
+  <a name="message-1-the-takedown-email" href="#message-1-the-takedown-email">
+  </a>
+  Message 1: The Takedown Email
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight email"><code><span class="nt">From</span><span class="o">:</span><span class="na"> youdaoads@rd.netease.com</span>
+<span class="nt">Subject</span><span class="o">:</span><span class="na"> Clarification regarding your recent article on Youdao Ads</span>
+
+The misunderstandings in your article are currently 
+influencing Google's AI summaries, which is causing 
+severe and unearned damage to our brand.
+
+We kindly request that you consider removing the post.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Note the sender: <code>rd.netease.com</code> — NetEase's R&amp;D subdomain.<br>
+The original email came from <code>corp.netease.com</code> — corporate division.</p>
+
+<p><strong>Two different NetEase subdomains. Never explained.</strong></p>
+<h3>
+  <a name="message-2-the-public-comment" href="#message-2-the-public-comment">
+  </a>
+  Message 2: The Public Comment
+</h3>
+
+<p>Simultaneously, a dev.to account named "Youdao Ads" commented directly on my article:</p>
+
+<blockquote>
+<p><em>"We have thoroughly verified our domain and technical infrastructure. It is fully operational, passes mainstream security protocols, and is not being blocked by any standard security infrastructures. Any localized access issue may be due to temporary network configurations, not a systemic block."</em></p>
+</blockquote>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqbl7mdkgrzk92sdl3q2l.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqbl7mdkgrzk92sdl3q2l.png" alt="The public comment appeared the same day as the takedown email — April 28" loading="lazy" width="800" height="617"></a></p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flh4vs1ju7b4ug9nt9ezi.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Flh4vs1ju7b4ug9nt9ezi.png" alt="Note the domain switch: corp.netease.com → rd.netease.com — never explained" loading="lazy" width="799" height="382"></a></p>
+
+<hr>
+<h2>
+  <a name="april-28-the-infrastructure-comes-alive" href="#april-28-the-infrastructure-comes-alive">
+  </a>
+  April 28: The Infrastructure Comes Alive
+</h2>
+
+<p>On the exact same day as the takedown request:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># April 11 — time of original article</span>
+<span class="nv">$ </span>curl <span class="nt">-I</span> https://infunease.youdaoads.com
+HTTP/1.1 403 Forbidden
+x-deny-reason: host_not_allowed
+server: envoy
+
+<span class="c"># April 28 — day of takedown request  </span>
+<span class="nv">$ </span>curl <span class="nt">-I</span> https://infunease.youdaoads.com
+HTTP/2 200
+server: YDWS
+x-powered-by: Next.js
+content-length: 374476
+x-nextjs-cache: HIT
+cache-control: s-maxage<span class="o">=</span>31536000, stale-while-revalidate
+etag: <span class="s2">"rcngvqns1y801t"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A full Next.js production deployment. Live. Professional.</p>
+
+<p>On the same day they asked me to remove my article.</p>
+
+
+<hr>
+
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fqo1iqy37objdyjdnix92.gif" alt="403 on April 11. 200 on April 28. Same day as the takedown request." loading="lazy" width="640" height="205">
+</h2>
+
+<h2>
+  <a name="the-ssl-certificate-timing-is-evidence" href="#the-ssl-certificate-timing-is-evidence">
+  </a>
+  The SSL Certificate: Timing Is Evidence
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span><span class="nb">echo</span> | openssl s_client <span class="se">\</span>
+  <span class="nt">-servername</span> infunease.youdaoads.com <span class="se">\</span>
+  <span class="nt">-connect</span> infunease.youdaoads.com:443 2&gt;/dev/null <span class="se">\</span>
+  | openssl x509 <span class="nt">-noout</span> <span class="nt">-dates</span>
+
+<span class="nv">notBefore</span><span class="o">=</span>Apr  5 00:00:00 2026 GMT
+<span class="nv">notAfter</span><span class="o">=</span>Jul  4 23:59:59 2026 GMT
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Certificate issued: April 5</strong> — 6 days before the mass email campaign.<br>
+<strong>90-day certificate</strong> — short-term, automated issuance.</p>
+
+<p>The infrastructure was being built in the week before the emails went out.</p>
+
+<hr>
+<h2>
+  <a name="whois-the-record-that-updated-after-my-article" href="#whois-the-record-that-updated-after-my-article">
+  </a>
+  WHOIS: The Record That Updated After My Article
+</h2>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois youdaoads.com
+
+Domain Name:     YOUDAOADS.COM
+Creation Date:   2021-05-25T11:15:53Z   ← 5 years old
+Updated Date:    2026-04-14T05:35:38Z   ← 3 days after my article
+Registrar:       Alibaba Cloud Computing <span class="o">(</span>Beijing<span class="o">)</span> Co., Ltd.
+Registrant:      bei jing, CN
+Name Servers:    REM1.YODAO.COM
+                 REM2.YODAO.COM  
+                 REM3.YODAO.COM
+DNSSEC:          unsigned
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>The domain is legitimate and 5 years old.</p>
+
+<p>But the record was updated <strong>April 14</strong> — 3 days after the article.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois infunease.youdaoads.com
+No match <span class="k">for</span> <span class="s2">"INFUNEASE.YOUDAOADS.COM"</span><span class="nb">.</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The subdomain returns no WHOIS data at all.</p>
+
+
+<hr>
+
+<h2>
+  <a name="dns-chain-following-the-infrastructure" href="#dns-chain-following-the-infrastructure">
+  </a>
+  DNS Chain: Following the Infrastructure
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>dig infunease.youdaoads.com +short
+
+youdaoads.youdao.com.
+ead.alb.ntes53.netease.com.
+hk-g1-hz.alb.ntes53.netease.com.
+156.225.180.151
+156.225.180.152
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Full resolution chain:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>infunease.youdaoads.com
+        ↓ CNAME
+youdaoads.youdao.com
+        ↓ CNAME
+ead.alb.ntes53.netease.com      ← NetEase Load Balancer
+        ↓ CNAME
+hk-g1-hz.alb.ntes53.netease.com ← Hong Kong Cluster
+        ↓ A Records
+156.225.180.151
+156.225.180.152
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nv">$ </span>whois 156.225.180.151
+
+inetnum:   156.225.180.0 - 156.225.180.255
+netname:   HongKong_NetEase_Interactive_Entertainment_Limited
+descr:     HongKong NetEase Interactive Entertainment Limited
+country:   HK
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This is 100% genuine NetEase infrastructure.<br>
+Hong Kong datacenter. Enterprise load balancers. The real thing.</p>
+
+<hr>
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fm5dc7hn7aulju3g959he.png" alt="DNS and WHOIS resolution proving NetEase infrastructure" loading="lazy" width="800" height="838">
+</h2>
+<h2>
+  <a name="the-trust-scores-watching-the-algorithm-react-in-realtime" href="#the-trust-scores-watching-the-algorithm-react-in-realtime">
+  </a>
+  The Trust Scores: Watching the Algorithm React in Real-Time
+</h2>
+
+<p>This is perhaps the most fascinating part of the investigation. Watch how the independent automated trust score (Scam Detector) reacted to their infrastructure changes:</p>
+
+<ul>
+<li>
+<strong>April 11:</strong> Score <strong>28.8 / 100</strong>. (The site is returning 403 Forbidden).</li>
+<li>
+<strong>April 28 (Morning):</strong> Score drops to <strong>15 / 100</strong>. (Community starts flagging the emails).</li>
+<li>
+<strong>April 28 (Evening):</strong> I receive the takedown request. <em>The site goes live (200 OK).</em>
+</li>
+<li>
+<strong>April 29 (Today):</strong> Score jumps to <strong>60.8 / 100</strong>. (Active. Medium-Risk).</li>
+</ul>
+
+<p><strong>Why the sudden jump?</strong> Because automated security scanners rely heavily on HTTP responses. When the site was a dead <code>403 Forbidden</code> sending mass cold emails, it looked like a classic hit-and-run scam. </p>
+
+<p>The moment they deployed their Next.js application (to prove they are legitimate after my article exposed them), the scanners re-evaluated them as an "Active" website and bumped their score.</p>
+
+<p><strong>The takeaway for the infosec community:</strong><br>
+Trust scores don't measure operational ethics; they measure infrastructure configuration. They didn't become a "better" company overnight — they just finally turned their servers on because they were forced to.</p>
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F31ataa4agaqffu74uqp7.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F31ataa4agaqffu74uqp7.gif" alt="Watch the algorithm get manipulated in real-time. The trust score jumped from 15 to 60.8 the moment they switched from a 403 Forbidden error to a live Next.js deployment. Infrastructure fixes = Instant (but deceptive) trust." loading="lazy" width="640" height="335"></a></p>
+
+<blockquote>
+<h3>
+  <a name="update-april-29-2026-the-trust-score-discrepancy" href="#update-april-29-2026-the-trust-score-discrepancy">
+  </a>
+  ⚠️ UPDATE — April 29, 2026: The Trust Score Discrepancy
+</h3>
+
+<p>ScamAdviser now shows the root domain (youdaoads.com) as <strong>"Very Likely Safe" with a score of 100/100.</strong></p>
+
+<p>However, context is everything in OSINT:</p>
+
+<ul>
+<li>The evaluation says: <em>"Last Update: 3 weeks ago"</em> (This is an old scan of the root domain, conducted well before the mass outreach campaign).</li>
+<li>
+<strong>The Business Model:</strong> Unlike fully independent scanners, ScamAdviser offers paid "Business Plans" that allow companies to actively manage their trust profiles and dispute negative signals. </li>
+</ul>
+
+<p><strong>Two platforms. Same domain.</strong><br>
+Scam Detector (Strictly community &amp; algorithm-driven): <strong>15/100 — "Risky. Dubious. Perilous."</strong><br>
+ScamAdviser (Commercial platform offering reputation management): <strong>100/100 — "Very Likely Safe."</strong></p>
+
+<p><em>Moral of the story: A 100/100 automated score on a 5-year-old root domain doesn't legitimize the shady tactics of a 3-week-old subdomain.</em></p>
+
+<p>Draw your own conclusions.</p>
+</blockquote>
+
+<hr>
+<h2>
+  <a name="the-network-analysis-youre-being-watched" href="#the-network-analysis-youre-being-watched">
+  </a>
+  The Network Analysis: You're Being Watched
+</h2>
+
+<p>Opening DevTools on the login page:</p>
+<h3>
+  <a name="visit-1-16-requests" href="#visit-1-16-requests">
+  </a>
+  Visit 1: 16 Requests
+</h3>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight http"><code><span class="err">16 / 24 requests
+POST → https://k.clarity.ms/collect
+Status: 204 No Content
+Host: k.clarity.ms
+Origin: https://infunease.youdaoads.com
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+<h3>
+  <a name="after-a-few-minutes-of-analysis-47-requests" href="#after-a-few-minutes-of-analysis-47-requests">
+  </a>
+  After a Few Minutes of Analysis: 47 Requests
+</h3>
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight http"><code><span class="err">47 / 63 requests
+62.5 kB / 63.5 kB transferred
+Server: YDWS
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+<p>Every action generated a Clarity batch:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>✓ Page load
+✓ Mouse movement  
+✓ DevTools opened
+✓ Network tab clicked
+✓ Header inspection
+✓ Page scroll
+✓ Every click
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-second-endpoint-origin-revealed" href="#the-second-endpoint-origin-revealed">
+  </a>
+  The Second Endpoint — Origin Revealed
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight http"><code><span class="err">Request URL: https://overseacdn.ydstatic.com/overseacdn/
+             advertising_platform/static/intl/zh-CN.json
+             ?v=2760e8bced
+
+Remote Address:  23.48.214.94:443
+Server:          YDWS
+Last-Modified:   Fri, 24 Apr 2026 06:28:08 GMT
+Content-Type:    application/json
+Akamai-Mon-lucid-Del: 1273563
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>overseacdn.ydstatic.com</code> — Youdao Static CDN.<br>
+<code>zh-CN.json</code> — Chinese Simplified localization file.</p>
+
+<p><strong>This platform was built for the Chinese market and localized outward.</strong></p>
+
+<p>The Akamai headers confirm enterprise-grade CDN infrastructure — not a small operation.</p>
+<h3>
+  <a name="what-their-clarity-dashboard-saw" href="#what-their-clarity-dashboard-saw">
+  </a>
+  What Their Clarity Dashboard Saw
+</h3>
+
+<p>While I was analyzing their headers, their session recording showed:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>📍 Location:   Egypt 🇪🇬
+🖥️  Browser:   Chromium 147
+⏱️  Duration:  6+ minutes
+🖱️  Behavior:  DevTools open
+                Network tab active  
+                63 requests triggered
+                Headers under inspection
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>They were watching me watch them.</p>
+
+<p><strong>Important:</strong> Clarity masks passwords and email inputs automatically.<br>
+What it captures from page load — before any signup — is full behavioral profiling.</p>
+
+<hr>
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1dfnwd1n74d3qjk3jy0y.png" alt="47 out of 63 requests going to Microsoft Clarity and Youdao CDN — active from page load" loading="lazy" width="800" height="401">
+</h2>
+<h2>
+  <a name="april-29-the-email-that-proves-everything" href="#april-29-the-email-that-proves-everything">
+  </a>
+  April 29: The Email That Proves Everything
+</h2>
+
+<p>One day after the takedown request. One day after the site went live.</p>
+
+<p>A third email arrived.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight email"><code><span class="nt">From</span><span class="o">:</span><span class="na"> tangxi03@corp.netease.com</span>
+<span class="nt">Subject</span><span class="o">:</span><span class="na"> Official Collaboration Invite for Creators | 
+         Youdao Ads by NetEase Youdao</span>
+<span class="nt">Date</span><span class="o">:</span><span class="na"> Apr 29, 2026, 6:01 AM</span>
+<span class="nt">mailed-by</span><span class="o">:</span><span class="na">  corp.netease.com</span>
+<span class="nt">signed-by</span><span class="o">:</span><span class="na">  corp.netease.com</span>
+<span class="nt">⭐ Important according to Google
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The body:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight email"><code><span class="nt">This email is from Youdao Ads — the official influencer 
+marketing platform of NetEase Youdao, a subsidiary of 
+the leading global technology and entertainment company 
+NetEase.
+
+Why partner with Youdao Ads?
+▸ Exclusive opportunities with top global brands
+▸ Guaranteed paid campaigns with transparent pricing, 
+  no upfront fees, and on-time secure payments
+▸ Full dedicated support through every step of your 
+  collaboration, from onboarding to payment settlement
+
+Please note that this is an automated notification 
+email, and we are unable to respond to direct replies.
+
+Best regards,
+Youdao Ads
+[NetEase 網易 | youdao Ads logo]
+Global leading influencer marketing platform
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="" href="#">
+  </a>
+  <img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fdrpsgz33sz8xd8gbuqki.png" alt="The April 29 email — professional branding, official tone, every concern addressed" loading="lazy" width="800" height="417">
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8pehpqygrhmcjgp1vsan.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F8pehpqygrhmcjgp1vsan.png" alt="Headers confirm genuine NetEase corporate infrastructure — same domain, new sender" loading="lazy" width="800" height="401"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-before-amp-after-my-article-changed-their-outreach" href="#the-before-amp-after-my-article-changed-their-outreach">
+  </a>
+  The Before &amp; After: My Article Changed Their Outreach
+</h2>
+
+<p>This is the most significant finding in this entire investigation.</p>
+
+<h3>
+  <a name="april-11-email-before-article" href="#april-11-email-before-article">
+  </a>
+  April 11 Email (Before Article):
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>❌ Subject: "Don't scroll past – a paid collab that's 
+            actually your vibe 😉"
+❌ Emoji-heavy, casual, unprofessional
+❌ "Budget's ready – just name your rate"
+❌ "Spots are filling up" (artificial urgency)
+❌ WhatsApp group links
+❌ Discord community invites
+❌ Zero company branding
+❌ Generic "your vibe" personalization
+❌ Contact: WhatsApp only
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="april-29-email-after-article" href="#april-29-email-after-article">
+  </a>
+  April 29 Email (After Article):
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>✅ Subject: "Official Collaboration Invite for Creators | 
+            Youdao Ads by NetEase Youdao"
+✅ Professional tone, zero emojis
+✅ "No upfront fees" ← directly addresses concern I raised
+✅ "No pressure to sign up immediately" ← addresses urgency concern
+✅ "Transparent pricing" ← addresses opacity concern
+✅ Official NetEase 網易 logo and branding
+✅ "Official service mailbox: ydcommunity@service.netease.com"
+✅ Zero WhatsApp group links
+✅ Zero Discord spam
+✅ Proper company identification from line 1
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Every single red flag I documented in Part 1.<br>
+Addressed. One by one. In the next outreach email.</p>
+
+<hr>
+<h2>
+  <a name="what-this-means-the-definitive-analysis" href="#what-this-means-the-definitive-analysis">
+  </a>
+  What This Means: The Definitive Analysis
+</h2>
+
+<p>After 18 days of forensic investigation, here is where the evidence leads:</p>
+<h3>
+  <a name="what-is-confirmed" href="#what-is-confirmed">
+  </a>
+  What is confirmed:
+</h3>
+
+<p><strong>The infrastructure is 100% genuine NetEase.</strong><br>
+DNS chain, IP ownership, email authentication, CDN — all resolve to NetEase Hong Kong.</p>
+
+<p><strong>The domain is 5 years old.</strong><br>
+<code>youdaoads.com</code> was registered May 2021. This is not a freshly created phishing domain.</p>
+
+<p><strong>LinkedIn confirms the entity.</strong><br>
+Youdao Ads has a LinkedIn presence identifying as a NetEase Youdao subsidiary.</p>
+
+<p><strong>My article changed their behavior.</strong><br>
+The before/after comparison of outreach emails is not coincidental. The timing, the specific changes, the direct addressing of documented concerns — this is a response to public scrutiny.</p>
+<h3>
+  <a name="what-remains-unexplained" href="#what-remains-unexplained">
+  </a>
+  What remains unexplained:
+</h3>
+
+<p><strong>Why was the site returning 403 during the email campaign?</strong><br>
+You don't send mass creator outreach from a platform that returns Forbidden.</p>
+
+<p><strong>Why did the WHOIS record update 3 days after the article?</strong><br>
+Domain records don't update themselves.</p>
+
+<p><strong>Why did the site go live on the same day as the takedown request?</strong><br>
+Correlation is not causation. But this correlation is hard to ignore.</p>
+
+<p><strong>Why the subdomain switch?</strong><br>
+<code>corp.netease.com</code> → <code>rd.netease.com</code> → back to <code>corp.netease.com</code>.<br>
+Three different senders. Never explained.</p>
+
+<p><strong>Why 15/100 on independent security vendors?</strong><br>
+No documentation addressing this was ever provided despite formal request.</p>
+<h3>
+  <a name="the-most-likely-explanation" href="#the-most-likely-explanation">
+  </a>
+  The most likely explanation:
+</h3>
+
+<p>This is a legitimate NetEase subsidiary operating with immature outreach practices — possibly a team that grew fast, prioritized reach over compliance, and got caught using spam-adjacent tactics that don't match the scale and legitimacy of their parent company.</p>
+
+<p>My article forced an internal correction.</p>
+
+<p>That's not a vindication. That's a more nuanced conclusion backed by evidence.</p>
+
+<hr>
+<h2>
+  <a name="what-i-requested-still-open" href="#what-i-requested-still-open">
+  </a>
+  What I Requested — Still Open
+</h2>
+
+<p>On April 28, I formally requested via email and public comment:</p>
+
+<ol>
+<li>Official business registration documents for Youdao Ads</li>
+<li>NetEase Youdao's official PR statement authorizing the outreach campaign</li>
+<li>Verified creator partnership examples with creator consent</li>
+<li>Explanation of security vendor scores and remediation steps</li>
+<li>Clarification on the use of multiple NetEase subdomains</li>
+</ol>
+
+<p><strong>As of publication: no documentation received.</strong></p>
+
+<p>The April 29 email did not address these requests.</p>
+
+<p>This article will be updated prominently if documentation is provided.</p>
+
+<hr>
+<h2>
+  <a name="for-the-security-community-what-this-case-teaches" href="#for-the-security-community-what-this-case-teaches">
+  </a>
+  For the Security Community: What This Case Teaches
+</h2>
+<h3>
+  <a name="1-email-authentication-%E2%89%A0-legitimacy" href="#1-email-authentication-%E2%89%A0-legitimacy">
+  </a>
+  1. Email Authentication ≠ Legitimacy
+</h3>
+
+<p>DKIM, SPF, DMARC all passed on the original email. The infrastructure was real.<br>
+Authentication tells you where an email came from.<br>
+It tells you nothing about intent or operational standards.</p>
+<h3>
+  <a name="2-infrastructure-legitimacy-%E2%89%A0-operational-legitimacy" href="#2-infrastructure-legitimacy-%E2%89%A0-operational-legitimacy">
+  </a>
+  2. Infrastructure Legitimacy ≠ Operational Legitimacy
+</h3>
+
+<p>Real servers. Real domain. Real CDN. Real company.<br>
+None of this guarantees the outreach practices meet acceptable standards.</p>
+<h3>
+  <a name="3-public-scrutiny-works" href="#3-public-scrutiny-works">
+  </a>
+  3. Public Scrutiny Works
+</h3>
+
+<p>A single technical article, published and indexed, changed the outreach behavior of a subsidiary of a billion-dollar company.</p>
+
+<p>This is why security research and transparency matter.</p>
+<h3>
+  <a name="4-timeline-documentation-is-everything" href="#4-timeline-documentation-is-everything">
+  </a>
+  4. Timeline Documentation Is Everything
+</h3>
+
+<p>Every data point in this investigation is timestamped and reproducible:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Reproduce the DNS chain</span>
+<span class="nv">$ </span>dig infunease.youdaoads.com +short
+
+<span class="c"># Reproduce the SSL timing</span>
+<span class="nv">$ </span><span class="nb">echo</span> | openssl s_client <span class="nt">-servername</span> infunease.youdaoads.com <span class="se">\</span>
+  <span class="nt">-connect</span> infunease.youdaoads.com:443 2&gt;/dev/null <span class="se">\</span>
+  | openssl x509 <span class="nt">-noout</span> <span class="nt">-dates</span>
+
+<span class="c"># Reproduce the WHOIS</span>
+<span class="nv">$ </span>whois youdaoads.com
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Any developer can verify these findings independently.</p>
+
+
+<hr>
+
+<h2>
+  <a name="conclusion-the-investigation-is-open-not-closed" href="#conclusion-the-investigation-is-open-not-closed">
+  </a>
+  Conclusion: The Investigation Is Open, Not Closed
+</h2>
+
+<p>I published Part 1 calling this a scam. The full picture is more complex.</p>
+
+<p>What I can say with confidence after 18 days:</p>
+
+<p><strong>The operation is real.</strong> NetEase infrastructure, 5-year-old domain, LinkedIn presence.</p>
+
+<p><strong>The original tactics were unacceptable.</strong> Emoji spam, artificial urgency, WhatsApp groups — regardless of the company behind it.</p>
+
+<p><strong>My article caused a documented change.</strong> The before/after email comparison is the clearest evidence of this.</p>
+
+<p><strong>Unanswered questions remain.</strong> The 403 timing, the WHOIS update, the subdomain switching, the trust scores.</p>
+
+<p>I will continue monitoring. If documentation arrives, this gets updated publicly and prominently.</p>
+
+<p>If you've interacted with Youdao Ads — as a creator, brand, or agency — your experience is relevant. Share it in the comments.</p>
+
+
+<hr>
+
+<h2>
+  <a name="resources" href="#resources">
+  </a>
+  Resources
+</h2>
+
+<p><strong>Security Analysis:</strong></p>
+
+<ul>
+<li><a href="https://www.scam-detector.com/validator/youdaoads-com-review/" target="_blank" rel="noopener noreferrer">Scam Detector: youdaoads.com</a></li>
+<li><a href="https://www.virustotal.com/" target="_blank" rel="noopener noreferrer">VirusTotal Domain Scanner</a></li>
+</ul>
+
+<p><strong>Reporting:</strong></p>
+
+<ul>
+<li>Anti-Phishing Working Group: <a href="mailto:reportphishing@apwg.org">reportphishing@apwg.org</a>
+</li>
+<li>Google Safe Browsing: safebrowsing.google.com/safebrowsing/report_phish/</li>
+<li>NetEase Security: <a href="mailto:security@netease.com">security@netease.com</a>
+</li>
+</ul>
+
+<p><strong>Technical Verification:</strong><br>
+All commands in this article are reproducible. Infrastructure data is public record.<br>
+WHOIS, DNS, SSL certificate dates — independently verifiable by anyone.</p>
+
+
+<hr>
+
+<p><strong>Part 1:</strong> <a href="https://dev.to/freerave/exposed-the-youdao-ads-influencer-marketing-scam-technical-analysis-red-flags-5cag">EXPOSED: The Youdao Ads Influencer Marketing Scam</a></p>
+
+
+<hr>
+
+<p><em>Have you received emails from Youdao Ads? Share your experience below.</em></p>
+
+
+<hr>
+
+<p><em>All technical findings are based on public record data and standard OSINT methodology. Commands and outputs are included verbatim for independent verification.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/part-2-i-published-a-scam-expose-netease-sent-a-takedown-request-then-they-rewrote-their-entire-hip" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 2
+    · <a href="https://dev.to/freerave/part-2-i-published-a-scam-expose-netease-sent-a-takedown-request-then-they-rewrote-their-entire-hip#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

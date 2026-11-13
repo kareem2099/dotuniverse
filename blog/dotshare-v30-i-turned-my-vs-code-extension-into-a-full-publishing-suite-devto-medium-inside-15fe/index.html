@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare v3.0 — I Turned My VS Code Extension Into a Full Publishing Suite (Dev.to + Medium Inside) — FreeRave</title>
+<meta name="description" content="A deep technical dive into DotShare v3.0 — the Publishing Suite update that added Dev.to...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-v30-i-turned-my-vs-code-extension-into-a-full-publishing-suite-devto-medium-inside-15fe">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-v30-i-turned-my-vs-code-extension-into-a-full-publishing-suite-devto-medium-inside-15fe">
+<meta property="og:title" content="DotShare v3.0 — I Turned My VS Code Extension Into a Full Publishing Suite (Dev.to + Medium Inside) — FreeRave">
+<meta property="og:description" content="A deep technical dive into DotShare v3.0 — the Publishing Suite update that added Dev.to...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk13jehwbv9wo7trhksza.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fk13jehwbv9wo7trhksza.png" alt="">
+  <h1 class="post-title">DotShare v3.0 — I Turned My VS Code Extension Into a Full Publishing Suite (Dev.to + Medium Inside)</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-12T19:37:13Z">12 April 2026</time> · 10 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#devtools</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-technical-dive-into-dotshare-v30-the-publishing-suite-update-that-added-devto-amp-medium-integrations-a-yaml-frontmatter-parser-platformfirst-navigation-and-a-unified-postexecutor-architecture-all-from-inside-vs-code" href="#a-deep-technical-dive-into-dotshare-v30-the-publishing-suite-update-that-added-devto-amp-medium-integrations-a-yaml-frontmatter-parser-platformfirst-navigation-and-a-unified-postexecutor-architecture-all-from-inside-vs-code">
+  </a>
+  A deep technical dive into DotShare v3.0 — the Publishing Suite update that added Dev.to &amp; Medium integrations, a YAML frontmatter parser, platform-first navigation, and a unified PostExecutor architecture. All from inside VS Code.
+</h2>
+
+<h2>
+  <a name="i-built-a-vs-code-extension-that-posts-to-devto-medium-amp-7-social-platforms-heres-how-v30-works" href="#i-built-a-vs-code-extension-that-posts-to-devto-medium-amp-7-social-platforms-heres-how-v30-works">
+  </a>
+  I Built a VS Code Extension That Posts to Dev.to, Medium &amp; 7 Social Platforms — Here's How v3.0 Works
+</h2>
+
+<blockquote>
+<p><strong>TL;DR</strong> — DotShare v3.0 "The Publishing Suite" transforms the extension from a social poster into a full publishing platform. This post is a deep technical walkthrough of the architecture decisions, the blog API integrations, and the tricky edge cases that took the most time to solve.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="the-problem-i-was-solving" href="#the-problem-i-was-solving">
+  </a>
+  🧠 The Problem I Was Solving
+</h2>
+
+<p>Every time I shipped a new feature, I'd write a commit message, then write a Dev.to draft, then rephrase it for LinkedIn, then trim it for Twitter, then reformat it for Medium. Four context switches. Four text editors. Thirty minutes of overhead before my actual audience saw anything.</p>
+
+<p>I'm a VS Code developer. I live in this editor. So I built <strong>DotShare</strong> — an extension that lets me write once, then distribute everywhere. v1 and v2 handled social platforms. <strong>v3.0 adds Dev.to and Medium</strong>, and rearchitects the whole thing into something I'm finally proud of.</p>
+
+<p>Let me walk you through exactly how I built it.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-big-picture-what-changed-in-v30" href="#the-big-picture-what-changed-in-v30">
+  </a>
+  🗺️ The Big Picture: What Changed in v3.0
+</h2>
+
+<p>Before v3.0, DotShare had one mental model: <strong>a short post goes to social media.</strong> The UI reflected that — a single textarea, a platform grid, a share button.</p>
+
+<p>v3.0 breaks that assumption. Now there are two distinct workflows:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>┌──────────────────────────────────────────────────┐
+│              DotShare v3.0 Workspace              │
+├──────────────────────┬───────────────────────────┤
+│   SOCIAL WORKSPACE   │      BLOG WORKSPACE        │
+│                      │                            │
+│  • Single post       │  • Title + Tags            │
+│  • Thread composer   │  • Markdown body           │
+│  • 280–25K chars     │  • Canonical URL           │
+│  • Image attach      │  • Cover image URL         │
+│                      │  • Draft/Publish toggle    │
+│  Platforms:          │                            │
+│  X, LinkedIn,        │  Platforms:                │
+│  Bluesky, Reddit,    │  Dev.to, Medium            │
+│  Facebook, Discord,  │                            │
+│  Telegram            │                            │
+└──────────────────────┴───────────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The key architectural move was making <strong>platform selection drive the UI</strong>, not the other way around. Let me show you how that works.</p>
+
+
+<hr>
+
+<h2>
+  <a name="architecture-raw-platformconfigts-endraw-as-single-source-of-truth" href="#architecture-raw-platformconfigts-endraw-as-single-source-of-truth">
+  </a>
+  🏗️ Architecture: <code>platform-config.ts</code> as Single Source of Truth
+</h2>
+
+<p>The old code had workspace logic scattered everywhere — HTML conditionals, JS checks, handler guards. I replaced all of it with one file:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/platforms/platform-config.ts</span>
+
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">WorkspaceType</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">social</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">blog</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">thread</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">AuthType</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">oauth</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">apikey</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">bearer</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">bot</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">PlatformConfig</span> <span class="p">{</span>
+  <span class="nl">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">name</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">icon</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">workspaceType</span><span class="p">:</span> <span class="nx">WorkspaceType</span><span class="p">;</span>
+  <span class="nl">maxChars</span><span class="p">:</span> <span class="kr">number</span> <span class="o">|</span> <span class="kc">null</span><span class="p">;</span>          <span class="c1">// null = no limit</span>
+  <span class="nl">supportsThreads</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+  <span class="nl">supportsMedia</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+  <span class="nl">supportsScheduling</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+  <span class="nl">charCountMethod</span><span class="p">:</span> <span class="dl">'</span><span class="s1">standard</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">twitter</span><span class="dl">'</span><span class="p">;</span>
+  <span class="nl">authType</span><span class="p">:</span> <span class="nx">AuthType</span><span class="p">;</span>
+  <span class="nl">color</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">const</span> <span class="nx">PLATFORM_CONFIGS</span><span class="p">:</span> <span class="nb">Record</span><span class="o">&lt;</span><span class="kr">string</span><span class="p">,</span> <span class="nx">PlatformConfig</span><span class="o">&gt;</span> <span class="o">=</span> <span class="p">{</span>
+  <span class="na">x</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">id</span><span class="p">:</span> <span class="dl">'</span><span class="s1">x</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">X (Twitter)</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">𝕏</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">workspaceType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">social</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">maxChars</span><span class="p">:</span> <span class="mi">280</span><span class="p">,</span>
+    <span class="na">supportsThreads</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">supportsMedia</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">supportsScheduling</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="na">charCountMethod</span><span class="p">:</span> <span class="dl">'</span><span class="s1">twitter</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">authType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">oauth</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">color</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#000000</span><span class="dl">'</span><span class="p">,</span>
+  <span class="p">},</span>
+  <span class="na">devto</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">id</span><span class="p">:</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Dev.to</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">👨‍💻</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">workspaceType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">blog</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">maxChars</span><span class="p">:</span> <span class="mi">100000</span><span class="p">,</span>
+    <span class="na">supportsThreads</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">supportsMedia</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>      <span class="c1">// API doesn't support file uploads</span>
+    <span class="na">supportsScheduling</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">charCountMethod</span><span class="p">:</span> <span class="dl">'</span><span class="s1">standard</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">authType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">apikey</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">color</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#0a0a0a</span><span class="dl">'</span><span class="p">,</span>
+  <span class="p">},</span>
+  <span class="na">medium</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">id</span><span class="p">:</span> <span class="dl">'</span><span class="s1">medium</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">name</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Medium</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">icon</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Ⓜ️</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">workspaceType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">blog</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">maxChars</span><span class="p">:</span> <span class="mi">100000</span><span class="p">,</span>
+    <span class="na">supportsThreads</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">supportsMedia</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">supportsScheduling</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+    <span class="na">charCountMethod</span><span class="p">:</span> <span class="dl">'</span><span class="s1">standard</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">authType</span><span class="p">:</span> <span class="dl">'</span><span class="s1">bearer</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">color</span><span class="p">:</span> <span class="dl">'</span><span class="s1">#00ab6c</span><span class="dl">'</span><span class="p">,</span>
+  <span class="p">},</span>
+  <span class="c1">// ... linkedin, bluesky, reddit, etc.</span>
+<span class="p">};</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now when the user clicks a platform icon in the sidebar, one function handles everything:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// media/webview/app.ts</span>
+
+<span class="kd">function</span> <span class="nf">switchPlatform</span><span class="p">(</span><span class="nx">platformId</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="k">void</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">config</span> <span class="o">=</span> <span class="nx">PLATFORM_CONFIGS</span><span class="p">[</span><span class="nx">platformId</span><span class="p">];</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">config</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+  <span class="nx">activeCommandPlatform</span> <span class="o">=</span> <span class="nx">platformId</span><span class="p">;</span>
+
+  <span class="c1">// Workspace switching — driven entirely by config</span>
+  <span class="kd">const</span> <span class="nx">workspace</span> <span class="o">=</span> <span class="nx">config</span><span class="p">.</span><span class="nx">workspaceType</span><span class="p">;</span>
+  <span class="nb">document</span><span class="p">.</span><span class="nf">querySelectorAll</span><span class="p">(</span><span class="dl">'</span><span class="s1">.workspace</span><span class="dl">'</span><span class="p">).</span><span class="nf">forEach</span><span class="p">(</span><span class="nx">el</span> <span class="o">=&gt;</span> <span class="p">{</span>
+    <span class="p">(</span><span class="nx">el</span> <span class="k">as</span> <span class="nx">HTMLElement</span><span class="p">).</span><span class="nx">style</span><span class="p">.</span><span class="nx">display</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">none</span><span class="dl">'</span><span class="p">;</span>
+  <span class="p">});</span>
+  <span class="kd">const</span> <span class="nx">target</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nf">getElementById</span><span class="p">(</span><span class="s2">`workspace-</span><span class="p">${</span><span class="nx">workspace</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">target</span><span class="p">)</span> <span class="nx">target</span><span class="p">.</span><span class="nx">style</span><span class="p">.</span><span class="nx">display</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">flex</span><span class="dl">'</span><span class="p">;</span>
+
+  <span class="c1">// Update platform header</span>
+  <span class="nf">updatePlatformHeader</span><span class="p">(</span><span class="nx">config</span><span class="p">);</span>
+
+  <span class="c1">// Refresh character counter with new limits</span>
+  <span class="nf">updateCharCounter</span><span class="p">();</span>
+  <span class="nf">updateShareBtn</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>No more scattered <code>if (platform === 'devto')</code> checks in 12 different places.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-blog-publish-page-loading-your-active-raw-md-endraw-file" href="#the-blog-publish-page-loading-your-active-raw-md-endraw-file">
+  </a>
+  📝 The Blog Publish Page: Loading Your Active <code>.md</code> File
+</h2>
+
+<p>This was the feature I was most excited to build. The idea: you're editing a <code>CHANGELOG.md</code> or a <code>blog-post.md</code> in VS Code. Hit a button. The publish form fills itself.</p>
+
+<h3>
+  <a name="backend-reading-the-active-editor" href="#backend-reading-the-active-editor">
+  </a>
+  Backend: Reading the Active Editor
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/handlers/MessageHandler.ts</span>
+
+<span class="k">case</span> <span class="dl">'</span><span class="s1">loadActiveFile</span><span class="dl">'</span><span class="p">:</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">editor</span> <span class="o">=</span> <span class="nx">vscode</span><span class="p">.</span><span class="nb">window</span><span class="p">.</span><span class="nx">activeTextEditor</span><span class="p">;</span>
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">editor</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendStatus</span><span class="p">(</span><span class="dl">'</span><span class="s1">No active editor found</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kd">const</span> <span class="nx">doc</span> <span class="o">=</span> <span class="nx">editor</span><span class="p">.</span><span class="nb">document</span><span class="p">;</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">doc</span><span class="p">.</span><span class="nx">languageId</span> <span class="o">!==</span> <span class="dl">'</span><span class="s1">markdown</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendStatus</span><span class="p">(</span><span class="dl">'</span><span class="s1">Active file is not a Markdown file</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">warning</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">return</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="kd">const</span> <span class="nx">content</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">.</span><span class="nf">getText</span><span class="p">();</span>
+  <span class="kd">const</span> <span class="nx">filePath</span> <span class="o">=</span> <span class="nx">doc</span><span class="p">.</span><span class="nx">uri</span><span class="p">.</span><span class="nx">fsPath</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="nx">fileName</span> <span class="o">=</span> <span class="nx">path</span><span class="p">.</span><span class="nf">basename</span><span class="p">(</span><span class="nx">filePath</span><span class="p">,</span> <span class="dl">'</span><span class="s1">.md</span><span class="dl">'</span><span class="p">);</span>
+
+  <span class="c1">// Parse frontmatter and send back to WebView</span>
+  <span class="kd">const</span> <span class="nx">parsed</span> <span class="o">=</span> <span class="nf">parseFrontmatter</span><span class="p">(</span><span class="nx">content</span><span class="p">);</span>
+
+  <span class="k">this</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span>
+    <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">activeFileLoaded</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">content</span><span class="p">:</span> <span class="nx">parsed</span><span class="p">.</span><span class="nx">body</span><span class="p">,</span>
+    <span class="na">frontmatter</span><span class="p">:</span> <span class="nx">parsed</span><span class="p">.</span><span class="nx">data</span><span class="p">,</span>
+    <span class="nx">fileName</span><span class="p">,</span>
+  <span class="p">});</span>
+  <span class="k">break</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-yaml-frontmatter-parser" href="#the-yaml-frontmatter-parser">
+  </a>
+  The YAML Frontmatter Parser
+</h3>
+
+<p>Dev.to and Medium both use YAML frontmatter. I built a parser that extracts the fields I care about:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/utils/frontmatterParser.ts</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">FrontMatter</span> <span class="p">{</span>
+  <span class="nl">title</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">description</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">tags</span><span class="p">?:</span> <span class="kr">string</span><span class="p">[];</span>
+  <span class="nl">cover_image</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">canonical_url</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">series</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">published</span><span class="p">?:</span> <span class="nx">boolean</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">ParsedDocument</span> <span class="p">{</span>
+  <span class="nl">data</span><span class="p">:</span> <span class="nx">FrontMatter</span><span class="p">;</span>
+  <span class="nl">body</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kd">const</span> <span class="nx">FRONTMATTER_REGEX</span> <span class="o">=</span> <span class="sr">/^---</span><span class="se">\r?\n([\s\S]</span><span class="sr">*</span><span class="se">?)\r?\n</span><span class="sr">---</span><span class="se">\r?\n([\s\S]</span><span class="sr">*</span><span class="se">)</span><span class="sr">$/</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">parseFrontmatter</span><span class="p">(</span><span class="nx">raw</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nx">ParsedDocument</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">match</span> <span class="o">=</span> <span class="nx">raw</span><span class="p">.</span><span class="nf">match</span><span class="p">(</span><span class="nx">FRONTMATTER_REGEX</span><span class="p">);</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">match</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="na">data</span><span class="p">:</span> <span class="p">{},</span> <span class="na">body</span><span class="p">:</span> <span class="nx">raw</span> <span class="p">};</span>
+  <span class="p">}</span>
+
+  <span class="kd">const</span> <span class="nx">yamlBlock</span> <span class="o">=</span> <span class="nx">match</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span>
+  <span class="kd">const</span> <span class="nx">body</span> <span class="o">=</span> <span class="nx">match</span><span class="p">[</span><span class="mi">2</span><span class="p">];</span>
+
+  <span class="c1">// Minimal YAML parser — handles the fields we care about</span>
+  <span class="kd">const</span> <span class="nx">data</span><span class="p">:</span> <span class="nx">FrontMatter</span> <span class="o">=</span> <span class="p">{};</span>
+  <span class="kd">const</span> <span class="nx">lines</span> <span class="o">=</span> <span class="nx">yamlBlock</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="se">\n</span><span class="dl">'</span><span class="p">);</span>
+
+  <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">line</span> <span class="k">of</span> <span class="nx">lines</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">colonIdx</span> <span class="o">=</span> <span class="nx">line</span><span class="p">.</span><span class="nf">indexOf</span><span class="p">(</span><span class="dl">'</span><span class="s1">:</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">colonIdx</span> <span class="o">===</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">continue</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">line</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nx">colonIdx</span><span class="p">).</span><span class="nf">trim</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">value</span> <span class="o">=</span> <span class="nx">line</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="nx">colonIdx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">).</span><span class="nf">trim</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/^</span><span class="se">[</span><span class="sr">'"</span><span class="se">]</span><span class="sr">|</span><span class="se">[</span><span class="sr">'"</span><span class="se">]</span><span class="sr">$/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">);</span>
+
+    <span class="k">switch </span><span class="p">(</span><span class="nx">key</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">title</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">title</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">description</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">description</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">cover_image</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">cover_image</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">canonical_url</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">canonical_url</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">series</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">series</span> <span class="o">=</span> <span class="nx">value</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span><span class="p">:</span>
+        <span class="nx">data</span><span class="p">.</span><span class="nx">published</span> <span class="o">=</span> <span class="nx">value</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">true</span><span class="dl">'</span> <span class="p">?</span> <span class="kc">true</span> <span class="p">:</span> <span class="nx">value</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">false</span><span class="dl">'</span> <span class="p">?</span> <span class="kc">false</span> <span class="p">:</span> <span class="nx">value</span> <span class="k">as</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">;</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="k">case</span> <span class="dl">'</span><span class="s1">tags</span><span class="dl">'</span><span class="p">:</span> <span class="p">{</span>
+        <span class="c1">// Handle both "tags: [a, b]" and multi-line "tags:\n  - a"</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">value</span><span class="p">.</span><span class="nf">startsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1">[</span><span class="dl">'</span><span class="p">))</span> <span class="p">{</span>
+          <span class="nx">data</span><span class="p">.</span><span class="nx">tags</span> <span class="o">=</span> <span class="nx">value</span>
+            <span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">[\[\]]</span><span class="sr">/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">,</span><span class="dl">'</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">t</span> <span class="o">=&gt;</span> <span class="nx">t</span><span class="p">.</span><span class="nf">trim</span><span class="p">())</span>
+            <span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="nb">Boolean</span><span class="p">);</span>
+        <span class="p">}</span>
+        <span class="k">break</span><span class="p">;</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="p">{</span> <span class="nx">data</span><span class="p">,</span> <span class="nx">body</span> <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>When the WebView receives the <code>activeFileLoaded</code> message, it populates the form:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// media/webview/app.ts</span>
+
+<span class="k">case</span> <span class="dl">'</span><span class="s1">activeFileLoaded</span><span class="dl">'</span><span class="p">:</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="p">{</span> <span class="nx">content</span><span class="p">,</span> <span class="nx">frontmatter</span><span class="p">,</span> <span class="nx">fileName</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">msg</span><span class="p">;</span>
+
+  <span class="c1">// Populate body</span>
+  <span class="kd">const</span> <span class="nx">bodyEditor</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLTextAreaElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">blog-body</span><span class="dl">'</span><span class="p">);</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">bodyEditor</span><span class="p">)</span> <span class="nx">bodyEditor</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">content</span><span class="p">;</span>
+
+  <span class="c1">// Populate frontmatter fields if present</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">frontmatter</span><span class="p">.</span><span class="nx">title</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">titleEl</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLInputElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">blog-title</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">titleEl</span><span class="p">)</span> <span class="nx">titleEl</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">frontmatter</span><span class="p">.</span><span class="nx">title</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">frontmatter</span><span class="p">.</span><span class="nx">tags</span><span class="p">?.</span><span class="nx">length</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nx">frontmatter</span><span class="p">.</span><span class="nx">tags</span><span class="p">.</span><span class="nf">forEach</span><span class="p">((</span><span class="nx">tag</span><span class="p">:</span> <span class="kr">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nf">addTagChip</span><span class="p">(</span><span class="nx">tag</span><span class="p">));</span>
+  <span class="p">}</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">frontmatter</span><span class="p">.</span><span class="nx">canonical_url</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">canonicalEl</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLInputElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">blog-canonical</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">canonicalEl</span><span class="p">)</span> <span class="nx">canonicalEl</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">frontmatter</span><span class="p">.</span><span class="nx">canonical_url</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">frontmatter</span><span class="p">.</span><span class="nx">cover_image</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">coverEl</span> <span class="o">=</span> <span class="kd">get</span><span class="o">&lt;</span><span class="nx">HTMLInputElement</span><span class="o">&gt;</span><span class="p">(</span><span class="dl">'</span><span class="s1">blog-cover</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">coverEl</span><span class="p">)</span> <span class="nx">coverEl</span><span class="p">.</span><span class="nx">value</span> <span class="o">=</span> <span class="nx">frontmatter</span><span class="p">.</span><span class="nx">cover_image</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="nf">toast</span><span class="p">(</span><span class="s2">`Loaded: </span><span class="p">${</span><span class="nx">fileName</span><span class="p">}</span><span class="s2">.md`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">);</span>
+  <span class="k">break</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="devto-api-integration" href="#devto-api-integration">
+  </a>
+  🔌 Dev.to API Integration
+</h2>
+
+<p>Dev.to's API is clean and well-documented. Here's the full integration:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/platforms/devto.ts</span>
+
+<span class="k">import</span> <span class="nx">axios</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">axios</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">import</span> <span class="p">{</span> <span class="nx">logger</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">../utils/logger</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">DevToArticle</span> <span class="p">{</span>
+  <span class="nl">title</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">body_markdown</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">published</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+  <span class="nl">tags</span><span class="p">?:</span> <span class="kr">string</span><span class="p">[];</span>           <span class="c1">// max 4 tags</span>
+  <span class="nl">description</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">cover_image</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>      <span class="c1">// must be a public URL</span>
+  <span class="nl">canonical_url</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">series</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">DevToResponse</span> <span class="p">{</span>
+  <span class="nl">id</span><span class="p">:</span> <span class="kr">number</span><span class="p">;</span>
+  <span class="nl">url</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">title</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">published</span><span class="p">:</span> <span class="nx">boolean</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">shareToDevTo</span><span class="p">(</span>
+  <span class="nx">apiKey</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">article</span><span class="p">:</span> <span class="nx">DevToArticle</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">DevToResponse</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="c1">// Dev.to enforces a 4-tag maximum</span>
+  <span class="kd">const</span> <span class="nx">sanitizedTags</span> <span class="o">=</span> <span class="p">(</span><span class="nx">article</span><span class="p">.</span><span class="nx">tags</span> <span class="o">??</span> <span class="p">[])</span>
+    <span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">map</span><span class="p">(</span><span class="nx">t</span> <span class="o">=&gt;</span> <span class="nx">t</span><span class="p">.</span><span class="nf">toLowerCase</span><span class="p">().</span><span class="nf">replace</span><span class="p">(</span><span class="sr">/</span><span class="se">[^</span><span class="sr">a-z0-9</span><span class="se">]</span><span class="sr">/g</span><span class="p">,</span> <span class="dl">''</span><span class="p">));</span>
+
+  <span class="kd">const</span> <span class="nx">payload</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">article</span><span class="p">:</span> <span class="p">{</span>
+      <span class="na">title</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+      <span class="na">body_markdown</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">body_markdown</span><span class="p">,</span>
+      <span class="na">published</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">published</span><span class="p">,</span>
+      <span class="na">tags</span><span class="p">:</span> <span class="nx">sanitizedTags</span><span class="p">,</span>
+      <span class="na">description</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">description</span><span class="p">,</span>
+      <span class="na">cover_image</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">cover_image</span> <span class="o">??</span> <span class="kc">null</span><span class="p">,</span>
+      <span class="na">canonical_url</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">canonical_url</span> <span class="o">??</span> <span class="kc">null</span><span class="p">,</span>
+      <span class="na">series</span><span class="p">:</span> <span class="nx">article</span><span class="p">.</span><span class="nx">series</span> <span class="o">??</span> <span class="kc">null</span><span class="p">,</span>
+    <span class="p">},</span>
+  <span class="p">};</span>
+
+  <span class="k">try</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nx">post</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">article</span><span class="p">:</span> <span class="nx">DevToResponse</span> <span class="p">}</span><span class="o">&gt;</span><span class="p">(</span>
+      <span class="dl">'</span><span class="s1">https://dev.to/api/articles</span><span class="dl">'</span><span class="p">,</span>
+      <span class="nx">payload</span><span class="p">,</span>
+      <span class="p">{</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+          <span class="dl">'</span><span class="s1">api-key</span><span class="dl">'</span><span class="p">:</span> <span class="nx">apiKey</span><span class="p">,</span>
+          <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/json</span><span class="dl">'</span><span class="p">,</span>
+        <span class="p">},</span>
+      <span class="p">}</span>
+    <span class="p">);</span>
+
+    <span class="nx">logger</span><span class="p">.</span><span class="nf">info</span><span class="p">(</span><span class="s2">`[Dev.to] Published: </span><span class="p">${</span><span class="nx">response</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">article</span><span class="p">.</span><span class="nx">url</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">article</span><span class="p">;</span>
+  <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="na">err</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">axios</span><span class="p">.</span><span class="nf">isAxiosError</span><span class="p">(</span><span class="nx">err</span><span class="p">))</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">status</span> <span class="o">=</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">?.</span><span class="nx">status</span><span class="p">;</span>
+      <span class="kd">const</span> <span class="nx">detail</span> <span class="o">=</span> <span class="nx">err</span><span class="p">.</span><span class="nx">response</span><span class="p">?.</span><span class="nx">data</span><span class="p">?.</span><span class="nx">error</span> <span class="o">??</span> <span class="nx">err</span><span class="p">.</span><span class="nx">message</span><span class="p">;</span>
+
+      <span class="k">if </span><span class="p">(</span><span class="nx">status</span> <span class="o">===</span> <span class="mi">422</span><span class="p">)</span> <span class="p">{</span>
+        <span class="c1">// Validation error — usually malformed tags or missing title</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="s2">`Dev.to validation error: </span><span class="p">${</span><span class="nx">detail</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+      <span class="p">}</span>
+      <span class="k">if </span><span class="p">(</span><span class="nx">status</span> <span class="o">===</span> <span class="mi">401</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Dev.to API key is invalid or expired</span><span class="dl">'</span><span class="p">);</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+    <span class="k">throw</span> <span class="nx">err</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-image-policy-problem" href="#the-image-policy-problem">
+  </a>
+  The Image Policy Problem
+</h3>
+
+<p>Dev.to's API does <strong>not</strong> support file uploads. If you try to POST a local file as a cover image, it just silently drops it. I spent two hours debugging this before reading the docs carefully.</p>
+
+<p>My solution: detect local file paths and warn the user instead of silently failing:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/handlers/PostHandler.ts</span>
+
+<span class="k">private</span> <span class="nf">validateBlogMedia</span><span class="p">(</span><span class="nx">article</span><span class="p">:</span> <span class="nx">DevToArticle</span><span class="p">,</span> <span class="nx">platform</span><span class="p">:</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">medium</span><span class="dl">'</span><span class="p">):</span> <span class="nx">DevToArticle</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="p">{</span> <span class="nx">cover_image</span> <span class="p">}</span> <span class="o">=</span> <span class="nx">article</span><span class="p">;</span>
+
+  <span class="k">if </span><span class="p">(</span><span class="nx">cover_image</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nx">cover_image</span><span class="p">.</span><span class="nf">startsWith</span><span class="p">(</span><span class="dl">'</span><span class="s1">http</span><span class="dl">'</span><span class="p">))</span> <span class="p">{</span>
+    <span class="c1">// Local file path — not supported</span>
+    <span class="nx">logger</span><span class="p">.</span><span class="nf">warn</span><span class="p">(</span>
+      <span class="s2">`[</span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2">] Local cover image "</span><span class="p">${</span><span class="nx">cover_image</span><span class="p">}</span><span class="s2">" skipped. `</span> <span class="o">+</span>
+      <span class="s2">`</span><span class="p">${</span><span class="nx">platform</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">Dev.to</span><span class="dl">'</span> <span class="p">:</span> <span class="dl">'</span><span class="s1">Medium</span><span class="dl">'</span><span class="p">}</span><span class="s2"> only accepts public URLs. `</span> <span class="o">+</span>
+      <span class="s2">`Consider uploading to Cloudinary, GitHub, or Imgur first.`</span>
+    <span class="p">);</span>
+    <span class="k">return</span> <span class="p">{</span> <span class="p">...</span><span class="nx">article</span><span class="p">,</span> <span class="na">cover_image</span><span class="p">:</span> <span class="kc">undefined</span> <span class="p">};</span>
+  <span class="p">}</span>
+
+  <span class="k">return</span> <span class="nx">article</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="%E2%93%9C%EF%B8%8F-medium-api-integration" href="#%E2%93%9C%EF%B8%8F-medium-api-integration">
+  </a>
+  Ⓜ️ Medium API Integration
+</h2>
+
+<p>Medium's API is older and has a few quirks worth documenting.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/platforms/medium.ts</span>
+
+<span class="k">import</span> <span class="nx">axios</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">axios</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">MediumPublishStatus</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">public</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">;</span>
+<span class="k">export</span> <span class="kd">type</span> <span class="nx">MediumContentFormat</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">markdown</span><span class="dl">'</span> <span class="o">|</span> <span class="dl">'</span><span class="s1">html</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">MediumPost</span> <span class="p">{</span>
+  <span class="nl">title</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">contentFormat</span><span class="p">:</span> <span class="nx">MediumContentFormat</span><span class="p">;</span>
+  <span class="nl">content</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">tags</span><span class="p">?:</span> <span class="kr">string</span><span class="p">[];</span>             <span class="c1">// max 5 tags</span>
+  <span class="nl">canonicalUrl</span><span class="p">?:</span> <span class="kr">string</span><span class="p">;</span>
+  <span class="nl">publishStatus</span><span class="p">?:</span> <span class="nx">MediumPublishStatus</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// Medium's API uses "published" but their enum value is "public" — this trips people up</span>
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">normalizeMediumPublishStatus</span><span class="p">(</span>
+  <span class="nx">status</span><span class="p">:</span> <span class="kr">string</span> <span class="o">|</span> <span class="nx">boolean</span> <span class="o">|</span> <span class="kc">undefined</span>
+<span class="p">):</span> <span class="nx">MediumPublishStatus</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">status</span> <span class="o">===</span> <span class="kc">true</span> <span class="o">||</span> <span class="nx">status</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">published</span><span class="dl">'</span> <span class="o">||</span> <span class="nx">status</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">public</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="dl">'</span><span class="s1">public</span><span class="dl">'</span><span class="p">;</span>
+  <span class="p">}</span>
+  <span class="k">if </span><span class="p">(</span><span class="nx">status</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">)</span> <span class="k">return</span> <span class="dl">'</span><span class="s1">unlisted</span><span class="dl">'</span><span class="p">;</span>
+  <span class="k">return</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span><span class="p">;</span> <span class="c1">// safe default</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="k">async</span> <span class="kd">function</span> <span class="nf">shareToMedium</span><span class="p">(</span>
+  <span class="nx">bearerToken</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+  <span class="nx">post</span><span class="p">:</span> <span class="nx">MediumPost</span>
+<span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="p">{</span> <span class="na">id</span><span class="p">:</span> <span class="kr">string</span><span class="p">;</span> <span class="nl">url</span><span class="p">:</span> <span class="kr">string</span> <span class="p">}</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="c1">// Step 1: get the authenticated user's ID</span>
+  <span class="kd">const</span> <span class="nx">userResp</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">https://api.medium.com/v1/me</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">headers</span><span class="p">:</span> <span class="p">{</span> <span class="na">Authorization</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">bearerToken</span><span class="p">}</span><span class="s2">`</span> <span class="p">},</span>
+  <span class="p">});</span>
+  <span class="kd">const</span> <span class="na">userId</span><span class="p">:</span> <span class="kr">string</span> <span class="o">=</span> <span class="nx">userResp</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">id</span><span class="p">;</span>
+
+  <span class="kd">const</span> <span class="nx">sanitizedTags</span> <span class="o">=</span> <span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">tags</span> <span class="o">??</span> <span class="p">[]).</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">);</span>
+
+  <span class="kd">const</span> <span class="nx">payload</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">title</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+    <span class="na">contentFormat</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">contentFormat</span><span class="p">,</span>
+    <span class="na">content</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">content</span><span class="p">,</span>
+    <span class="na">tags</span><span class="p">:</span> <span class="nx">sanitizedTags</span><span class="p">,</span>
+    <span class="na">canonicalUrl</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">,</span>
+    <span class="na">publishStatus</span><span class="p">:</span> <span class="nf">normalizeMediumPublishStatus</span><span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">publishStatus</span><span class="p">),</span>
+  <span class="p">};</span>
+
+  <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">axios</span><span class="p">.</span><span class="nf">post</span><span class="p">(</span>
+    <span class="s2">`https://api.medium.com/v1/users/</span><span class="p">${</span><span class="nx">userId</span><span class="p">}</span><span class="s2">/posts`</span><span class="p">,</span>
+    <span class="nx">payload</span><span class="p">,</span>
+    <span class="p">{</span>
+      <span class="na">headers</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">Authorization</span><span class="p">:</span> <span class="s2">`Bearer </span><span class="p">${</span><span class="nx">bearerToken</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span>
+        <span class="dl">'</span><span class="s1">Content-Type</span><span class="dl">'</span><span class="p">:</span> <span class="dl">'</span><span class="s1">application/json</span><span class="dl">'</span><span class="p">,</span>
+      <span class="p">},</span>
+    <span class="p">}</span>
+  <span class="p">);</span>
+
+  <span class="k">return</span> <span class="p">{</span>
+    <span class="na">id</span><span class="p">:</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span>
+    <span class="na">url</span><span class="p">:</span> <span class="nx">response</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">data</span><span class="p">.</span><span class="nx">url</span><span class="p">,</span>
+  <span class="p">};</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>The <code>published</code> → <code>public</code> gotcha</strong>: Medium's publish status enum uses <code>"public"</code>, not <code>"published"</code>. YAML frontmatter typically has <code>published: true</code>. If you pass that string directly to the API, Medium silently defaults to draft. The <code>normalizeMediumPublishStatus()</code> function handles all the variants.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-raw-postexecutor-endraw-decoupling-from-vs-code-ui" href="#the-raw-postexecutor-endraw-decoupling-from-vs-code-ui">
+  </a>
+  ⚡ The <code>PostExecutor</code>: Decoupling from VS Code UI
+</h2>
+
+<p>Before v3.0, all posting logic lived inside <code>PostHandler.ts</code>, which was tightly coupled to the VS Code extension host. This made it impossible to use the same logic from the scheduler running in the background.</p>
+
+<p>v3.0 introduces <code>PostExecutor</code> — a clean execution engine with no VS Code dependencies:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/services/PostExecutor.ts</span>
+
+<span class="k">export</span> <span class="kr">interface</span> <span class="nx">ExecutorCallbacks</span> <span class="p">{</span>
+  <span class="nl">onProgress</span><span class="p">?:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">message</span><span class="p">:</span> <span class="kr">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">;</span>
+  <span class="nl">onSuccess</span><span class="p">?:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">url</span><span class="p">?:</span> <span class="kr">string</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">;</span>
+  <span class="nl">onError</span><span class="p">?:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">error</span><span class="p">:</span> <span class="nb">Error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="k">void</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">PostExecutor</span> <span class="p">{</span>
+  <span class="nf">constructor</span><span class="p">(</span>
+    <span class="k">private</span> <span class="k">readonly</span> <span class="nx">credentials</span><span class="p">:</span> <span class="nx">CredentialProvider</span><span class="p">,</span>
+    <span class="k">private</span> <span class="k">readonly</span> <span class="nx">history</span><span class="p">:</span> <span class="nx">HistoryService</span><span class="p">,</span>
+  <span class="p">)</span> <span class="p">{}</span>
+
+  <span class="k">async</span> <span class="nf">executeBlogPost</span><span class="p">(</span>
+    <span class="nx">post</span><span class="p">:</span> <span class="nx">BlogPost</span><span class="p">,</span>
+    <span class="nx">targets</span><span class="p">:</span> <span class="nx">PublishTarget</span><span class="p">[],</span>
+    <span class="nx">callbacks</span><span class="p">:</span> <span class="nx">ExecutorCallbacks</span> <span class="o">=</span> <span class="p">{}</span>
+  <span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">PublishResult</span><span class="p">[]</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="na">results</span><span class="p">:</span> <span class="nx">PublishResult</span><span class="p">[]</span> <span class="o">=</span> <span class="p">[];</span>
+
+    <span class="k">for </span><span class="p">(</span><span class="kd">const</span> <span class="nx">target</span> <span class="k">of</span> <span class="nx">targets</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">callbacks</span><span class="p">.</span><span class="nx">onProgress</span><span class="p">?.(</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span> <span class="s2">`Publishing to </span><span class="p">${</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">}</span><span class="s2">...`</span><span class="p">);</span>
+
+      <span class="k">try</span> <span class="p">{</span>
+        <span class="kd">let</span> <span class="na">url</span><span class="p">:</span> <span class="kr">string</span> <span class="o">|</span> <span class="kc">undefined</span><span class="p">;</span>
+
+        <span class="k">if </span><span class="p">(</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">devto</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+          <span class="kd">const</span> <span class="nx">apiKey</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">credentials</span><span class="p">.</span><span class="nf">getDevToApiKey</span><span class="p">();</span>
+          <span class="kd">const</span> <span class="nx">result</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">shareToDevTo</span><span class="p">(</span><span class="nx">apiKey</span><span class="p">,</span> <span class="p">{</span>
+            <span class="na">title</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+            <span class="na">body_markdown</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">body</span><span class="p">,</span>
+            <span class="na">published</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">publishStatus</span> <span class="o">!==</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">tags</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">tags</span><span class="p">,</span>
+            <span class="na">description</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">description</span><span class="p">,</span>
+            <span class="na">cover_image</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">coverImage</span><span class="p">,</span>
+            <span class="na">canonical_url</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">,</span>
+            <span class="na">series</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">series</span><span class="p">,</span>
+          <span class="p">});</span>
+          <span class="nx">url</span> <span class="o">=</span> <span class="nx">result</span><span class="p">.</span><span class="nx">url</span><span class="p">;</span>
+
+        <span class="p">}</span> <span class="k">else</span> <span class="k">if </span><span class="p">(</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span> <span class="o">===</span> <span class="dl">'</span><span class="s1">medium</span><span class="dl">'</span><span class="p">)</span> <span class="p">{</span>
+          <span class="kd">const</span> <span class="nx">token</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">credentials</span><span class="p">.</span><span class="nf">getMediumToken</span><span class="p">();</span>
+          <span class="kd">const</span> <span class="nx">result</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">shareToMedium</span><span class="p">(</span><span class="nx">token</span><span class="p">,</span> <span class="p">{</span>
+            <span class="na">title</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+            <span class="na">contentFormat</span><span class="p">:</span> <span class="dl">'</span><span class="s1">markdown</span><span class="dl">'</span><span class="p">,</span>
+            <span class="na">content</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">body</span><span class="p">,</span>
+            <span class="na">tags</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">tags</span><span class="p">,</span>
+            <span class="na">canonicalUrl</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">,</span>
+            <span class="na">publishStatus</span><span class="p">:</span> <span class="nf">normalizeMediumPublishStatus</span><span class="p">(</span><span class="nx">post</span><span class="p">.</span><span class="nx">publishStatus</span><span class="p">),</span>
+          <span class="p">});</span>
+          <span class="nx">url</span> <span class="o">=</span> <span class="nx">result</span><span class="p">.</span><span class="nx">url</span><span class="p">;</span>
+        <span class="p">}</span>
+
+        <span class="nx">results</span><span class="p">.</span><span class="nf">push</span><span class="p">({</span> <span class="na">platform</span><span class="p">:</span> <span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span> <span class="na">success</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> <span class="nx">url</span> <span class="p">});</span>
+        <span class="nx">callbacks</span><span class="p">.</span><span class="nx">onSuccess</span><span class="p">?.(</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">url</span><span class="p">);</span>
+
+        <span class="c1">// Log to history</span>
+        <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">history</span><span class="p">.</span><span class="nf">addEntry</span><span class="p">({</span>
+          <span class="na">platform</span><span class="p">:</span> <span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span>
+          <span class="na">content</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+          <span class="na">timestamp</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+          <span class="na">success</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+          <span class="nx">url</span><span class="p">,</span>
+        <span class="p">});</span>
+
+      <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="na">err</span><span class="p">:</span> <span class="nx">unknown</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">error</span> <span class="o">=</span> <span class="nx">err</span> <span class="k">instanceof</span> <span class="nb">Error</span> <span class="p">?</span> <span class="nx">err</span> <span class="p">:</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="nc">String</span><span class="p">(</span><span class="nx">err</span><span class="p">));</span>
+        <span class="nx">results</span><span class="p">.</span><span class="nf">push</span><span class="p">({</span> <span class="na">platform</span><span class="p">:</span> <span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span> <span class="na">success</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span> <span class="na">error</span><span class="p">:</span> <span class="nx">error</span><span class="p">.</span><span class="nx">message</span> <span class="p">});</span>
+        <span class="nx">callbacks</span><span class="p">.</span><span class="nx">onError</span><span class="p">?.(</span><span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+
+        <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">history</span><span class="p">.</span><span class="nf">addEntry</span><span class="p">({</span>
+          <span class="na">platform</span><span class="p">:</span> <span class="nx">target</span><span class="p">.</span><span class="nx">platform</span><span class="p">,</span>
+          <span class="na">content</span><span class="p">:</span> <span class="nx">post</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+          <span class="na">timestamp</span><span class="p">:</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">(),</span>
+          <span class="na">success</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+          <span class="na">error</span><span class="p">:</span> <span class="nx">error</span><span class="p">.</span><span class="nx">message</span><span class="p">,</span>
+        <span class="p">});</span>
+      <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">results</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Now <code>PostHandler</code> just wires VS Code messages to the executor:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// src/handlers/PostHandler.ts (simplified)</span>
+
+<span class="k">case</span> <span class="dl">'</span><span class="s1">shareToBlogs</span><span class="dl">'</span><span class="p">:</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="nx">post</span><span class="p">:</span> <span class="nx">BlogPost</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="na">title</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span>
+    <span class="na">body</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">body</span><span class="p">,</span>
+    <span class="na">tags</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">tags</span> <span class="o">??</span> <span class="p">[],</span>
+    <span class="na">publishStatus</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">publishStatus</span> <span class="o">??</span> <span class="dl">'</span><span class="s1">draft</span><span class="dl">'</span><span class="p">,</span>
+    <span class="na">canonicalUrl</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">canonicalUrl</span><span class="p">,</span>
+    <span class="na">coverImage</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">coverImage</span><span class="p">,</span>
+    <span class="na">description</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">description</span><span class="p">,</span>
+    <span class="na">series</span><span class="p">:</span> <span class="nx">msg</span><span class="p">.</span><span class="nx">series</span><span class="p">,</span>
+  <span class="p">};</span>
+
+  <span class="kd">const</span> <span class="nx">targets</span><span class="p">:</span> <span class="nx">PublishTarget</span><span class="p">[]</span> <span class="o">=</span> <span class="p">(</span><span class="nx">msg</span><span class="p">.</span><span class="nx">platforms</span> <span class="k">as</span> <span class="kr">string</span><span class="p">[]).</span><span class="nf">map</span><span class="p">(</span><span class="nx">p</span> <span class="o">=&gt;</span> <span class="p">({</span>
+    <span class="na">platform</span><span class="p">:</span> <span class="nx">p</span><span class="p">,</span>
+  <span class="p">}));</span>
+
+  <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">executor</span><span class="p">.</span><span class="nf">executeBlogPost</span><span class="p">(</span><span class="nx">post</span><span class="p">,</span> <span class="nx">targets</span><span class="p">,</span> <span class="p">{</span>
+    <span class="na">onProgress</span><span class="p">:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">message</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">this</span><span class="p">.</span><span class="nf">sendStatus</span><span class="p">(</span><span class="nx">message</span><span class="p">,</span> <span class="dl">'</span><span class="s1">info</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">},</span>
+    <span class="na">onSuccess</span><span class="p">:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">url</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">this</span><span class="p">.</span><span class="nf">sendStatus</span><span class="p">(</span><span class="s2">`✅ Published to </span><span class="p">${</span><span class="nx">platform</span><span class="p">}${</span><span class="nx">url</span> <span class="p">?</span> <span class="dl">'</span><span class="s1">: </span><span class="dl">'</span> <span class="o">+</span> <span class="nx">url</span> <span class="p">:</span> <span class="dl">''</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">success</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">},</span>
+    <span class="na">onError</span><span class="p">:</span> <span class="p">(</span><span class="nx">platform</span><span class="p">,</span> <span class="nx">error</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+      <span class="k">this</span><span class="p">.</span><span class="nf">sendStatus</span><span class="p">(</span><span class="s2">`❌ </span><span class="p">${</span><span class="nx">platform</span><span class="p">}</span><span class="s2"> failed: </span><span class="p">${</span><span class="nx">error</span><span class="p">.</span><span class="nx">message</span><span class="p">}</span><span class="s2">`</span><span class="p">,</span> <span class="dl">'</span><span class="s1">error</span><span class="dl">'</span><span class="p">);</span>
+    <span class="p">},</span>
+  <span class="p">});</span>
+
+  <span class="k">this</span><span class="p">.</span><span class="nx">webview</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">command</span><span class="p">:</span> <span class="dl">'</span><span class="s1">shareComplete</span><span class="dl">'</span> <span class="p">});</span>
+  <span class="k">break</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="-raw-credentialprovider-endraw-the-raw-resolve-endraw-refactor" href="#-raw-credentialprovider-endraw-the-raw-resolve-endraw-refactor">
+  </a>
+  🔑 <code>CredentialProvider</code>: The <code>resolve()</code> Refactor
+</h2>
+
+<p>Every credential-getter used to look like this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ BEFORE — repeated in every method</span>
+<span class="k">async</span> <span class="nf">getDevToApiKey</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+  <span class="k">if </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">credentialsGetter</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">creds</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">credentialsGetter</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">key</span> <span class="o">=</span> <span class="nx">creds</span><span class="p">.</span><span class="nx">devtoApiKey</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">key</span><span class="p">)</span> <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Dev.to API key not configured</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">key</span><span class="p">;</span>
+  <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">key</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">secretStorage</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="dl">'</span><span class="s1">dotshare.devto.apiKey</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">key</span><span class="p">)</span> <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Dev.to API key not configured</span><span class="dl">'</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">key</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>resolve()</code> refactor eliminates the duplication:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ✅ AFTER</span>
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">CredentialProvider</span> <span class="p">{</span>
+  <span class="k">private</span> <span class="k">async</span> <span class="nf">resolve</span><span class="p">(</span>
+    <span class="nx">secretKey</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span>
+    <span class="nx">errorMessage</span><span class="p">:</span> <span class="kr">string</span>
+  <span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">value</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">credentialsGetter</span>
+      <span class="p">?</span> <span class="p">(</span><span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nf">credentialsGetter</span><span class="p">())[</span><span class="nx">secretKey</span> <span class="k">as</span> <span class="kr">keyof</span> <span class="nx">Credentials</span><span class="p">]</span>
+      <span class="p">:</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">secretStorage</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="s2">`dotshare.</span><span class="p">${</span><span class="nx">secretKey</span><span class="p">}</span><span class="s2">`</span><span class="p">);</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">value</span><span class="p">)</span> <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="nx">errorMessage</span><span class="p">);</span>
+    <span class="k">return</span> <span class="nx">value</span><span class="p">;</span>
+  <span class="p">}</span>
+
+  <span class="k">async</span> <span class="nf">getDevToApiKey</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="dl">'</span><span class="s1">devto.apiKey</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Dev.to API key not configured. Go to Settings → Dev.to.</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">async</span> <span class="nf">getMediumToken</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="dl">'</span><span class="s1">medium.token</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Medium integration token not configured.</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+
+  <span class="k">async</span> <span class="nf">getRedditSubreddit</span><span class="p">():</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="kr">string</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">resolve</span><span class="p">(</span><span class="dl">'</span><span class="s1">reddit.subreddit</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">Target subreddit not configured.</span><span class="dl">'</span><span class="p">);</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="the-bugs-that-took-the-most-time" href="#the-bugs-that-took-the-most-time">
+  </a>
+  🐛 The Bugs That Took the Most Time
+</h2>
+
+<h3>
+  <a name="1-the-twitter-url-count-bug" href="#1-the-twitter-url-count-bug">
+  </a>
+  1. The Twitter URL Count Bug
+</h3>
+
+<p>Twitter counts URLs as exactly 23 characters, regardless of length. My original implementation used <code>Math.min(url.length, 23)</code>, which was wrong — a 10-character URL would count as 10, not 23.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ Wrong</span>
+<span class="kd">const</span> <span class="nx">urlChars</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">min</span><span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">length</span><span class="p">,</span> <span class="mi">23</span><span class="p">);</span>
+
+<span class="c1">// ✅ Correct — Twitter always counts URLs as exactly 23 chars</span>
+<span class="kd">const</span> <span class="nx">urlChars</span> <span class="o">=</span> <span class="mi">23</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>One character of difference. Caused character counters to be wrong for posts with URLs.</p>
+
+<h3>
+  <a name="2-reddits-hardcoded-subreddit" href="#2-reddits-hardcoded-subreddit">
+  </a>
+  2. Reddit's Hardcoded Subreddit
+</h3>
+
+<p>There was a <code>subreddit: 'test'</code> string buried in <code>PostHandler.ts</code> from early development. Reddit posts were going to r/test in production. Found it in a code review.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ Found this in production</span>
+<span class="kd">const</span> <span class="nx">subreddit</span> <span class="o">=</span> <span class="dl">'</span><span class="s1">test</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="c1">// ✅ Fixed</span>
+<span class="kd">const</span> <span class="nx">subreddit</span> <span class="o">=</span> <span class="k">await</span> <span class="k">this</span><span class="p">.</span><span class="nx">credentials</span><span class="p">.</span><span class="nf">getRedditSubreddit</span><span class="p">();</span>
+<span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">subreddit</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">throw</span> <span class="k">new</span> <span class="nc">Error</span><span class="p">(</span><span class="dl">'</span><span class="s1">Configure your target subreddit in DotShare settings.</span><span class="dl">'</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="3-raw-posthandler-endraw-reading-stale-history-instead-of-the-current-message" href="#3-raw-posthandler-endraw-reading-stale-history-instead-of-the-current-message">
+  </a>
+  3. <code>PostHandler</code> Reading Stale History Instead of the Current Message
+</h3>
+
+<p><code>handleShareToX()</code> was calling <code>historyService.getLastPost()</code> instead of reading <code>message.post</code>. This meant editing a post and resharing would sometimes send the previous version.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="c1">// ❌ Reading from history</span>
+<span class="kd">const</span> <span class="nx">content</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">historyService</span><span class="p">.</span><span class="nf">getLastPost</span><span class="p">();</span>
+
+<span class="c1">// ✅ Reading from the actual incoming message</span>
+<span class="kd">const</span> <span class="nx">content</span> <span class="o">=</span> <span class="nx">message</span><span class="p">.</span><span class="nx">post</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="v30-by-the-numbers" href="#v30-by-the-numbers">
+  </a>
+  📊 v3.0 by the Numbers
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>v2.4</th>
+<th>v3.0</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Platforms supported</td>
+<td>7</td>
+<td>9</td>
+<td>+2</td>
+</tr>
+<tr>
+<td>Lines in <code>PostHandler.ts</code>
+</td>
+<td>~800</td>
+<td>~320</td>
+<td>−60%</td>
+</tr>
+<tr>
+<td>Files in <code>src/</code>
+</td>
+<td>14</td>
+<td>23</td>
+<td>+9 new</td>
+</tr>
+<tr>
+<td>TypeScript errors</td>
+<td>0</td>
+<td>0</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>ESLint violations</td>
+<td>0</td>
+<td>0</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>New types in <code>types.ts</code>
+</td>
+<td>—</td>
+<td>14</td>
+<td>+14</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v31-amp-v32" href="#whats-next-v31-amp-v32">
+  </a>
+  🚀 What's Next: v3.1 &amp; v3.2
+</h2>
+
+<p>v3.0 is the foundation. The next two releases focus on:</p>
+
+<ul>
+<li>
+<strong>v3.1 "The Polish Pass"</strong> — Toast notification engine, glassmorphism UI, character limit validation, and fixing a nasty media preview race condition</li>
+<li>
+<strong>v3.2 "The Media Expansion"</strong> — Multi-image support (up to 4 images), per-thumbnail previews, and JIT image compression</li>
+</ul>
+
+<p>I'll be writing deep dives on both.</p>
+
+
+<hr>
+
+<h2>
+  <a name="links" href="#links">
+  </a>
+  🔗 Links
+</h2>
+
+<ul>
+<li>
+<strong>GitHub</strong>: <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">github.com/kareem2099/DotShare</a>
+</li>
+<li>
+<strong>VS Code Marketplace</strong>: <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare" target="_blank" rel="noopener noreferrer">https://marketplace.visualstudio.com/items?itemName=FreeRave.dotshare</a>
+</li>
+<li>
+<strong>Open VSX (VSCodium / Gitpod)</strong>: <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">https://open-vsx.org/extension/freerave/dotshare</a>
+</li>
+<li>
+<strong>Install via CLI</strong>: <code>code --install-extension freerave.dotshare</code>
+</li>
+<li>
+<strong>Support the project</strong>: <a href="https://www.buymeacoffee.com/freerave" target="_blank" rel="noopener noreferrer">buymeacoffee.com/freerave</a>
+</li>
+</ul>
+
+
+<hr>
+
+<p>If you're building in public or maintaining an open source project, give DotShare a try. I'd love to hear how you use it — drop a comment below 👇</p>
+
+<p><em>Built with TypeScript, VS Code Extension API, and a lot of coffee.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-v30-i-turned-my-vs-code-extension-into-a-full-publishing-suite-devto-medium-inside-15fe" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 12 · 💬 17
+    · <a href="https://dev.to/freerave/dotshare-v30-i-turned-my-vs-code-extension-into-a-full-publishing-suite-devto-medium-inside-15fe#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

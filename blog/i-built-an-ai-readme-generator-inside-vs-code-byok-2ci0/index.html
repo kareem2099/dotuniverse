@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>I Built an AI README Generator Inside VS Code (BYOK) — FreeRave</title>
+<meta name="description" content="Let's be honest: Writing documentation is the last thing any developer wants to do. After spending...">
+<link rel="canonical" href="https://dev.to/freerave/i-built-an-ai-readme-generator-inside-vs-code-byok-2ci0">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/i-built-an-ai-readme-generator-inside-vs-code-byok-2ci0">
+<meta property="og:title" content="I Built an AI README Generator Inside VS Code (BYOK) — FreeRave">
+<meta property="og:description" content="Let's be honest: Writing documentation is the last thing any developer wants to do. After spending...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fp6af4qmg2lub37d4dar6.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fp6af4qmg2lub37d4dar6.png" alt="">
+  <h1 class="post-title">I Built an AI README Generator Inside VS Code (BYOK)</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-14T11:00:00Z">14 March 2026</time> · 3 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#ai</span><span class="post-tag">#productivity</span></div>
+  </div>
+  <article class="post-body">
+<p>Let's be honest: <strong>Writing documentation is the last thing any developer wants to do.</strong> After spending weeks architecting a project, squashing bugs, and writing beautiful code, staring at a blank <code>README.md</code> file feels like a chore.</p>
+
+<p>I wanted to fix this. Not by switching to another browser tab to chat with an AI, but by building the AI directly into the editor. </p>
+
+<p>Today, I’m excited to announce the release of <strong>DotReadme v1.1.0</strong>, a VS Code extension that writes, audits, and formats your documentation for you.</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/3t1vgBM3f9s" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-is-dotreadme" href="#what-is-dotreadme">
+  </a>
+  What is DotReadme?
+</h2>
+
+<p>DotReadme is the ultimate documentation optimizer for VS Code. It features a Live Multi-Platform Simulator and a Quality Audit Score. But with the <code>v1.1.0</code> update, I've introduced <strong>Context-Aware AI</strong> and a <strong>Smart TOC Generator</strong>.</p>
+
+<h3>
+  <a name="1-autogenerate-missing-sections" href="#1-autogenerate-missing-sections">
+  </a>
+  1. Auto-Generate Missing Sections
+</h3>
+
+<p>Forgot an "Installation" or "Usage" guide? Highlight an empty space, right-click, and select <code>Generate Missing Section</code>. The AI reads your project's context and generates perfect Markdown.</p>
+
+<h3>
+  <a name="2-rewrite-for-tone" href="#2-rewrite-for-tone">
+  </a>
+  2. Rewrite for Tone
+</h3>
+
+<p>If your text sounds too casual, select it, choose <code>Rewrite for Tone -&gt; Professional</code>, and watch it transform instantly.</p>
+
+<h3>
+  <a name="3-1click-table-of-contents" href="#3-1click-table-of-contents">
+  </a>
+  3. 1-Click Table of Contents
+</h3>
+
+<p>Writing TOCs manually with GitHub anchor links is painful. DotReadme now does this in one click.</p>
+
+<p>Here is how the generated TOC looks under the hood. It uses hidden HTML comments to ensure it can update dynamically later without duplicating:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight markdown"><code><span class="gu">## Table of Contents</span>
+<span class="p">*</span> <span class="p">[</span><span class="nv">Getting Started</span><span class="p">](</span><span class="sx">#getting-started</span><span class="p">)</span>
+<span class="p">*</span> <span class="p">[</span><span class="nv">Installation</span><span class="p">](</span><span class="sx">#installation</span><span class="p">)</span>
+<span class="p">*</span> <span class="p">[</span><span class="nv">API Reference</span><span class="p">](</span><span class="sx">#api-reference</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Built for Privacy: The BYOK Approach<br>
+As developers, we are naturally skeptical of pasting our API keys into random extensions, or worse, sending our proprietary code to a third-party backend server.</p>
+
+<p>That’s why DotReadme uses a Bring Your Own Key (BYOK) architecture.</p>
+
+<p>There is no middleman server. The extension makes API calls directly from your local VS Code instance to the AI provider of your choice (Google Gemini, Anthropic Claude, or OpenAI GPT).</p>
+
+<p>You simply configure your settings like this:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"dotreadme.ai.provider"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gemini"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"dotreadme.ai.geminiApiKey"</span><span class="p">:</span><span class="w"> </span><span class="s2">"AIzaSy..."</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"dotreadme.ai.model"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gemini-2.5-flash"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Under the Hood: The Provider Implementation<br>
+To make this extensible, I built a clean Interface for AI providers. Here is a simplified look at how the extension communicates directly with Google's Gemini API using TypeScript:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">IAiProvider</span><span class="p">,</span> <span class="nx">AiResponse</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">"</span><span class="s2">../types</span><span class="dl">"</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">class</span> <span class="nc">GeminiProvider</span> <span class="k">implements</span> <span class="nx">IAiProvider</span> <span class="p">{</span>
+  <span class="k">readonly</span> <span class="nx">id</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">gemini</span><span class="dl">"</span><span class="p">;</span>
+  <span class="k">readonly</span> <span class="nx">defaultModel</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">gemini-2.5-flash</span><span class="dl">"</span><span class="p">;</span>
+
+  <span class="k">async</span> <span class="nf">complete</span><span class="p">(</span><span class="nx">apiKey</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">prompt</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">model</span><span class="p">:</span> <span class="kr">string</span><span class="p">):</span> <span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">AiResponse</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">url</span> <span class="o">=</span> <span class="s2">`https://generativelanguage.googleapis.com/v1beta/models/</span><span class="p">${</span><span class="nx">model</span><span class="p">}</span><span class="s2">:generateContent?key=</span><span class="p">${</span><span class="nx">apiKey</span><span class="p">}</span><span class="s2">`</span><span class="p">;</span>
+
+    <span class="k">try</span> <span class="p">{</span>
+      <span class="kd">const</span> <span class="nx">response</span> <span class="o">=</span> <span class="k">await</span> <span class="nf">fetch</span><span class="p">(</span><span class="nx">url</span><span class="p">,</span> <span class="p">{</span>
+        <span class="na">method</span><span class="p">:</span> <span class="dl">"</span><span class="s2">POST</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">headers</span><span class="p">:</span> <span class="p">{</span> <span class="dl">"</span><span class="s2">Content-Type</span><span class="dl">"</span><span class="p">:</span> <span class="dl">"</span><span class="s2">application/json</span><span class="dl">"</span> <span class="p">},</span>
+        <span class="na">body</span><span class="p">:</span> <span class="nx">JSON</span><span class="p">.</span><span class="nf">stringify</span><span class="p">({</span>
+          <span class="na">contents</span><span class="p">:</span> <span class="p">[{</span> <span class="na">parts</span><span class="p">:</span> <span class="p">[{</span> <span class="na">text</span><span class="p">:</span> <span class="nx">prompt</span> <span class="p">}]</span> <span class="p">}],</span>
+          <span class="na">generationConfig</span><span class="p">:</span> <span class="p">{</span> <span class="na">maxOutputTokens</span><span class="p">:</span> <span class="mi">1024</span> <span class="p">},</span>
+        <span class="p">})</span>
+      <span class="p">});</span>
+
+      <span class="kd">const</span> <span class="nx">data</span> <span class="o">=</span> <span class="k">await</span> <span class="nx">response</span><span class="p">.</span><span class="nf">json</span><span class="p">();</span>
+      <span class="kd">const</span> <span class="nx">text</span> <span class="o">=</span> <span class="nx">data</span><span class="p">.</span><span class="nx">candidates</span><span class="p">?.[</span><span class="mi">0</span><span class="p">]?.</span><span class="nx">content</span><span class="p">?.</span><span class="nx">parts</span><span class="p">?.[</span><span class="mi">0</span><span class="p">]?.</span><span class="nx">text</span> <span class="o">??</span> <span class="dl">""</span><span class="p">;</span>
+
+      <span class="k">return</span> <span class="p">{</span> <span class="na">success</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span> <span class="na">result</span><span class="p">:</span> <span class="nx">text</span><span class="p">.</span><span class="nf">trim</span><span class="p">()</span> <span class="p">};</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="p">{</span>
+      <span class="k">return</span> <span class="p">{</span> <span class="na">success</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span> <span class="na">error</span><span class="p">:</span> <span class="dl">"</span><span class="s2">API request failed.</span><span class="dl">"</span> <span class="p">};</span>
+    <span class="p">}</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This decoupled architecture means I can easily add Local AI support (like Ollama) in the next release!</p>
+
+<p>Try it out!<br>
+If you want to stop wasting time on documentation and let the AI do the heavy lifting:</p>
+
+<h3>
+  <a name="1-search-for-dotreadme-in-the-vs-code-extensions-tab" href="#1-search-for-dotreadme-in-the-vs-code-extensions-tab">
+  </a>
+  1. Search for DotReadme in the VS Code Extensions tab.
+</h3>
+
+<h3>
+  <a name="2-or-grab-it-directly-from-the-vs-code-marketplace-or-vsx" href="#2-or-grab-it-directly-from-the-vs-code-marketplace-or-vsx">
+  </a>
+  2. Or grab it directly from the <a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.DotReadme" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a> or <a href="https://open-vsx.org/extension/freerave/dotreadme" target="_blank" rel="noopener noreferrer">vsx</a>.
+</h3>
+
+<p>I would love to hear your feedback! What AI model are you currently using for your daily tasks, and what feature should I add to DotReadme next? Let me know in the comments! </p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/i-built-an-ai-readme-generator-inside-vs-code-byok-2ci0" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 0
+    · <a href="https://dev.to/freerave/i-built-an-ai-readme-generator-inside-vs-code-byok-2ci0#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

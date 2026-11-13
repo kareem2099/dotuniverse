@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Engineering the Nexus Release: How I Built Secure E2EE Network Sync into a Linux Clipboard Manager (v1.5.1) — FreeRave</title>
+<meta name="description" content="A deep dive into the architecture behind DotGhostBoard v1.5.0 — zero-config mDNS discovery,...">
+<link rel="canonical" href="https://dev.to/freerave/engineering-the-nexus-release-how-i-built-secure-e2ee-network-sync-into-a-linux-clipboard-manager-3ocd">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/engineering-the-nexus-release-how-i-built-secure-e2ee-network-sync-into-a-linux-clipboard-manager-3ocd">
+<meta property="og:title" content="Engineering the Nexus Release: How I Built Secure E2EE Network Sync into a Linux Clipboard Manager (v1.5.1) — FreeRave">
+<meta property="og:description" content="A deep dive into the architecture behind DotGhostBoard v1.5.0 — zero-config mDNS discovery,...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3f1z8ms9g1qbzef19pur.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F3f1z8ms9g1qbzef19pur.png" alt="">
+  <h1 class="post-title">Engineering the Nexus Release: How I Built Secure E2EE Network Sync into a Linux Clipboard Manager (v1.5.1)</h1>
+  <div class="post-meta">
+    <time datetime="2026-04-15T20:28:57Z">15 April 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#security</span><span class="post-tag">#cryptography</span><span class="post-tag">#linux</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="a-deep-dive-into-the-architecture-behind-dotghostboard-v150-zeroconfig-mdns-discovery-x25519-ecdh-pairing-aes256gcm-sync-rate-limiting-and-pyqt6-threading-all-without-a-central-server" href="#a-deep-dive-into-the-architecture-behind-dotghostboard-v150-zeroconfig-mdns-discovery-x25519-ecdh-pairing-aes256gcm-sync-rate-limiting-and-pyqt6-threading-all-without-a-central-server">
+  </a>
+  A deep dive into the architecture behind DotGhostBoard v1.5.0 — zero-config mDNS discovery, X25519 ECDH pairing, AES-256-GCM sync, rate limiting, and PyQt6 threading — all without a central server.
+</h2>
+
+<blockquote>
+<p><strong>DotGhostBoard</strong> is a privacy-first clipboard manager for Linux, built under the <a href="https://github.com/kareem2099" target="_blank" rel="noopener noreferrer">DotSuite</a> umbrella. No telemetry. No Electron. No cloud. Pure PyQt6 + SQLite.</p>
+
+<p>📦 <a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.1" target="_blank" rel="noopener noreferrer">GitHub Release v1.5.1</a> · 🖥️ <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">OpenDesktop</a></p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="why-this-was-hard" href="#why-this-was-hard">
+  </a>
+  Why This Was Hard
+</h2>
+
+<p>Building a clipboard manager is trivial. Building one that <strong>syncs securely across devices on a local network without a central server, without trusting the network, and without ever sending data to the cloud</strong> — that's a different problem.</p>
+
+<p>With <code>v1.5.0 (Nexus)</code>, I rebuilt the core architecture from scratch to solve exactly that. Here's what the final system looks like before we dive into each layer:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>  ┌─────────────────────────────────────────────────────────────┐
+  │                     LOCAL NETWORK (LAN)                     │
+  │                                                             │
+  │   ┌──────────────┐   mDNS Discovery    ┌──────────────┐    │
+  │   │  Device A    │ ◄──────────────────► │  Device B    │    │
+  │   │  (Arch)      │                      │  (Kali)      │    │
+  │   │              │   X25519 Handshake   │              │    │
+  │   │  ghostboard  │ ──── PIN + ECDH ───► │  ghostboard  │    │
+  │   │              │                      │              │    │
+  │   │  HTTPServer  │ ◄── AES-256-GCM ──── │  HTTPServer  │    │
+  │   │  :PORT       │   /api/sync E2EE     │  :PORT       │    │
+  │   └──────┬───────┘                      └──────┬───────┘    │
+  │          │                                     │            │
+  │       ghost.db                              ghost.db        │
+  │    (trusted_peers)                       (trusted_peers)    │
+  └─────────────────────────────────────────────────────────────┘
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three layers. Each one independently secure. Let's break them down.</p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-1-zeroconfig-device-discovery-mdns" href="#layer-1-zeroconfig-device-discovery-mdns">
+  </a>
+  Layer 1 — Zero-Config Device Discovery (mDNS)
+</h2>
+
+<p>The first UX problem: how do devices find each other without the user typing an IP address?</p>
+
+<p><strong>Answer: mDNS via <code>zeroconf</code>.</strong> Every device broadcasts itself on the LAN under a custom service type <code>_dotghost._tcp.local.</code>. Other instances listen and populate the UI automatically.</p>
+
+<p>Because the app runs on <strong>PyQt6</strong>, the discovery engine lives in its own <code>QThread</code> — blocking network I/O never touches the main thread:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/network_discovery.py
+</span><span class="kn">import</span> <span class="n">socket</span>
+<span class="kn">from</span> <span class="n">zeroconf</span> <span class="kn">import</span> <span class="n">ServiceBrowser</span><span class="p">,</span> <span class="n">Zeroconf</span><span class="p">,</span> <span class="n">ServiceInfo</span><span class="p">,</span> <span class="n">IPVersion</span>
+<span class="kn">from</span> <span class="n">PyQt6.QtCore</span> <span class="kn">import</span> <span class="n">pyqtSignal</span><span class="p">,</span> <span class="n">QThread</span>
+
+<span class="n">_SERVICE_TYPE</span> <span class="o">=</span> <span class="sh">"</span><span class="s">_dotghost._tcp.local.</span><span class="sh">"</span>
+
+
+<span class="k">class</span> <span class="nc">DotGhostDiscovery</span><span class="p">(</span><span class="n">QThread</span><span class="p">):</span>
+    <span class="n">peer_found</span> <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>  <span class="c1"># node_id, name, ip, port
+</span>    <span class="n">peer_lost</span>  <span class="o">=</span> <span class="nf">pyqtSignal</span><span class="p">(</span><span class="nb">str</span><span class="p">)</span>                 <span class="c1"># node_id
+</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">node_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">device_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">port</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="nf">super</span><span class="p">().</span><span class="nf">__init__</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">node_id</span>     <span class="o">=</span> <span class="n">node_id</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">device_name</span> <span class="o">=</span> <span class="n">device_name</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">port</span>        <span class="o">=</span> <span class="n">port</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span>    <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span> <span class="o">=</span> <span class="nc">Zeroconf</span><span class="p">(</span><span class="n">ip_version</span><span class="o">=</span><span class="n">IPVersion</span><span class="p">.</span><span class="n">V4Only</span><span class="p">)</span>
+
+        <span class="n">properties</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="sa">b</span><span class="sh">'</span><span class="s">node_id</span><span class="sh">'</span><span class="p">:</span>     <span class="n">self</span><span class="p">.</span><span class="n">node_id</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">),</span>
+            <span class="sa">b</span><span class="sh">'</span><span class="s">device_name</span><span class="sh">'</span><span class="p">:</span> <span class="n">self</span><span class="p">.</span><span class="n">device_name</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">'</span><span class="s">utf-8</span><span class="sh">'</span><span class="p">),</span>
+            <span class="sa">b</span><span class="sh">'</span><span class="s">version</span><span class="sh">'</span><span class="p">:</span>     <span class="sa">b</span><span class="sh">'</span><span class="s">1</span><span class="sh">'</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">instance_name</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">self</span><span class="p">.</span><span class="n">node_id</span><span class="si">}</span><span class="s">.</span><span class="si">{</span><span class="n">_SERVICE_TYPE</span><span class="si">}</span><span class="sh">"</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="n">info</span> <span class="o">=</span> <span class="nc">ServiceInfo</span><span class="p">(</span>
+            <span class="n">type_</span><span class="o">=</span><span class="n">_SERVICE_TYPE</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">instance_name</span><span class="p">,</span>
+            <span class="n">addresses</span><span class="o">=</span><span class="p">[</span><span class="n">socket</span><span class="p">.</span><span class="nf">inet_aton</span><span class="p">(</span><span class="nf">get_local_ip</span><span class="p">())],</span>
+            <span class="n">port</span><span class="o">=</span><span class="n">self</span><span class="p">.</span><span class="n">port</span><span class="p">,</span>
+            <span class="n">properties</span><span class="o">=</span><span class="n">properties</span><span class="p">,</span>
+            <span class="n">server</span><span class="o">=</span><span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">self</span><span class="p">.</span><span class="n">node_id</span><span class="si">}</span><span class="s">.local.</span><span class="sh">"</span>
+        <span class="p">)</span>
+
+        <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span><span class="p">.</span><span class="nf">register_service</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">info</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">browser</span> <span class="o">=</span> <span class="nc">ServiceBrowser</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span><span class="p">,</span> <span class="n">_SERVICE_TYPE</span><span class="p">,</span> <span class="n">self</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">exec</span><span class="p">()</span>  <span class="c1"># Qt event loop keeps the thread alive
+</span>
+    <span class="c1"># ── zeroconf callbacks ──────────────────────────────────────
+</span>
+    <span class="k">def</span> <span class="nf">add_service</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">zc</span><span class="p">:</span> <span class="n">Zeroconf</span><span class="p">,</span> <span class="n">type_</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">zc</span><span class="p">.</span><span class="nf">get_service_info</span><span class="p">(</span><span class="n">type_</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">props</span>    <span class="o">=</span> <span class="n">info</span><span class="p">.</span><span class="n">properties</span>
+        <span class="n">node_id</span>  <span class="o">=</span> <span class="n">props</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sa">b</span><span class="sh">'</span><span class="s">node_id</span><span class="sh">'</span><span class="p">,</span> <span class="sa">b</span><span class="sh">''</span><span class="p">).</span><span class="nf">decode</span><span class="p">()</span>
+        <span class="n">dev_name</span> <span class="o">=</span> <span class="n">props</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sa">b</span><span class="sh">'</span><span class="s">device_name</span><span class="sh">'</span><span class="p">,</span> <span class="sa">b</span><span class="sh">'</span><span class="s">Unknown</span><span class="sh">'</span><span class="p">).</span><span class="nf">decode</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">node_id</span> <span class="o">==</span> <span class="n">self</span><span class="p">.</span><span class="n">node_id</span><span class="p">:</span>  <span class="c1"># skip self
+</span>            <span class="k">return</span>
+
+        <span class="n">ip</span> <span class="o">=</span> <span class="n">socket</span><span class="p">.</span><span class="nf">inet_ntoa</span><span class="p">(</span><span class="n">info</span><span class="p">.</span><span class="n">addresses</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">peer_found</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">node_id</span><span class="p">,</span> <span class="n">dev_name</span><span class="p">,</span> <span class="n">ip</span><span class="p">,</span> <span class="n">info</span><span class="p">.</span><span class="n">port</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">remove_service</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">zc</span><span class="p">:</span> <span class="n">Zeroconf</span><span class="p">,</span> <span class="n">type_</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">node_id</span> <span class="o">=</span> <span class="n">name</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">.</span><span class="si">{</span><span class="n">_SERVICE_TYPE</span><span class="si">}</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">peer_lost</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">node_id</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">stop</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span><span class="p">.</span><span class="nf">unregister_service</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">info</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">zeroconf</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">quit</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Why <code>QThread</code> and not <code>threading.Thread</code>?</strong><br>
+<code>peer_found</code> and <code>peer_lost</code> are <code>pyqtSignal</code>s. They cross the thread boundary safely into the main UI thread via Qt's queued connection mechanism. Using a raw Python thread here would cause a race condition against the UI.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="layer-2-secure-device-pairing-x25519-pbkdf2-aesgcm" href="#layer-2-secure-device-pairing-x25519-pbkdf2-aesgcm">
+  </a>
+  Layer 2 — Secure Device Pairing (X25519 + PBKDF2 + AES-GCM)
+</h2>
+
+<p>Finding a peer is one thing. <strong>Trusting it is another.</strong></p>
+
+<p>A local network isn't inherently safe — public Wi-Fi, ARP spoofing, a compromised router. The pairing protocol defends against all of it with a three-phase handshake:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>  Device A                              Device B
+     │                                     │
+     │  1. Generate ephemeral X25519 key   │
+     │  2. Derive wrap key from PIN+salt   │
+     │  3. Encrypt pubkey → send ─────────►│
+     │                                     │  4. Decrypt pubkey with PIN+salt
+     │                                     │  5. Generate ephemeral X25519 key
+     │◄──────────────── send encrypted ────│  6. Derive shared secret (ECDH)
+     │                                     │  7. Encrypt own pubkey → send
+     │  8. Derive shared secret (ECDH)     │
+     │  9. Discard ephemeral keys          │  9. Discard ephemeral keys
+     │                                     │
+     │      Shared Secret stored in DB     │
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The PIN is a 6-digit out-of-band value shown on both screens — a human-verified channel that breaks any MITM attempt. Even if an attacker intercepts the traffic, they can't decrypt the public keys without the PIN.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/pairing.py
+</span><span class="kn">import</span> <span class="n">os</span>
+<span class="kn">import</span> <span class="n">base64</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives</span> <span class="kn">import</span> <span class="n">hashes</span><span class="p">,</span> <span class="n">serialization</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.asymmetric</span> <span class="kn">import</span> <span class="n">x25519</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.kdf.pbkdf2</span> <span class="kn">import</span> <span class="n">PBKDF2HMAC</span>
+<span class="kn">from</span> <span class="n">cryptography.hazmat.primitives.ciphers.aead</span> <span class="kn">import</span> <span class="n">AESGCM</span>
+
+<span class="n">_KDF_ITERATIONS</span> <span class="o">=</span> <span class="mi">100_000</span>  <span class="c1"># OWASP minimum for PBKDF2-SHA256
+</span>
+
+<span class="k">def</span> <span class="nf">derive_handshake_key</span><span class="p">(</span><span class="n">pin</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">salt</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Derive a 256-bit wrapping key from a 6-digit PIN + dynamic salt.
+    The salt is generated fresh per-pairing session and sent in plaintext —
+    its job is to prevent precomputed PIN dictionaries, not to be secret.
+    </span><span class="sh">"""</span>
+    <span class="n">kdf</span> <span class="o">=</span> <span class="nc">PBKDF2HMAC</span><span class="p">(</span>
+        <span class="n">algorithm</span><span class="o">=</span><span class="n">hashes</span><span class="p">.</span><span class="nc">SHA256</span><span class="p">(),</span>
+        <span class="n">length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+        <span class="n">salt</span><span class="o">=</span><span class="n">salt</span><span class="p">,</span>
+        <span class="n">iterations</span><span class="o">=</span><span class="n">_KDF_ITERATIONS</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">kdf</span><span class="p">.</span><span class="nf">derive</span><span class="p">(</span><span class="n">pin</span><span class="p">.</span><span class="nf">encode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">generate_pairing_keys</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">x25519</span><span class="p">.</span><span class="n">X25519PrivateKey</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">]:</span>
+    <span class="sh">"""</span><span class="s">
+    Generate a fresh ephemeral X25519 key pair.
+    These keys live only for the duration of the handshake.
+    </span><span class="sh">"""</span>
+    <span class="n">private_key</span> <span class="o">=</span> <span class="n">x25519</span><span class="p">.</span><span class="n">X25519PrivateKey</span><span class="p">.</span><span class="nf">generate</span><span class="p">()</span>
+    <span class="n">public_key_bytes</span> <span class="o">=</span> <span class="n">private_key</span><span class="p">.</span><span class="nf">public_key</span><span class="p">().</span><span class="nf">public_bytes</span><span class="p">(</span>
+        <span class="n">encoding</span><span class="o">=</span><span class="n">serialization</span><span class="p">.</span><span class="n">Encoding</span><span class="p">.</span><span class="n">Raw</span><span class="p">,</span>
+        <span class="nb">format</span><span class="o">=</span><span class="n">serialization</span><span class="p">.</span><span class="n">PublicFormat</span><span class="p">.</span><span class="n">Raw</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">public_key_bytes</span>
+
+
+<span class="k">def</span> <span class="nf">encrypt_pairing_payload</span><span class="p">(</span><span class="n">public_key_bytes</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">handshake_key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Encrypt the public key using the PIN-derived wrapping key.
+    Layout: [ 12 bytes nonce | ciphertext + 16 byte GCM tag ]
+    </span><span class="sh">"""</span>
+    <span class="n">aesgcm</span> <span class="o">=</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">handshake_key</span><span class="p">)</span>
+    <span class="n">nonce</span> <span class="o">=</span> <span class="n">os</span><span class="p">.</span><span class="nf">urandom</span><span class="p">(</span><span class="mi">12</span><span class="p">)</span>
+    <span class="n">ciphertext</span> <span class="o">=</span> <span class="n">aesgcm</span><span class="p">.</span><span class="nf">encrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">public_key_bytes</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">base64</span><span class="p">.</span><span class="nf">b64encode</span><span class="p">(</span><span class="n">nonce</span> <span class="o">+</span> <span class="n">ciphertext</span><span class="p">).</span><span class="nf">decode</span><span class="p">(</span><span class="sh">"</span><span class="s">utf-8</span><span class="sh">"</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">decrypt_pairing_payload</span><span class="p">(</span><span class="n">payload</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">handshake_key</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Reverse of encrypt_pairing_payload. Raises InvalidTag on wrong PIN.</span><span class="sh">"""</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">base64</span><span class="p">.</span><span class="nf">b64decode</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+    <span class="n">nonce</span><span class="p">,</span> <span class="n">ciphertext</span> <span class="o">=</span> <span class="n">raw</span><span class="p">[:</span><span class="mi">12</span><span class="p">],</span> <span class="n">raw</span><span class="p">[</span><span class="mi">12</span><span class="p">:]</span>
+    <span class="n">aesgcm</span> <span class="o">=</span> <span class="nc">AESGCM</span><span class="p">(</span><span class="n">handshake_key</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">aesgcm</span><span class="p">.</span><span class="nf">decrypt</span><span class="p">(</span><span class="n">nonce</span><span class="p">,</span> <span class="n">ciphertext</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">derive_shared_secret</span><span class="p">(</span>
+    <span class="n">private_key</span><span class="p">:</span> <span class="n">x25519</span><span class="p">.</span><span class="n">X25519PrivateKey</span><span class="p">,</span>
+    <span class="n">peer_public_key_bytes</span><span class="p">:</span> <span class="nb">bytes</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bytes</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">
+    Complete the ECDH exchange. The result is a raw 32-byte shared secret.
+    Both sides arrive at the same value without it ever being transmitted.
+    </span><span class="sh">"""</span>
+    <span class="n">peer_public_key</span> <span class="o">=</span> <span class="n">x25519</span><span class="p">.</span><span class="n">X25519PublicKey</span><span class="p">.</span><span class="nf">from_public_bytes</span><span class="p">(</span><span class="n">peer_public_key_bytes</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">private_key</span><span class="p">.</span><span class="nf">exchange</span><span class="p">(</span><span class="n">peer_public_key</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Why X25519 over RSA or classic ECDH on P-256?</strong><br>
+X25519 is faster, has a smaller key size (32 bytes), is immune to invalid-curve attacks by design, and is the default in TLS 1.3. It's the right choice for a constrained local protocol.</p>
+</blockquote>
+
+<p>Once the handshake completes, the shared secret is stored in <code>ghost.db</code> and the ephemeral private keys are immediately garbage-collected.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># Storage schema for trusted peers
+</span><span class="sh">"""</span><span class="s">
+CREATE TABLE trusted_peers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id       TEXT UNIQUE NOT NULL,
+    device_name   TEXT NOT NULL,
+    shared_secret BLOB NOT NULL,      -- raw 32 bytes from ECDH
+    paired_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+</span><span class="sh">"""</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2qq42mc6fkqdntwhx50r.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F2qq42mc6fkqdntwhx50r.gif" alt="Handshake in action: Secure X25519 key exchange using a simple 6-digit PIN" loading="lazy" width="800" height="450" data-animated="true"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="layer-3-the-local-rest-api-rate-limiting-amp-threadsafe-ui" href="#layer-3-the-local-rest-api-rate-limiting-amp-threadsafe-ui">
+  </a>
+  Layer 3 — The Local REST API, Rate Limiting &amp; Thread-Safe UI
+</h2>
+
+<p>With discovery and pairing solved, the actual sync transport is a minimal <code>HTTPServer</code> running in a background thread. It's bound to <code>0.0.0.0</code> but protected by two hard gates:</p>
+
+<p><strong>Gate 1 — Peer Identity:</strong> every <code>/api/sync</code> request must carry a <code>node_id</code> that maps to a stored trusted peer. Unknown nodes get a <code>403</code> immediately.</p>
+
+<p><strong>Gate 2 — E2EE Payload:</strong> even if someone spoofs a <code>node_id</code>, they can't forge a valid AES-GCM ciphertext without the shared secret. Wrong key = <code>InvalidTag</code> exception = instant drop.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># core/api_server.py
+</span><span class="kn">import</span> <span class="n">json</span>
+<span class="kn">import</span> <span class="n">time</span>
+<span class="kn">import</span> <span class="n">urllib.parse</span>
+<span class="kn">from</span> <span class="n">collections</span> <span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="n">http.server</span> <span class="kn">import</span> <span class="n">BaseHTTPRequestHandler</span><span class="p">,</span> <span class="n">HTTPServer</span>
+<span class="kn">from</span> <span class="n">threading</span> <span class="kn">import</span> <span class="n">Lock</span>
+
+
+<span class="k">class</span> <span class="nc">_RateLimiter</span><span class="p">:</span>
+    <span class="sh">"""</span><span class="s">Sliding window rate limiter — 3 pairing attempts per 60s per IP.</span><span class="sh">"""</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">window</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">60</span><span class="p">):</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_attempts</span> <span class="o">=</span> <span class="nf">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_lock</span>     <span class="o">=</span> <span class="nc">Lock</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="nb">max</span>       <span class="o">=</span> <span class="n">max_attempts</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">window</span>    <span class="o">=</span> <span class="n">window</span>
+
+    <span class="k">def</span> <span class="nf">is_allowed</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">ip</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="p">.</span><span class="nf">time</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">self</span><span class="p">.</span><span class="n">_lock</span><span class="p">:</span>
+            <span class="c1"># drop timestamps outside the window
+</span>            <span class="n">self</span><span class="p">.</span><span class="n">_attempts</span><span class="p">[</span><span class="n">ip</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_attempts</span><span class="p">[</span><span class="n">ip</span><span class="p">]</span> <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="n">self</span><span class="p">.</span><span class="n">window</span>
+            <span class="p">]</span>
+            <span class="k">if</span> <span class="nf">len</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_attempts</span><span class="p">[</span><span class="n">ip</span><span class="p">])</span> <span class="o">&gt;=</span> <span class="n">self</span><span class="p">.</span><span class="nb">max</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">False</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_attempts</span><span class="p">[</span><span class="n">ip</span><span class="p">].</span><span class="nf">append</span><span class="p">(</span><span class="n">now</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+
+<span class="n">_rate_limiter</span> <span class="o">=</span> <span class="nf">_RateLimiter</span><span class="p">()</span>
+
+
+<span class="k">class</span> <span class="nc">GhostAPIHandler</span><span class="p">(</span><span class="n">BaseHTTPRequestHandler</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">log_message</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="k">pass</span>  <span class="c1"># silence default HTTP logs
+</span>
+    <span class="k">def</span> <span class="nf">_send_response</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">code</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">payload</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">body</span><span class="p">).</span><span class="nf">encode</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">send_response</span><span class="p">(</span><span class="n">code</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">send_header</span><span class="p">(</span><span class="sh">"</span><span class="s">Content-Type</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">application/json</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">send_header</span><span class="p">(</span><span class="sh">"</span><span class="s">Content-Length</span><span class="sh">"</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="nf">len</span><span class="p">(</span><span class="n">payload</span><span class="p">)))</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">end_headers</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">wfile</span><span class="p">.</span><span class="nf">write</span><span class="p">(</span><span class="n">payload</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">do_POST</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+        <span class="n">parsed</span>    <span class="o">=</span> <span class="n">urllib</span><span class="p">.</span><span class="n">parse</span><span class="p">.</span><span class="nf">urlparse</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">path</span><span class="p">)</span>
+        <span class="n">client_ip</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">client_address</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c1"># ── /api/pair — pairing PIN exchange ──────────────────────
+</span>        <span class="k">if</span> <span class="n">parsed</span><span class="p">.</span><span class="n">path</span> <span class="o">==</span> <span class="sh">'</span><span class="s">/api/pair</span><span class="sh">'</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_rate_limiter</span><span class="p">.</span><span class="nf">is_allowed</span><span class="p">(</span><span class="n">client_ip</span><span class="p">):</span>
+                <span class="n">self</span><span class="p">.</span><span class="nf">_send_response</span><span class="p">(</span><span class="mi">429</span><span class="p">,</span> <span class="p">{</span>
+                    <span class="sh">"</span><span class="s">status</span><span class="sh">"</span><span class="p">:</span>  <span class="sh">"</span><span class="s">error</span><span class="sh">"</span><span class="p">,</span>
+                    <span class="sh">"</span><span class="s">message</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">Too many pairing attempts. Try again later.</span><span class="sh">"</span>
+                <span class="p">})</span>
+                <span class="k">return</span>
+            <span class="c1"># ... PIN verification and key exchange logic
+</span>            <span class="n">self</span><span class="p">.</span><span class="nf">_send_response</span><span class="p">(</span><span class="mi">200</span><span class="p">,</span> <span class="p">{</span><span class="sh">"</span><span class="s">status</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">paired</span><span class="sh">"</span><span class="p">})</span>
+            <span class="k">return</span>
+
+        <span class="c1"># ── /api/sync — incoming E2EE clipboard item ───────────────
+</span>        <span class="k">if</span> <span class="n">parsed</span><span class="p">.</span><span class="n">path</span> <span class="o">==</span> <span class="sh">'</span><span class="s">/api/sync</span><span class="sh">'</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">rfile</span><span class="p">.</span><span class="nf">read</span><span class="p">(</span><span class="nf">int</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">headers</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">'</span><span class="s">Content-Length</span><span class="sh">'</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="p">.</span><span class="nf">loads</span><span class="p">(</span><span class="n">body</span><span class="p">)</span>
+
+            <span class="n">peer_node_id</span> <span class="o">=</span> <span class="n">data</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">node_id</span><span class="sh">"</span><span class="p">)</span>
+            <span class="n">peer</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_trusted_peer</span><span class="p">(</span><span class="n">peer_node_id</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">peer</span><span class="p">:</span>
+                <span class="n">self</span><span class="p">.</span><span class="nf">_send_response</span><span class="p">(</span><span class="mi">403</span><span class="p">,</span> <span class="p">{</span>
+                    <span class="sh">"</span><span class="s">status</span><span class="sh">"</span><span class="p">:</span>  <span class="sh">"</span><span class="s">error</span><span class="sh">"</span><span class="p">,</span>
+                    <span class="sh">"</span><span class="s">message</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">Untrusted peer</span><span class="sh">"</span>
+                <span class="p">})</span>
+                <span class="k">return</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">plaintext</span> <span class="o">=</span> <span class="nf">decrypt_from_peer</span><span class="p">(</span>
+                    <span class="n">data</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">payload</span><span class="sh">"</span><span class="p">),</span>
+                    <span class="n">peer</span><span class="p">[</span><span class="sh">"</span><span class="s">shared_secret</span><span class="sh">"</span><span class="p">]</span>
+                <span class="p">)</span>
+            <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+                <span class="c1"># Wrong key or tampered payload — silent drop
+</span>                <span class="n">self</span><span class="p">.</span><span class="nf">_send_response</span><span class="p">(</span><span class="mi">403</span><span class="p">,</span> <span class="p">{</span>
+                    <span class="sh">"</span><span class="s">status</span><span class="sh">"</span><span class="p">:</span>  <span class="sh">"</span><span class="s">error</span><span class="sh">"</span><span class="p">,</span>
+                    <span class="sh">"</span><span class="s">message</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">Decryption failed</span><span class="sh">"</span>
+                <span class="p">})</span>
+                <span class="k">return</span>
+
+            <span class="n">item_id</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_item</span><span class="p">(</span><span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">,</span> <span class="n">plaintext</span><span class="p">)</span>
+
+            <span class="c1"># Cross-thread UI update via Qt signal — safe from any thread
+</span>            <span class="n">self</span><span class="p">.</span><span class="n">server</span><span class="p">.</span><span class="n">qthread_parent</span><span class="p">.</span><span class="n">sync_received</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">plaintext</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="nf">_send_response</span><span class="p">(</span><span class="mi">201</span><span class="p">,</span> <span class="p">{</span><span class="sh">"</span><span class="s">status</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">synced</span><span class="sh">"</span><span class="p">})</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p><strong>Why <code>HTTPServer</code> over WebSockets or raw TCP?</strong><br>
+HTTP gives request/response semantics for free, works through most firewalls, and is trivially testable with <code>curl</code>. The overhead is negligible for clipboard payloads. When v3.x arrives, the transport will be upgraded to WebRTC for true NAT-piercing P2P.</p>
+</blockquote>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1j647dsat4iwk921o6us.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F1j647dsat4iwk921o6us.gif" alt="The Nexus Update Notifier: Keeping all nodes aligned with the latest security patches" loading="lazy" width="800" height="450" data-animated="true"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-sync-flow-end-to-end" href="#the-full-sync-flow-end-to-end">
+  </a>
+  The Full Sync Flow — End to End
+</h2>
+
+<p>Here's what happens when you copy something on Device A and it appears on Device B:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>  Device A (sender)                         Device B (receiver)
+  ─────────────────                         ────────────────────
+  1. User copies text
+  2. ClipboardMonitor detects change
+  3. Encrypt with shared_secret
+     [ AES-256-GCM | random 12-byte nonce ]
+  4. POST /api/sync ──────────────────────► 5. GhostAPIHandler.do_POST()
+     {                                         6. Lookup peer by node_id
+       "node_id": "abc123",                    7. Decrypt with shared_secret
+       "payload": "&lt;base64 ciphertext&gt;"        8. storage.add_item()
+     }                                         9. sync_received.emit()
+                                              10. UI updates in main thread
+  ◄──────────────── 201 { "status": "synced" }
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Zero plaintext on the wire. Zero server in the middle. Zero cloud.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcn51seo7d8hwjoy4eyw0.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fcn51seo7d8hwjoy4eyw0.gif" alt="Zero-Trust Sync: Clipboard data moving securely across the LAN with zero plaintext exposure" loading="lazy" width="800" height="450" data-animated="true"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="securing-the-build-gpgsigned-releases" href="#securing-the-build-gpgsigned-releases">
+  </a>
+  Securing the Build: GPG-Signed Releases
+</h2>
+
+<p>A secure app with an unsigned binary is still a supply chain risk. Every release artifact — both the <code>.AppImage</code> and the <code>.deb</code> — is GPG-signed in CI and verified before upload.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight yaml"><code><span class="c1"># .github/workflows/build-all.yml (signing steps)</span>
+
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Sign AppImage (GPG)</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes</span>
+    <span class="s">gpg --batch --yes --pinentry-mode loopback \</span>
+      <span class="s">--passphrase "${{ secrets.GPG_PASSPHRASE }}" \</span>
+      <span class="s">--detach-sign --armor \</span>
+      <span class="s">DotGhostBoard-*.AppImage</span>
+
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Verify AppImage signature</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">gpg --verify DotGhostBoard-*.AppImage.asc DotGhostBoard-*.AppImage</span>
+    <span class="s">echo "✅ AppImage signature verified"</span>
+
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Sign DEB Package (GPG)</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch --yes</span>
+    <span class="s">dpkg-sig --sign builder \</span>
+      <span class="s">-k "${{ secrets.GPG_KEY_ID }}" \</span>
+      <span class="s">--gpg-options "--passphrase ${{ secrets.GPG_PASSPHRASE }} --pinentry-mode loopback --batch --yes" \</span>
+      <span class="s">dotghostboard_*.deb</span>
+
+<span class="pi">-</span> <span class="na">name</span><span class="pi">:</span> <span class="s">Generate SHA256 checksums</span>
+  <span class="na">run</span><span class="pi">:</span> <span class="pi">|</span>
+    <span class="s">cd out &amp;&amp; sha256sum * &gt; SHA256SUMS.txt</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Users can verify any release with:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c"># Verify AppImage</span>
+gpg <span class="nt">--verify</span> DotGhostBoard-1.5.1-x86_64.AppImage.asc <span class="se">\</span>
+             DotGhostBoard-1.5.1-x86_64.AppImage
+
+<span class="c"># Verify DEB</span>
+dpkg-sig <span class="nt">--verify</span> dotghostboard_1.5.1_amd64.deb
+
+<span class="c"># Verify checksum</span>
+<span class="nb">sha256sum</span> <span class="nt">-c</span> SHA256SUMS.txt
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="lessons-learned" href="#lessons-learned">
+  </a>
+  Lessons Learned
+</h2>
+
+<p><strong>mDNS is fragile on some Linux setups.</strong> If <code>avahi-daemon</code> is running and competing for port 5353, <code>zeroconf</code> will fail silently. Detect the conflict early and surface it in the UI — don't leave the user with an empty peers list and no explanation.</p>
+
+<p><strong>PyInstaller and <code>cryptography</code> need explicit hidden imports.</strong> The <code>cryptography</code> package uses dynamic loading for its backend. Without <code>--hidden-import cryptography.hazmat.primitives.asymmetric.x25519</code> and the <code>aead</code> module, the AppImage crashes at runtime with a clean <code>ImportError</code> that's impossible to debug without knowing where to look.</p>
+
+<p><strong><code>dpkg-sig</code> hangs in CI without <code>--pinentry-mode loopback</code>.</strong> It silently waits for a terminal that doesn't exist. Always pass the full GPG options explicitly in non-interactive environments.</p>
+
+<p><strong>Rate limiting shared state needs a lock.</strong> The sliding window dict is accessed from multiple HTTP handler threads simultaneously. Without a <code>threading.Lock</code>, you get a race condition under concurrent pairing attempts that's near-impossible to reproduce locally.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v200-cerberus" href="#whats-next-v200-cerberus">
+  </a>
+  What's Next — v2.0.0 Cerberus
+</h2>
+
+<p>The next release is <strong>Cerberus</strong> — a Zero-Knowledge Password Vault. The AES-256 infrastructure from v1.4.0 (Eclipse) already lays the foundation. What's coming on top:</p>
+
+<ul>
+<li>A fully isolated <code>vault.db</code> (separate file, separate connection, locked when not in use)</li>
+<li>Pattern-based secret detection using Regex — JWT, AWS keys, GitHub tokens, high-entropy hex strings — <strong>not</strong> keyword matching</li>
+<li>Auto-clear: wipes the clipboard 30 seconds after a Vault paste</li>
+<li>Paranoia Mode: a toggle that suspends all DB writes temporarily</li>
+</ul>
+
+<p>The core design decision in Cerberus: detection happens at the <strong>shape</strong> of a string, not its meaning. A 1500-word article that mentions "password" doesn't trigger anything. A 40-character base64 string with high Shannon entropy does.</p>
+
+
+<hr>
+
+<h2>
+  <a name="download-amp-source" href="#download-amp-source">
+  </a>
+  Download &amp; Source
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📦 GitHub Release (AppImage + DEB + GPG sigs)</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/tag/v1.5.1" target="_blank" rel="noopener noreferrer">v1.5.1</a></td>
+</tr>
+<tr>
+<td>🖥️ OpenDesktop</td>
+<td><a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">DotGhostBoard</a></td>
+</tr>
+<tr>
+<td>💻 Source Code</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">kareem2099/DotGhostBoard</a></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>If you find a security issue, please reach out directly before opening a public issue.</p>
+
+<p>⚠️ A Note on the current DEB Release (v1.5.1)<br>
+Being transparent with the community is a core value of DotSuite.</p>
+
+<p>Known Issue: In the current .deb release, some users might notice the UI defaulting to Light Mode on specific GTK-based distros (like Kali). Additionally, the update helper might trigger a Polkit permission error due to setuid restrictions in the /tmp/ directory.</p>
+
+<p>The Fix: I am already working on v1.5.2, which migrates the update path to ~/.local/state/ and forces the Fusion style engine to ensure a consistent Dark Mode experience. The fix will be live tomorrow.</p>
+
+<p>Stay tuned, and thanks for the support!</p>
+
+<p><em>DotSuite — built for the shadows</em> 👻</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/engineering-the-nexus-release-how-i-built-secure-e2ee-network-sync-into-a-linux-clipboard-manager-3ocd" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/engineering-the-nexus-release-how-i-built-secure-e2ee-network-sync-into-a-linux-clipboard-manager-3ocd#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

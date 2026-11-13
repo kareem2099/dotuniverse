@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotGhostBoard v1.3.0 &quot;Wraith&quot; — Tags, Collections, Multi-Select &amp; Export 👻 — FreeRave</title>
+<meta name="description" content="A deep dive into every feature shipped in the Wraith release of my open-source PyQt6 clipboard...">
+<link rel="canonical" href="https://dev.to/freerave/dotghostboard-v130-wraith-tags-collections-multi-select-export-1d0d">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotghostboard-v130-wraith-tags-collections-multi-select-export-1d0d">
+<meta property="og:title" content="DotGhostBoard v1.3.0 &quot;Wraith&quot; — Tags, Collections, Multi-Select &amp; Export 👻 — FreeRave">
+<meta property="og:description" content="A deep dive into every feature shipped in the Wraith release of my open-source PyQt6 clipboard...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxk7kjdszbmud4caa0ro2.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxk7kjdszbmud4caa0ro2.png" alt="">
+  <h1 class="post-title">DotGhostBoard v1.3.0 &quot;Wraith&quot; — Tags, Collections, Multi-Select &amp; Export 👻</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-27T09:00:00Z">27 March 2026</time> · 11 min read
+    <div class="post-tags"><span class="post-tag">#python</span><span class="post-tag">#sqlite</span><span class="post-tag">#opensource</span><span class="post-tag">#linux</span></div>
+  </div>
+  <article class="post-body">
+<blockquote>
+<p>A deep dive into every feature shipped in the Wraith release of my open-source PyQt6 clipboard manager — with real code, design decisions, and lessons learned.</p>
+</blockquote>
+
+<p>  <iframe src="https://www.youtube.com/embed/Ql9VEgi3BIo" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+
+<hr>
+
+<h2>
+  <a name="download-dotghostboard-v130-wraith" href="#download-dotghostboard-v130-wraith">
+  </a>
+  ⬇️ Download DotGhostBoard v1.3.0 "Wraith"
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Format</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🐧 Linux</td>
+<td>AppImage</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a></td>
+</tr>
+<tr>
+<td>🐧 Linux</td>
+<td>.deb</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a></td>
+</tr>
+<tr>
+<td>🪟 Windows</td>
+<td>.exe</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a></td>
+</tr>
+<tr>
+<td>🍎 macOS</td>
+<td>.dmg</td>
+<td><a href="https://github.com/kareem2099/DotGhostBoard/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a></td>
+</tr>
+<tr>
+<td>🖥️ OpenDesktop</td>
+<td>All platforms</td>
+<td><a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">opendesktop.org</a></td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<h2>
+  <a name="what-is-dotghostboard" href="#what-is-dotghostboard">
+  </a>
+  What Is DotGhostBoard?
+</h2>
+
+<p>DotGhostBoard is a <strong>local-first clipboard manager</strong> built with Python + PyQt6. It watches your clipboard in the background, stores every copied text/image/video in a local SQLite database, and surfaces everything in a dark-neon dashboard — with pinning, drag-and-drop reordering, full-text search, and now (v1.3.0) a complete tagging + collections system.</p>
+
+
+<hr>
+
+<h2>
+  <a name="v130-wraith-whats-new-at-a-glance" href="#v130-wraith-whats-new-at-a-glance">
+  </a>
+  v1.3.0 "Wraith" — What's New at a Glance
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Feature</th>
+<th>Category</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>W001</td>
+<td>Tag System — DB schema &amp; CRUD</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>W002</td>
+<td>Tag Input Widget on Item Cards</td>
+<td>UI</td>
+</tr>
+<tr>
+<td>W003</td>
+<td>Filter by Tag in Search Bar</td>
+<td>UI + Core</td>
+</tr>
+<tr>
+<td>W004</td>
+<td>Collections — DB schema &amp; CRUD</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>W005</td>
+<td>Collections Sidebar Panel</td>
+<td>UI</td>
+</tr>
+<tr>
+<td>W006</td>
+<td>Multi-Select Cards (Ctrl+Click)</td>
+<td>UI</td>
+</tr>
+<tr>
+<td>W007</td>
+<td>Bulk Actions Toolbar</td>
+<td>UI</td>
+</tr>
+<tr>
+<td>W008</td>
+<td>Export Selected Items (.txt / .json)</td>
+<td>Core</td>
+</tr>
+<tr>
+<td>W009</td>
+<td>Tag Autocomplete &amp; Tag Manager</td>
+<td>UI + Core</td>
+</tr>
+<tr>
+<td>W010</td>
+<td>Unit Tests (20+ new tests)</td>
+<td>Tests</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>All 10 tasks shipped. Completion: <strong>100%</strong> ✅</p>
+
+
+<hr>
+
+<h2>
+  <a name="w001-tag-system-database-schema-amp-crud" href="#w001-tag-system-database-schema-amp-crud">
+  </a>
+  W001 — Tag System: Database Schema &amp; CRUD
+</h2>
+
+<h3>
+  <a name="the-design-decision-commaseparated-vs-relational" href="#the-design-decision-commaseparated-vs-relational">
+  </a>
+  The Design Decision: Comma-Separated vs. Relational
+</h3>
+
+<p>I chose to store tags as a comma-separated <code>TEXT</code> column (<code>#tag1,#tag2</code>) rather than a separate join table. For a local clipboard manager with hundreds (not millions) of items, this avoids schema complexity while still being fully searchable with <code>LIKE</code> patterns.</p>
+
+<h3>
+  <a name="migration-zero-downtime" href="#migration-zero-downtime">
+  </a>
+  Migration (Zero Downtime)
+</h3>
+
+<p>The migration wraps every <code>ALTER TABLE</code> in a <code>try/except</code> — so existing databases upgrade silently:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">init_db</span><span class="p">():</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="c1"># Main table already existed from v1.0
+</span>        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+            CREATE TABLE IF NOT EXISTS clipboard_items (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                type        TEXT    NOT NULL,
+                content     TEXT    NOT NULL,
+                preview     TEXT    DEFAULT NULL,
+                is_pinned   INTEGER DEFAULT 0,
+                sort_order  INTEGER DEFAULT 0,
+                created_at  TEXT    NOT NULL,
+                updated_at  TEXT    NOT NULL
+            )
+        </span><span class="sh">"""</span><span class="p">)</span>
+
+        <span class="c1"># v1.3.0: add tags column to existing DBs
+</span>        <span class="k">try</span><span class="p">:</span>
+            <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">ALTER TABLE clipboard_items ADD COLUMN tags TEXT DEFAULT </span><span class="sh">''"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>  <span class="c1"># column already exists — safe to ignore
+</span>
+        <span class="c1"># v1.3.0: collections table
+</span>        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+            CREATE TABLE IF NOT EXISTS collections (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                name        TEXT    NOT NULL UNIQUE,
+                created_at  TEXT    NOT NULL,
+                updated_at  TEXT    NOT NULL
+            )
+        </span><span class="sh">"""</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                <span class="sh">"</span><span class="s">ALTER TABLE clipboard_items ADD COLUMN </span><span class="sh">"</span>
+                <span class="sh">"</span><span class="s">collection_id INTEGER DEFAULT NULL REFERENCES collections(id)</span><span class="sh">"</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="core-tag-crud" href="#core-tag-crud">
+  </a>
+  Core Tag CRUD
+</h3>
+
+<p>Tags are normalized to <code>lowercase</code> and always prefixed with <code>#</code>. The <code>add_tag</code> function is <strong>idempotent</strong> — calling it twice never creates duplicates:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_parse_tags</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">t</span><span class="p">.</span><span class="nf">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="sh">"</span><span class="s">,</span><span class="sh">"</span><span class="p">)</span> <span class="k">if</span> <span class="n">t</span><span class="p">.</span><span class="nf">strip</span><span class="p">()]</span>
+
+<span class="k">def</span> <span class="nf">_serialize_tags</span><span class="p">(</span><span class="n">tags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="sh">"</span><span class="s">,</span><span class="sh">"</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">tags</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">add_tag</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="n">current</span> <span class="o">=</span> <span class="nf">get_tags</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">current</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">current</span>  <span class="c1"># already there — nothing to do
+</span>
+    <span class="n">updated</span> <span class="o">=</span> <span class="n">current</span> <span class="o">+</span> <span class="p">[</span><span class="n">tag</span><span class="p">]</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">UPDATE clipboard_items SET tags = ?, updated_at = ? WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="nf">_serialize_tags</span><span class="p">(</span><span class="n">updated</span><span class="p">),</span> <span class="n">now</span><span class="p">,</span> <span class="n">item_id</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">updated</span>
+
+<span class="k">def</span> <span class="nf">remove_tag</span><span class="p">(</span><span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="n">current</span> <span class="o">=</span> <span class="nf">get_tags</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">tag</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">current</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">current</span>
+
+    <span class="n">updated</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">current</span> <span class="k">if</span> <span class="n">t</span> <span class="o">!=</span> <span class="n">tag</span><span class="p">]</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">UPDATE clipboard_items SET tags = ?, updated_at = ? WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="nf">_serialize_tags</span><span class="p">(</span><span class="n">updated</span><span class="p">),</span> <span class="n">now</span><span class="p">,</span> <span class="n">item_id</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">updated</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="the-fourpattern-like-query" href="#the-fourpattern-like-query">
+  </a>
+  The Four-Pattern LIKE Query
+</h3>
+
+<p>The trickiest part: querying a comma-separated column. A tag can sit at four positions — <strong>exact match</strong>, <strong>start</strong>, <strong>middle</strong>, or <strong>end</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">get_items_by_tag</span><span class="p">(</span><span class="n">tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"""</span><span class="s">
+            SELECT * FROM clipboard_items
+            WHERE tags = ?           -- exact: only tag
+               OR tags LIKE ?        -- start: </span><span class="sh">"</span><span class="s">#tag,...</span><span class="sh">"</span><span class="s">
+               OR tags LIKE ?        -- middle: </span><span class="sh">"</span><span class="s">...#tag,...</span><span class="sh">"</span><span class="s">
+               OR tags LIKE ?        -- end: </span><span class="sh">"</span><span class="s">...#tag</span><span class="sh">"</span><span class="s">
+            ORDER BY is_pinned DESC, created_at DESC
+            </span><span class="sh">"""</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s">,%</span><span class="sh">"</span><span class="p">,</span> <span class="sa">f</span><span class="sh">"</span><span class="s">%,</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s">,%</span><span class="sh">"</span><span class="p">,</span> <span class="sa">f</span><span class="sh">"</span><span class="s">%,</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="nf">dict</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">.</span><span class="nf">fetchall</span><span class="p">()]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<blockquote>
+<p>⚠️ <strong>Pitfall</strong>: A naive <code>WHERE tags LIKE '%#py%'</code> would match <code>#python</code> when searching for <code>#py</code>. The four explicit patterns prevent this false-positive completely.</p>
+</blockquote>
+
+
+<hr>
+
+<h2>
+  <a name="w002-tag-input-widget-on-item-cards" href="#w002-tag-input-widget-on-item-cards">
+  </a>
+  W002 — Tag Input Widget on Item Cards
+</h2>
+
+<p>Each card now has a <code>TagInputRow</code> at the bottom: existing tags render as colored chips, and an inline <code>QLineEdit</code> lets you type a new tag and press Enter.</p>
+
+<h3>
+  <a name="tagchip-color-palette-by-rotation" href="#tagchip-color-palette-by-rotation">
+  </a>
+  TagChip — Color Palette by Rotation
+</h3>
+
+<p>Every tag gets a consistent background/foreground color pair. The class rotates through 6 palettes and memoizes the assignment per tag string:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">class</span> <span class="nc">TagChip</span><span class="p">(</span><span class="n">QFrame</span><span class="p">):</span>
+    <span class="n">_COLORS</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="sh">"</span><span class="s">#1e3a5f</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#4a9eff</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># blue
+</span>        <span class="p">(</span><span class="sh">"</span><span class="s">#1e3d2f</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#4adf8a</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># green
+</span>        <span class="p">(</span><span class="sh">"</span><span class="s">#3d1e3f</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#cc66ff</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># purple
+</span>        <span class="p">(</span><span class="sh">"</span><span class="s">#3d2e1e</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#ffaa44</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># amber
+</span>        <span class="p">(</span><span class="sh">"</span><span class="s">#3d1e1e</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#ff6666</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># red
+</span>        <span class="p">(</span><span class="sh">"</span><span class="s">#1e3d3d</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#44ddcc</span><span class="sh">"</span><span class="p">),</span>   <span class="c1"># teal
+</span>    <span class="p">]</span>
+    <span class="n">_color_map</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">_color_idx</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_color_for</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">tag</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cls</span><span class="p">.</span><span class="n">_color_map</span><span class="p">:</span>
+            <span class="n">palette</span> <span class="o">=</span> <span class="n">cls</span><span class="p">.</span><span class="n">_COLORS</span><span class="p">[</span><span class="n">cls</span><span class="p">.</span><span class="n">_color_idx</span> <span class="o">%</span> <span class="nf">len</span><span class="p">(</span><span class="n">cls</span><span class="p">.</span><span class="n">_COLORS</span><span class="p">)]</span>
+            <span class="n">cls</span><span class="p">.</span><span class="n">_color_map</span><span class="p">[</span><span class="n">tag</span><span class="p">]</span> <span class="o">=</span> <span class="n">palette</span>
+            <span class="n">cls</span><span class="p">.</span><span class="n">_color_idx</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">.</span><span class="n">_color_map</span><span class="p">[</span><span class="n">tag</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fb0jcrafirbttq6mxpjge.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fb0jcrafirbttq6mxpjge.gif" alt="Tag System Demo" loading="lazy" width="760" height="428"></a></p>
+
+
+<hr>
+
+<h3>
+  <a name="tag-update-flow-signal-chain" href="#tag-update-flow-signal-chain">
+  </a>
+  Tag Update Flow (Signal Chain)
+</h3>
+
+<p>The card never touches the DB directly. It emits a signal, the Dashboard writes to DB, then calls back to update the UI. This keeps the widget layer clean:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>TagInputRow.sig_tag_added
+    → ItemCard.sig_tag_added (item_id, tag)
+        → Dashboard._on_tag_added()
+            → storage.add_tag()         ← DB write
+            → card.on_tag_added(tag)    ← UI confirm
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="c1"># In ItemCard.__init__:
+</span><span class="n">self</span><span class="p">.</span><span class="n">_tag_row</span><span class="p">.</span><span class="n">sig_tag_added</span><span class="p">.</span><span class="nf">connect</span><span class="p">(</span>
+    <span class="k">lambda</span> <span class="n">tag</span><span class="p">:</span> <span class="n">self</span><span class="p">.</span><span class="n">sig_tag_added</span><span class="p">.</span><span class="nf">emit</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">item_id</span><span class="p">,</span> <span class="n">tag</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># In Dashboard:
+</span><span class="k">def</span> <span class="nf">_on_tag_added</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">updated</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">item_id</span><span class="p">,</span> <span class="n">tag</span><span class="p">)</span>
+    <span class="n">card</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">card</span> <span class="ow">and</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">updated</span><span class="p">:</span>
+        <span class="n">card</span><span class="p">.</span><span class="nf">on_tag_added</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Tag added: </span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="w003-combined-text-tag-search" href="#w003-combined-text-tag-search">
+  </a>
+  W003 — Combined Text + Tag Search
+</h2>
+
+<p>The search bar now understands a mixed query like <code>"python #code"</code> — text on the left, tag filter on the right:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_on_search</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">query</span><span class="p">.</span><span class="nf">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">raw</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">values</span><span class="p">():</span>
+            <span class="n">card</span><span class="p">.</span><span class="nf">setVisible</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="n">tokens</span> <span class="o">=</span> <span class="n">raw</span><span class="p">.</span><span class="nf">split</span><span class="p">()</span>
+    <span class="n">tag_tokens</span>  <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tokens</span> <span class="k">if</span> <span class="n">t</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">)]</span>
+    <span class="n">text_tokens</span> <span class="o">=</span> <span class="p">[</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tokens</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">t</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">)]</span>
+
+    <span class="n">text_query</span> <span class="o">=</span> <span class="sh">"</span><span class="s"> </span><span class="sh">"</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">text_tokens</span><span class="p">)</span>
+    <span class="n">tag_filter</span> <span class="o">=</span> <span class="n">tag_tokens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">tag_tokens</span> <span class="k">else</span> <span class="bp">None</span>
+
+    <span class="k">if</span> <span class="n">tag_filter</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">text_query</span><span class="p">:</span>
+        <span class="c1"># Tag-only: works on all item types (images, video, text)
+</span>        <span class="n">result_ids</span> <span class="o">=</span> <span class="p">{</span><span class="n">r</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_items_by_tag</span><span class="p">(</span><span class="n">tag_filter</span><span class="p">)}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Text search with optional tag filter
+</span>        <span class="n">result_ids</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">r</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">storage</span><span class="p">.</span><span class="nf">search_items</span><span class="p">(</span><span class="n">text_query</span><span class="p">,</span> <span class="n">tag_filter</span><span class="p">)</span>
+        <span class="p">}</span>
+
+    <span class="k">for</span> <span class="n">item_id</span><span class="p">,</span> <span class="n">card</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">items</span><span class="p">():</span>
+        <span class="n">card</span><span class="p">.</span><span class="nf">setVisible</span><span class="p">(</span><span class="n">item_id</span> <span class="ow">in</span> <span class="n">result_ids</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The storage layer's <code>search_items</code> was extended to accept <code>tag_filter</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">search_items</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tag_filter</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="bp">None</span> <span class="o">=</span> <span class="bp">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">tag_filter</span><span class="p">:</span>
+        <span class="n">tag</span> <span class="o">=</span> <span class="n">tag_filter</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+            <span class="n">tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span>
+
+        <span class="n">sql</span> <span class="o">=</span> <span class="sh">"""</span><span class="s">
+            SELECT * FROM clipboard_items
+            WHERE type = </span><span class="sh">'</span><span class="s">text</span><span class="sh">'</span><span class="s"> AND content LIKE :query
+              AND (
+                  tags = :tag
+                  OR tags LIKE :tag_start
+                  OR tags LIKE :tag_mid
+                  OR tags LIKE :tag_end
+              )
+            ORDER BY is_pinned DESC, created_at DESC
+        </span><span class="sh">"""</span>
+        <span class="n">params</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="sh">"</span><span class="s">query</span><span class="sh">"</span><span class="p">:</span>     <span class="sa">f</span><span class="sh">"</span><span class="s">%</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s">%</span><span class="sh">"</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">tag</span><span class="sh">"</span><span class="p">:</span>       <span class="n">tag</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">tag_start</span><span class="sh">"</span><span class="p">:</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s">,%</span><span class="sh">"</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">tag_mid</span><span class="sh">"</span><span class="p">:</span>   <span class="sa">f</span><span class="sh">"</span><span class="s">%,</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s">,%</span><span class="sh">"</span><span class="p">,</span>
+            <span class="sh">"</span><span class="s">tag_end</span><span class="sh">"</span><span class="p">:</span>   <span class="sa">f</span><span class="sh">"</span><span class="s">%,</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+            <span class="n">cursor</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="n">sql</span><span class="p">,</span> <span class="n">params</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">[</span><span class="nf">dict</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">.</span><span class="nf">fetchall</span><span class="p">()]</span>
+
+    <span class="c1"># Simple path — no tag filter
+</span>    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+            SELECT * FROM clipboard_items
+            WHERE type = </span><span class="sh">'</span><span class="s">text</span><span class="sh">'</span><span class="s"> AND content LIKE ?
+            ORDER BY is_pinned DESC, created_at DESC
+        </span><span class="sh">"""</span><span class="p">,</span> <span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">%</span><span class="si">{</span><span class="n">query</span><span class="si">}</span><span class="s">%</span><span class="sh">"</span><span class="p">,))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="nf">dict</span><span class="p">(</span><span class="n">row</span><span class="p">)</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">cursor</span><span class="p">.</span><span class="nf">fetchall</span><span class="p">()]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="w004-collections-database-schema-amp-crud" href="#w004-collections-database-schema-amp-crud">
+  </a>
+  W004 — Collections: Database Schema &amp; CRUD
+</h2>
+
+<p>Collections are a proper relational table. Each <code>clipboard_item</code> gets a nullable <code>collection_id</code> FK. <code>NULL</code> = "Uncategorized".<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">create_collection</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="p">.</span><span class="nf">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="nc">ValueError</span><span class="p">(</span><span class="sh">"</span><span class="s">Collection name cannot be empty</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">INSERT OR IGNORE INTO collections (name, created_at, updated_at) VALUES (?, ?, ?)</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">now</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">cursor</span><span class="p">.</span><span class="n">lastrowid</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cursor</span><span class="p">.</span><span class="n">lastrowid</span>
+        <span class="c1"># Already exists — return existing ID
+</span>        <span class="n">row</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">SELECT id FROM collections WHERE name = ?</span><span class="sh">"</span><span class="p">,</span> <span class="p">(</span><span class="n">name</span><span class="p">,)</span>
+        <span class="p">).</span><span class="nf">fetchone</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">row</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span> <span class="k">if</span> <span class="n">row</span> <span class="k">else</span> <span class="mi">0</span>
+
+<span class="k">def</span> <span class="nf">delete_collection</span><span class="p">(</span><span class="n">collection_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="c1"># Unlink items first — they become "Uncategorized"
+</span>        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+            <span class="sh">"</span><span class="s">UPDATE clipboard_items SET collection_id = NULL WHERE collection_id = ?</span><span class="sh">"</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">collection_id</span><span class="p">,),</span>
+        <span class="p">)</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">DELETE FROM collections WHERE id = ?</span><span class="sh">"</span><span class="p">,</span> <span class="p">(</span><span class="n">collection_id</span><span class="p">,))</span>
+    <span class="k">return</span> <span class="bp">True</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>get_collections()</code> returns item counts via a <code>LEFT JOIN</code> — handy for displaying <code>"📁 Work (12)"</code> in the sidebar:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">get_collections</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"""</span><span class="s">
+            SELECT c.id, c.name, c.created_at,
+                   COUNT(ci.id) AS item_count
+            FROM collections c
+            LEFT JOIN clipboard_items ci ON ci.collection_id = c.id
+            GROUP BY c.id
+            ORDER BY c.name
+        </span><span class="sh">"""</span><span class="p">).</span><span class="nf">fetchall</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">[</span><span class="nf">dict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="w005-collections-sidebar-panel" href="#w005-collections-sidebar-panel">
+  </a>
+  W005 — Collections Sidebar Panel
+</h2>
+
+<p>A <code>QListWidget</code> on the left side of the dashboard shows all collections. It supports:</p>
+
+<ul>
+<li>
+<strong>Click</strong> to filter cards</li>
+<li>
+<strong>Right-click</strong> to rename or delete</li>
+<li>
+<strong><code>+</code> button</strong> to create a new collection</li>
+<li>
+<strong>Drag a card</strong> onto a collection name to move it
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_refresh_sidebar</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">blockSignals</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">clear</span><span class="p">()</span>
+
+    <span class="n">all_item</span> <span class="o">=</span> <span class="nc">QListWidgetItem</span><span class="p">(</span><span class="sh">"</span><span class="s">❖ All Items</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">all_item</span><span class="p">.</span><span class="nf">setData</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">ItemDataRole</span><span class="p">.</span><span class="n">UserRole</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">addItem</span><span class="p">(</span><span class="n">all_item</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_collections</span><span class="p">():</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="nc">QListWidgetItem</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">📁 </span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="sh">'</span><span class="s">name</span><span class="sh">'</span><span class="p">]</span><span class="si">}</span><span class="s"> (</span><span class="si">{</span><span class="n">c</span><span class="p">[</span><span class="sh">'</span><span class="s">item_count</span><span class="sh">'</span><span class="p">]</span><span class="si">}</span><span class="s">)</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">item</span><span class="p">.</span><span class="nf">setData</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">ItemDataRole</span><span class="p">.</span><span class="n">UserRole</span><span class="p">,</span> <span class="n">c</span><span class="p">[</span><span class="sh">'</span><span class="s">id</span><span class="sh">'</span><span class="p">])</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">addItem</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">selectedItems</span><span class="p">():</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">item</span><span class="p">(</span><span class="mi">0</span><span class="p">).</span><span class="nf">setSelected</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">blockSignals</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <strong>drag-to-collection</strong> handler decodes the card's MIME data and calls <code>storage.move_to_collection()</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_sidebar_drop_event</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">event</span><span class="p">.</span><span class="nf">mimeData</span><span class="p">().</span><span class="nf">hasFormat</span><span class="p">(</span><span class="sh">"</span><span class="s">application/x-dotghost-card-id</span><span class="sh">"</span><span class="p">):</span>
+        <span class="k">return</span>
+
+    <span class="n">dragged_id</span> <span class="o">=</span> <span class="nf">int</span><span class="p">(</span>
+        <span class="n">event</span><span class="p">.</span><span class="nf">mimeData</span><span class="p">().</span><span class="nf">data</span><span class="p">(</span><span class="sh">"</span><span class="s">application/x-dotghost-card-id</span><span class="sh">"</span><span class="p">).</span><span class="nf">data</span><span class="p">().</span><span class="nf">decode</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">collections_list</span><span class="p">.</span><span class="nf">itemAt</span><span class="p">(</span><span class="n">event</span><span class="p">.</span><span class="nf">position</span><span class="p">().</span><span class="nf">toPoint</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">target_coll_id</span> <span class="o">=</span> <span class="n">item</span><span class="p">.</span><span class="nf">data</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">ItemDataRole</span><span class="p">.</span><span class="n">UserRole</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">move_to_collection</span><span class="p">(</span><span class="n">dragged_id</span><span class="p">,</span> <span class="n">target_coll_id</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">target_coll_id</span> <span class="o">!=</span> <span class="n">self</span><span class="p">.</span><span class="n">active_collection_id</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="nf">_remove_card</span><span class="p">(</span><span class="n">dragged_id</span><span class="p">)</span>  <span class="c1"># remove from current view
+</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">_refresh_sidebar</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sh">"</span><span class="s">Card moved to collection ✓</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">event</span><span class="p">.</span><span class="nf">acceptProposedAction</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffji8htrusfsvt2dxmrnc.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ffji8htrusfsvt2dxmrnc.gif" alt="Collections Demo" loading="lazy" width="800" height="450"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="w006-multiselect-cards-ctrlclick-amp-shiftclick" href="#w006-multiselect-cards-ctrlclick-amp-shiftclick">
+  </a>
+  W006 — Multi-Select Cards (Ctrl+Click &amp; Shift+Click)
+</h2>
+
+<p>The Dashboard tracks a <code>_selected_ids: set[int]</code>. The card emits <code>sig_clicked(item_id, modifiers)</code> and the Dashboard interprets the modifier keys:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_on_card_clicked</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">item_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">modifiers</span><span class="p">):</span>
+    <span class="n">cards</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="nf">_visible_cards</span><span class="p">()</span>
+    <span class="n">card_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span><span class="p">.</span><span class="n">item_id</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cards</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">modifiers</span> <span class="o">&amp;</span> <span class="n">Qt</span><span class="p">.</span><span class="n">KeyboardModifier</span><span class="p">.</span><span class="n">ShiftModifier</span> <span class="ow">and</span> <span class="n">self</span><span class="p">.</span><span class="n">_last_clicked_id</span> <span class="ow">in</span> <span class="n">card_ids</span><span class="p">:</span>
+        <span class="c1"># Select a range
+</span>        <span class="n">a</span> <span class="o">=</span> <span class="n">card_ids</span><span class="p">.</span><span class="nf">index</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_last_clicked_id</span><span class="p">)</span>
+        <span class="n">b</span> <span class="o">=</span> <span class="n">card_ids</span><span class="p">.</span><span class="nf">index</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+        <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span> <span class="o">=</span> <span class="nf">min</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">),</span> <span class="nf">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">iid</span> <span class="ow">in</span> <span class="n">card_ids</span><span class="p">[</span><span class="n">lo</span> <span class="p">:</span> <span class="n">hi</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">[</span><span class="n">iid</span><span class="p">].</span><span class="nf">set_selected</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="n">modifiers</span> <span class="o">&amp;</span> <span class="n">Qt</span><span class="p">.</span><span class="n">KeyboardModifier</span><span class="p">.</span><span class="n">ControlModifier</span><span class="p">:</span>
+        <span class="c1"># Toggle single card
+</span>        <span class="k">if</span> <span class="n">item_id</span> <span class="ow">in</span> <span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">.</span><span class="nf">discard</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">[</span><span class="n">item_id</span><span class="p">].</span><span class="nf">set_selected</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">.</span><span class="nf">add</span><span class="p">(</span><span class="n">item_id</span><span class="p">)</span>
+            <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">[</span><span class="n">item_id</span><span class="p">].</span><span class="nf">set_selected</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_last_clicked_id</span> <span class="o">=</span> <span class="n">item_id</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Plain click — clear everything
+</span>        <span class="n">self</span><span class="p">.</span><span class="nf">_clear_selection</span><span class="p">()</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_last_clicked_id</span> <span class="o">=</span> <span class="n">item_id</span>
+
+    <span class="n">self</span><span class="p">.</span><span class="nf">_update_bulk_bar</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The card's visual selection state is toggled via Qt properties + stylesheet:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">set_selected</span><span class="p">(</span><span class="n">self</span><span class="p">,</span> <span class="n">selected</span><span class="p">:</span> <span class="nb">bool</span><span class="p">):</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">setProperty</span><span class="p">(</span><span class="sh">"</span><span class="s">selected</span><span class="sh">"</span><span class="p">,</span> <span class="nf">str</span><span class="p">(</span><span class="n">selected</span><span class="p">).</span><span class="nf">lower</span><span class="p">())</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">style</span><span class="p">().</span><span class="nf">unpolish</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">style</span><span class="p">().</span><span class="nf">polish</span><span class="p">(</span><span class="n">self</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">selected</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_check_overlay</span><span class="p">.</span><span class="nf">show</span><span class="p">()</span>  <span class="c1"># neon green ✓ badge
+</span>    <span class="k">else</span><span class="p">:</span>
+        <span class="n">self</span><span class="p">.</span><span class="n">_check_overlay</span><span class="p">.</span><span class="nf">hide</span><span class="p">()</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbis4pifyr77qjrm9i03h.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fbis4pifyr77qjrm9i03h.gif" alt="Multi-Select Demo" loading="lazy" width="800" height="450" data-animated="true"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="w007-bulk-actions-toolbar" href="#w007-bulk-actions-toolbar">
+  </a>
+  W007 — Bulk Actions Toolbar
+</h2>
+
+<p>When <code>len(selected_ids) &gt;= 2</code>, a floating bar slides up from the bottom of the window:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>[ 3 selected ]  [ 📍 Pin All ] [ 📌 Unpin All ] [ 🏷 Add Tag ] [ 📤 Export ] [ ✕ Delete All ] [ ✕ Cancel ]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Bulk delete</strong> always shows a confirmation dialog and skips pinned items:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_bulk_delete</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="nf">len</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">)</span>
+    <span class="n">reply</span> <span class="o">=</span> <span class="n">QMessageBox</span><span class="p">.</span><span class="nf">question</span><span class="p">(</span>
+        <span class="n">self</span><span class="p">,</span> <span class="sh">"</span><span class="s">Delete Selected</span><span class="sh">"</span><span class="p">,</span>
+        <span class="sa">f</span><span class="sh">"</span><span class="s">Delete </span><span class="si">{</span><span class="n">count</span><span class="si">}</span><span class="s"> selected item(s)?</span><span class="se">\n</span><span class="s">Pinned items will be skipped.</span><span class="sh">"</span><span class="p">,</span>
+        <span class="n">QMessageBox</span><span class="p">.</span><span class="n">StandardButton</span><span class="p">.</span><span class="n">Yes</span> <span class="o">|</span> <span class="n">QMessageBox</span><span class="p">.</span><span class="n">StandardButton</span><span class="p">.</span><span class="n">No</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">reply</span> <span class="o">!=</span> <span class="n">QMessageBox</span><span class="p">.</span><span class="n">StandardButton</span><span class="p">.</span><span class="n">Yes</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">deleted</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">iid</span> <span class="ow">in</span> <span class="nf">list</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">storage</span><span class="p">.</span><span class="nf">delete_item</span><span class="p">(</span><span class="n">iid</span><span class="p">):</span>   <span class="c1"># returns False for pinned items
+</span>            <span class="n">self</span><span class="p">.</span><span class="nf">_remove_card</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+            <span class="n">deleted</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">.</span><span class="nf">clear</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">_update_bulk_bar</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">_refresh_stats</span><span class="p">()</span>
+    <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Deleted </span><span class="si">{</span><span class="n">deleted</span><span class="si">}</span><span class="s"> item(s) ✓</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Bulk tag</strong> iterates every selected card and calls <code>storage.add_tag()</code>, then updates each card's chip row:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_bulk_add_tag</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">tag</span><span class="p">,</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">QInputDialog</span><span class="p">.</span><span class="nf">getText</span><span class="p">(</span>
+        <span class="n">self</span><span class="p">,</span> <span class="sh">"</span><span class="s">Add Tag</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">Tag to add to all selected items:</span><span class="sh">"</span><span class="p">,</span>
+        <span class="n">QLineEdit</span><span class="p">.</span><span class="n">EchoMode</span><span class="p">.</span><span class="n">Normal</span><span class="p">,</span> <span class="sh">"</span><span class="s">#</span><span class="sh">"</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">():</span>
+        <span class="k">return</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="n">tag</span> <span class="o">=</span> <span class="n">tag</span> <span class="k">if</span> <span class="n">tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="sh">"</span>
+
+    <span class="k">for</span> <span class="n">iid</span> <span class="ow">in</span> <span class="nf">list</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">):</span>
+        <span class="n">updated</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="n">tag</span><span class="p">)</span>
+        <span class="n">card</span> <span class="o">=</span> <span class="n">self</span><span class="p">.</span><span class="n">_cards</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">card</span> <span class="ow">and</span> <span class="n">tag</span> <span class="ow">in</span> <span class="n">updated</span><span class="p">:</span>
+            <span class="n">card</span><span class="p">.</span><span class="nf">on_tag_added</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+
+    <span class="n">self</span><span class="p">.</span><span class="nf">statusBar</span><span class="p">().</span><span class="nf">showMessage</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">Tag </span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s"> added to </span><span class="si">{</span><span class="nf">len</span><span class="p">(</span><span class="n">self</span><span class="p">.</span><span class="n">_selected_ids</span><span class="p">)</span><span class="si">}</span><span class="s"> items ✓</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxnoxbdg7z1to4cspikcn.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fxnoxbdg7z1to4cspikcn.png" alt="Bulk Actions Toolbar" loading="lazy" width="800" height="46"></a></p>
+
+
+<hr>
+
+<h2>
+  <a name="w008-export-to-txt-json" href="#w008-export-to-txt-json">
+  </a>
+  W008 — Export to .txt / .json
+</h2>
+
+<p>Export supports two formats. The storage layer handles serialization; the Dashboard handles the file-save dialog:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">export_items</span><span class="p">(</span><span class="n">item_ids</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">fmt</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="n">json</span> <span class="k">as</span> <span class="n">_json</span>
+    <span class="kn">from</span> <span class="n">datetime</span> <span class="kn">import</span> <span class="n">datetime</span> <span class="k">as</span> <span class="n">_dt</span>
+
+    <span class="k">if</span> <span class="n">fmt</span> <span class="o">==</span> <span class="sh">"</span><span class="s">json</span><span class="sh">"</span><span class="p">:</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">iid</span> <span class="ow">in</span> <span class="n">item_ids</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">item</span><span class="p">:</span>
+                <span class="n">rows</span><span class="p">.</span><span class="nf">append</span><span class="p">({</span>
+                    <span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">:</span>         <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">],</span>
+                    <span class="sh">"</span><span class="s">type</span><span class="sh">"</span><span class="p">:</span>       <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">type</span><span class="sh">"</span><span class="p">],</span>
+                    <span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">:</span>    <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">],</span>
+                    <span class="sh">"</span><span class="s">created_at</span><span class="sh">"</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">created_at</span><span class="sh">"</span><span class="p">],</span>
+                    <span class="sh">"</span><span class="s">tags</span><span class="sh">"</span><span class="p">:</span>       <span class="nf">get_tags</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]),</span>  <span class="c1"># returns list[str]
+</span>                <span class="p">})</span>
+        <span class="k">return</span> <span class="n">_json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># txt
+</span>        <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">iid</span> <span class="ow">in</span> <span class="n">item_ids</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">item</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">ts</span> <span class="o">=</span> <span class="n">item</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="sh">"</span><span class="s">created_at</span><span class="sh">"</span><span class="p">,</span> <span class="sh">""</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">ts</span> <span class="o">=</span> <span class="n">_dt</span><span class="p">.</span><span class="nf">fromisoformat</span><span class="p">(</span><span class="n">ts</span><span class="p">).</span><span class="nf">strftime</span><span class="p">(</span><span class="sh">"</span><span class="s">%Y-%m-%d %H:%M</span><span class="sh">"</span><span class="p">)</span>
+            <span class="k">except</span> <span class="nb">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="n">lines</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sa">f</span><span class="sh">"</span><span class="s">[</span><span class="si">{</span><span class="n">ts</span><span class="si">}</span><span class="s">] (</span><span class="si">{</span><span class="n">item</span><span class="p">[</span><span class="sh">'</span><span class="s">type</span><span class="sh">'</span><span class="p">].</span><span class="nf">upper</span><span class="p">()</span><span class="si">}</span><span class="s">)</span><span class="sh">"</span><span class="p">)</span>
+            <span class="n">lines</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">content</span><span class="sh">"</span><span class="p">])</span>
+            <span class="n">tags</span> <span class="o">=</span> <span class="nf">get_tags</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">tags</span><span class="p">:</span>
+                <span class="n">lines</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">Tags: </span><span class="sh">"</span> <span class="o">+</span> <span class="sh">"</span><span class="s">, </span><span class="sh">"</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">tags</span><span class="p">))</span>
+            <span class="n">lines</span><span class="p">.</span><span class="nf">append</span><span class="p">(</span><span class="sh">"</span><span class="s">─</span><span class="sh">"</span> <span class="o">*</span> <span class="mi">48</span><span class="p">)</span>
+        <span class="k">return</span> <span class="sh">"</span><span class="se">\n</span><span class="sh">"</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Example <code>.json</code> output:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">[</span><span class="w">
+  </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"text"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"content"</span><span class="p">:</span><span class="w"> </span><span class="s2">"pip install dotghostboard"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-03-25T14:22:01.123456"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"tags"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"#code"</span><span class="p">,</span><span class="w"> </span><span class="s2">"#python"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">]</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Example <code>.txt</code> output:</strong><br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight console"><code><span class="go">[2026-03-25 14:22] (TEXT)
+pip install dotghostboard
+</span><span class="gp">Tags: #</span>code, <span class="c">#python</span>
+<span class="go">────────────────────────────────────────────────
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="w009-tag-autocomplete-amp-global-tag-manager" href="#w009-tag-autocomplete-amp-global-tag-manager">
+  </a>
+  W009 — Tag Autocomplete &amp; Global Tag Manager
+</h2>
+
+<h3>
+  <a name="autocomplete" href="#autocomplete">
+  </a>
+  Autocomplete
+</h3>
+
+<p>The <code>TagInputRow</code> builds a <code>QCompleter</code> from <code>storage.get_all_tags()</code> every time a new tag is added, keeping suggestions fresh:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">_refresh_completer</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">all_tags</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_all_tags</span><span class="p">()</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="nc">QStringListModel</span><span class="p">(</span><span class="n">all_tags</span><span class="p">)</span>
+    <span class="n">completer</span> <span class="o">=</span> <span class="nc">QCompleter</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">self</span><span class="p">.</span><span class="n">_input</span><span class="p">)</span>
+    <span class="n">completer</span><span class="p">.</span><span class="nf">setCaseSensitivity</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">CaseSensitivity</span><span class="p">.</span><span class="n">CaseInsensitive</span><span class="p">)</span>
+    <span class="n">completer</span><span class="p">.</span><span class="nf">setFilterMode</span><span class="p">(</span><span class="n">Qt</span><span class="p">.</span><span class="n">MatchFlag</span><span class="p">.</span><span class="n">MatchContains</span><span class="p">)</span>
+    <span class="n">self</span><span class="p">.</span><span class="n">_input</span><span class="p">.</span><span class="nf">setCompleter</span><span class="p">(</span><span class="n">completer</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h3>
+  <a name="global-tag-manager" href="#global-tag-manager">
+  </a>
+  Global Tag Manager
+</h3>
+
+<p>A dedicated <code>TagManagerDialog</code> (accessible from ⚙ Settings → <strong>Manage Tags</strong>) lets you rename or delete a tag globally across <strong>all items</strong> in one click.</p>
+
+<p><code>rename_tag</code> fetches every item carrying the old tag and rewrites its tag list:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">rename_tag</span><span class="p">(</span><span class="n">old_tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_tag</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="n">old_tag</span> <span class="o">=</span> <span class="n">old_tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="n">new_tag</span> <span class="o">=</span> <span class="n">new_tag</span><span class="p">.</span><span class="nf">strip</span><span class="p">().</span><span class="nf">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">old_tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">old_tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">old_tag</span><span class="si">}</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">new_tag</span><span class="p">.</span><span class="nf">startswith</span><span class="p">(</span><span class="sh">"</span><span class="s">#</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">new_tag</span> <span class="o">=</span> <span class="sa">f</span><span class="sh">"</span><span class="s">#</span><span class="si">{</span><span class="n">new_tag</span><span class="si">}</span><span class="sh">"</span>
+    <span class="k">if</span> <span class="n">old_tag</span> <span class="o">==</span> <span class="n">new_tag</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="n">updated</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="nf">get_items_by_tag</span><span class="p">(</span><span class="n">old_tag</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+        <span class="n">tags</span> <span class="o">=</span> <span class="nf">get_tags</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">old_tag</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">:</span>
+            <span class="n">tags</span> <span class="o">=</span> <span class="p">[</span><span class="n">new_tag</span> <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="n">old_tag</span> <span class="k">else</span> <span class="n">t</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tags</span><span class="p">]</span>
+            <span class="n">now</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">now</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span>
+            <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+                <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span>
+                    <span class="sh">"</span><span class="s">UPDATE clipboard_items SET tags = ?, updated_at = ? WHERE id = ?</span><span class="sh">"</span><span class="p">,</span>
+                    <span class="p">(</span><span class="nf">_serialize_tags</span><span class="p">(</span><span class="n">tags</span><span class="p">),</span> <span class="n">now</span><span class="p">,</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]),</span>
+                <span class="p">)</span>
+            <span class="n">updated</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">updated</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="w010-unit-tests-20-new-tests" href="#w010-unit-tests-20-new-tests">
+  </a>
+  W010 — Unit Tests (20+ new tests)
+</h2>
+
+<p>All v1.3.0 features are covered by <code>tests/test_storage_v130.py</code>. The test file redirects storage to a <strong>temp database</strong> so it never touches your real data:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="kn">import</span> <span class="n">tempfile</span>
+<span class="kn">import</span> <span class="n">core.storage</span> <span class="k">as</span> <span class="n">storage</span>
+
+<span class="n">_tmp</span> <span class="o">=</span> <span class="n">tempfile</span><span class="p">.</span><span class="nc">NamedTemporaryFile</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="sh">"</span><span class="s">_v130.db</span><span class="sh">"</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">_tmp</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+
+<span class="n">storage</span><span class="p">.</span><span class="n">DB_PATH</span>      <span class="o">=</span> <span class="n">_tmp</span><span class="p">.</span><span class="n">name</span>
+<span class="n">storage</span><span class="p">.</span><span class="n">THUMB_DIR</span>    <span class="o">=</span> <span class="n">tempfile</span><span class="p">.</span><span class="nf">mkdtemp</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="sh">"</span><span class="s">ghost_thumb_v130_</span><span class="sh">"</span><span class="p">)</span>
+<span class="n">storage</span><span class="p">.</span><span class="n">CAPTURES_DIR</span> <span class="o">=</span> <span class="n">tempfile</span><span class="p">.</span><span class="nf">mkdtemp</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="sh">"</span><span class="s">ghost_cap_v130_</span><span class="sh">"</span><span class="p">)</span>
+
+<span class="nd">@pytest.fixture</span><span class="p">(</span><span class="n">autouse</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">fresh_db</span><span class="p">():</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">init_db</span><span class="p">()</span>
+    <span class="k">yield</span>
+    <span class="kn">from</span> <span class="n">core.storage</span> <span class="kn">import</span> <span class="n">_db</span>
+    <span class="k">with</span> <span class="nf">_db</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">DELETE FROM clipboard_items</span><span class="sh">"</span><span class="p">)</span>
+        <span class="n">conn</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="sh">"</span><span class="s">DELETE FROM collections</span><span class="sh">"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Some notable edge-case tests:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight python"><code><span class="k">def</span> <span class="nf">test_no_false_positive_on_partial_tag_name</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="sh">"""</span><span class="s">#py should NOT match items tagged only with #python.</span><span class="sh">"""</span>
+    <span class="n">iid</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_item</span><span class="p">(</span><span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">Test</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="sh">"</span><span class="s">#python</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">search_items</span><span class="p">(</span><span class="sh">""</span><span class="p">,</span> <span class="n">tag_filter</span><span class="o">=</span><span class="sh">"</span><span class="s">#py</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="ow">not</span> <span class="nf">any</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span> <span class="o">==</span> <span class="n">iid</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">test_tag_at_start_middle_end_of_list</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">iid</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_item</span><span class="p">(</span><span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">Positions</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="sh">"</span><span class="s">#first</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="sh">"</span><span class="s">#middle</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">add_tag</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="sh">"</span><span class="s">#last</span><span class="sh">"</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">tag</span> <span class="ow">in</span> <span class="p">(</span><span class="sh">"</span><span class="s">#first</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#middle</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">#last</span><span class="sh">"</span><span class="p">):</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_items_by_tag</span><span class="p">(</span><span class="n">tag</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nf">any</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="sh">"</span><span class="s">id</span><span class="sh">"</span><span class="p">]</span> <span class="o">==</span> <span class="n">iid</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">),</span> <span class="sa">f</span><span class="sh">"</span><span class="si">{</span><span class="n">tag</span><span class="si">}</span><span class="s"> not found</span><span class="sh">"</span>
+
+<span class="k">def</span> <span class="nf">test_items_become_uncategorized</span><span class="p">(</span><span class="n">self</span><span class="p">):</span>
+    <span class="n">cid</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">create_collection</span><span class="p">(</span><span class="sh">"</span><span class="s">Temp</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">iid</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">add_item</span><span class="p">(</span><span class="sh">"</span><span class="s">text</span><span class="sh">"</span><span class="p">,</span> <span class="sh">"</span><span class="s">Orphan item</span><span class="sh">"</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">move_to_collection</span><span class="p">(</span><span class="n">iid</span><span class="p">,</span> <span class="n">cid</span><span class="p">)</span>
+    <span class="n">storage</span><span class="p">.</span><span class="nf">delete_collection</span><span class="p">(</span><span class="n">cid</span><span class="p">)</span>
+    <span class="n">item</span> <span class="o">=</span> <span class="n">storage</span><span class="p">.</span><span class="nf">get_item_by_id</span><span class="p">(</span><span class="n">iid</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">item</span><span class="p">[</span><span class="sh">"</span><span class="s">collection_id</span><span class="sh">"</span><span class="p">]</span> <span class="ow">is</span> <span class="bp">None</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Run all tests with:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>pytest tests/test_storage_v130.py <span class="nt">-v</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="key-lessons-from-wraith" href="#key-lessons-from-wraith">
+  </a>
+  Key Lessons from Wraith
+</h2>
+
+<p><strong>1. Comma-separated tags in SQLite are fine at this scale.</strong><br>
+The four-pattern <code>LIKE</code> query is a bit verbose but perfectly readable and fast for local data. I'd switch to a join table if items ever exceeded ~50k.</p>
+
+<p><strong>2. Always normalize early.</strong><br>
+Tag normalization (<code>strip().lower()</code>, add <code>#</code>) happens at the storage layer, not the UI. This means every input path — bulk tag, single card, search bar, tag manager — produces consistent results automatically.</p>
+
+<p><strong>3. Signal chains keep UI and storage decoupled.</strong><br>
+The "emit up, write, callback down" pattern for tags means the widget layer has zero DB knowledge. Swapping SQLite for a different backend would only require touching <code>storage.py</code>.</p>
+
+<p><strong>4. Idempotent migrations are a gift to your future self.</strong><br>
+Wrapping every <code>ALTER TABLE</code> in <code>try/except</code> means users upgrading from v1.0, v1.1, or v1.2 all get a seamless first launch with no migration scripts to run.</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next-v140-ideas" href="#whats-next-v140-ideas">
+  </a>
+  What's Next — v1.4.0 Ideas
+</h2>
+
+<ul>
+<li>[ ] Encrypted items (sensitive clipboard content)</li>
+<li>[ ] Cloud sync via a local-network peer</li>
+<li>[ ] Plugin API for custom item types</li>
+<li>[ ] Light theme 🌞</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="project-links" href="#project-links">
+  </a>
+  Project Links
+</h2>
+
+<ul>
+<li>🐙 <a href="https://github.com/kareem2099/DotGhostBoard" target="_blank" rel="noopener noreferrer">GitHub</a>
+</li>
+<li>🖥️ <a href="https://www.opendesktop.org/p/2353623/" target="_blank" rel="noopener noreferrer">OpenDesktop</a>
+</li>
+<li>🐍 Stack: Python 3.11 · PyQt6 · SQLite · pytest</li>
+</ul>
+
+
+<hr>
+
+<p><em>Thanks for reading! If you found this breakdown useful, drop a ❤️ or share your own clipboard manager stories in the comments.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotghostboard-v130-wraith-tags-collections-multi-select-export-1d0d" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/dotghostboard-v130-wraith-tags-collections-multi-select-export-1d0d#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

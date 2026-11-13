@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building CodeTune v1.2.0: Islamic Date Tracking &amp; Audio Sync in a VS Code Extension — FreeRave</title>
+<meta name="description" content="How I implemented Fajr-based day tracking, fixed audio sync between webview and extension host, and...">
+<link rel="canonical" href="https://dev.to/freerave/building-codetune-v120-islamic-date-tracking-audio-sync-in-a-vs-code-extension-4oh9">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-codetune-v120-islamic-date-tracking-audio-sync-in-a-vs-code-extension-4oh9">
+<meta property="og:title" content="Building CodeTune v1.2.0: Islamic Date Tracking &amp; Audio Sync in a VS Code Extension — FreeRave">
+<meta property="og:description" content="How I implemented Fajr-based day tracking, fixed audio sync between webview and extension host, and...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frx70gc0gu8i75pzit8zy.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Frx70gc0gu8i75pzit8zy.png" alt="">
+  <h1 class="post-title">Building CodeTune v1.2.0: Islamic Date Tracking &amp; Audio Sync in a VS Code Extension</h1>
+  <div class="post-meta">
+    <time datetime="2026-03-28T09:00:00Z">28 March 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#vscode</span><span class="post-tag">#typescript</span><span class="post-tag">#javascript</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>How I implemented Fajr-based day tracking, fixed audio sync between webview and extension host, and modularized a VS Code Islamic productivity extension</p>
+
+
+<hr>
+
+<p>I've been building <strong>CodeTune</strong> — a VS Code extension that helps Muslim developers stay spiritually connected while coding. It plays Quran recitations, shows Islamic reminders, tracks Dhikr, and calculates prayer times — all without leaving the editor.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fgem4505lknefpn8ll9zv.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fgem4505lknefpn8ll9zv.gif" alt="CodeTune Main Dashboard" loading="lazy" width="720" height="781"></a></p>
+
+<p>Version 1.2.0 was a big release: 14 bug fixes, a complete modularization of the JavaScript layer, and most importantly — a proper <strong>Islamic day tracking system</strong> that respects Fajr as the start of the day, not midnight.</p>
+
+<p>Here's a full technical breakdown of what changed and why.</p>
+
+
+<hr>
+
+<h2>
+  <a name="the-core-challenge-islamic-day-boundaries" href="#the-core-challenge-islamic-day-boundaries">
+  </a>
+  🕌 The Core Challenge: Islamic Day Boundaries
+</h2>
+
+<p>In Islam, the new day begins at <strong>Maghrib (sunset)</strong> for lunar calendar events, and spiritually, many scholars consider <strong>Fajr (dawn)</strong> as the boundary for daily worship goals like Quran recitation and Dhikr.</p>
+
+<p>This means if a user is doing Dhikr at <strong>2:00 AM</strong>, they're still in <em>yesterday's</em> spiritual day — they haven't reached Fajr yet.</p>
+
+<p>A naive implementation using midnight as the day boundary would:</p>
+
+<ul>
+<li>Reset their streak incorrectly at midnight</li>
+<li>Show "Day 0" progress when they're actively worshipping</li>
+<li>Break the Friday events logic (Surah Al-Kahf should start from Thursday Maghrib)</li>
+</ul>
+
+<h3>
+  <a name="the-solution-raw-gethabittrackingdate-endraw-" href="#the-solution-raw-gethabittrackingdate-endraw-">
+  </a>
+  The Solution: <code>getHabitTrackingDate()</code>
+</h3>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">getHabitTrackingDate</span><span class="p">(</span><span class="nx">date</span><span class="p">:</span> <span class="nb">Date</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">()):</span> <span class="kr">string</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">now</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">(</span><span class="nx">date</span><span class="p">);</span>
+
+    <span class="c1">// Default to 4:00 AM if Fajr API hasn't responded yet</span>
+    <span class="kd">let</span> <span class="nx">fajrHour</span> <span class="o">=</span> <span class="mi">4</span><span class="p">;</span>
+    <span class="kd">let</span> <span class="nx">fajrMinute</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+    <span class="k">if </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">currentFajrTime</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">fajrHour</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">currentFajrTime</span><span class="p">.</span><span class="nf">getHours</span><span class="p">();</span>
+        <span class="nx">fajrMinute</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nx">currentFajrTime</span><span class="p">.</span><span class="nf">getMinutes</span><span class="p">();</span>
+    <span class="p">}</span>
+
+    <span class="kd">const</span> <span class="nx">fajrTimeToday</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">(</span><span class="nx">now</span><span class="p">);</span>
+    <span class="nx">fajrTimeToday</span><span class="p">.</span><span class="nf">setHours</span><span class="p">(</span><span class="nx">fajrHour</span><span class="p">,</span> <span class="nx">fajrMinute</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+
+    <span class="c1">// If we're before Fajr, we're still in yesterday's Islamic day</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">now</span> <span class="o">&lt;</span> <span class="nx">fajrTimeToday</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">now</span><span class="p">.</span><span class="nf">setDate</span><span class="p">(</span><span class="nx">now</span><span class="p">.</span><span class="nf">getDate</span><span class="p">()</span> <span class="o">-</span> <span class="mi">1</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">formatDate</span><span class="p">(</span><span class="nx">now</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>This single function is now the <strong>single source of truth</strong> for all date calculations in the tracker. No more <code>getTodayString()</code> scattered across the codebase.</p>
+
+<h3>
+  <a name="timezonesafe-date-arithmetic" href="#timezonesafe-date-arithmetic">
+  </a>
+  Timezone-Safe Date Arithmetic
+</h3>
+
+<p>One subtle bug I fixed: calculating "yesterday" using <code>new Date(dateString)</code> can shift dates due to timezone offsets. The fix is to always use noon (12:00:00) as the time anchor:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">getPreviousDateString</span><span class="p">(</span><span class="nx">baseDateStr</span><span class="p">:</span> <span class="kr">string</span><span class="p">,</span> <span class="nx">daysBack</span><span class="p">:</span> <span class="kr">number</span><span class="p">):</span> <span class="kr">string</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="p">[</span><span class="nx">y</span><span class="p">,</span> <span class="nx">m</span><span class="p">,</span> <span class="nx">d</span><span class="p">]</span> <span class="o">=</span> <span class="nx">baseDateStr</span><span class="p">.</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">-</span><span class="dl">'</span><span class="p">).</span><span class="nf">map</span><span class="p">(</span><span class="nb">Number</span><span class="p">);</span>
+    <span class="c1">// Noon anchor prevents DST-related off-by-one errors</span>
+    <span class="kd">const</span> <span class="nx">date</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">(</span><span class="nx">y</span><span class="p">,</span> <span class="nx">m</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="nx">d</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="nx">date</span><span class="p">.</span><span class="nf">setDate</span><span class="p">(</span><span class="nx">date</span><span class="p">.</span><span class="nf">getDate</span><span class="p">()</span> <span class="o">-</span> <span class="nx">daysBack</span><span class="p">);</span>
+    <span class="k">return</span> <span class="k">this</span><span class="p">.</span><span class="nf">formatDate</span><span class="p">(</span><span class="nx">date</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="how-fajr-time-flows-through-the-system" href="#how-fajr-time-flows-through-the-system">
+  </a>
+  How Fajr Time Flows Through the System
+</h2>
+
+<p>The Fajr time comes from two sources and needs to reach <code>SpiritualTracker</code>:</p>
+
+<p><strong>Source 1 — IP Geolocation on startup</strong> (<code>ActivityBarViewProvider.ts</code>):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">case</span> <span class="dl">'</span><span class="s1">requestPrayerTimes</span><span class="dl">'</span><span class="p">:</span>
+    <span class="kd">const</span> <span class="nx">times</span> <span class="o">=</span> <span class="nf">calculatePrayerTimes</span><span class="p">(</span><span class="nx">data</span><span class="p">.</span><span class="nx">lat</span><span class="p">,</span> <span class="nx">data</span><span class="p">.</span><span class="nx">lon</span><span class="p">);</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">sendMessageToWebview</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">receivePrayerTimes</span><span class="dl">'</span><span class="p">,</span> <span class="na">payload</span><span class="p">:</span> <span class="nx">times</span> <span class="p">});</span>
+
+    <span class="c1">// Update SpiritualTracker with real Fajr time</span>
+    <span class="kd">const</span> <span class="nx">tracker</span> <span class="o">=</span> <span class="p">(</span><span class="nb">global</span> <span class="k">as</span> <span class="kr">any</span><span class="p">).</span><span class="nx">spiritualTracker</span> <span class="k">as</span> <span class="nx">SpiritualTracker</span><span class="p">;</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">tracker</span> <span class="o">&amp;&amp;</span> <span class="nx">times</span><span class="p">.</span><span class="nx">fajr</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">tracker</span><span class="p">.</span><span class="nf">updateFajrTime</span><span class="p">(</span><span class="k">new</span> <span class="nc">Date</span><span class="p">(</span><span class="nx">times</span><span class="p">.</span><span class="nx">fajr</span><span class="p">));</span>
+    <span class="p">}</span>
+    <span class="k">break</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Source 2 — IslamicRemindersManager on init</strong> (<code>IslamicRemindersManager.ts</code>):<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">syncFajrTimeWithTracker</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="k">this</span><span class="p">.</span><span class="nx">spiritualTracker</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+    <span class="k">try</span> <span class="p">{</span>
+        <span class="kd">const</span> <span class="nx">prayerTimes</span> <span class="o">=</span> <span class="nx">IslamicCalendar</span><span class="p">.</span><span class="nf">calculatePrayerTimes</span><span class="p">();</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">prayerTimes</span><span class="p">?.</span><span class="nx">fajr</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">this</span><span class="p">.</span><span class="nx">spiritualTracker</span><span class="p">.</span><span class="nf">updateFajrTime</span><span class="p">(</span><span class="nx">prayerTimes</span><span class="p">.</span><span class="nx">fajr</span><span class="p">);</span>
+        <span class="p">}</span>
+    <span class="p">}</span> <span class="k">catch </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span> <span class="p">{</span>
+        <span class="nx">logger</span><span class="p">.</span><span class="nf">warn</span><span class="p">(</span><span class="dl">'</span><span class="s1">Could not sync Fajr time with Tracker:</span><span class="dl">'</span><span class="p">,</span> <span class="nx">error</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The result: as soon as the extension loads, <code>SpiritualTracker</code> gets a Fajr time from the local calculation, and once the GPS/IP location resolves, it gets updated to the precise value.</p>
+
+
+<hr>
+
+<h2>
+  <a name="fixing-the-audio-%E2%86%92-tracker-sync-bug" href="#fixing-the-audio-%E2%86%92-tracker-sync-bug">
+  </a>
+  🎵 Fixing the Audio → Tracker Sync Bug
+</h2>
+
+<p>This was the most impactful bug in the release. The <strong>Spiritual Progress Dashboard</strong> was always showing "0/15 min" for Quran listening, even after hours of audio playback.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fuhx4y7bwm3btw9ytu01b.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fuhx4y7bwm3btw9ytu01b.png" alt="Audio Player" loading="lazy" width="800" height="869"></a></p>
+
+<h3>
+  <a name="root-cause" href="#root-cause">
+  </a>
+  Root Cause
+</h3>
+
+<p>The data flow was broken at step 2:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>✅ Audio plays → saves time to localStorage (webview)
+❌ MISSING: localStorage data never sent to extension host
+❌ SpiritualTracker stays at 0 minutes
+❌ Dashboard reads from SpiritualTracker → shows 0
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The webview and extension host are <strong>separate processes</strong>. <code>localStorage</code> in the webview is invisible to the TypeScript extension code.</p>
+
+<h3>
+  <a name="the-fix-the-accumulator-pattern-time-buffer" href="#the-fix-the-accumulator-pattern-time-buffer">
+  </a>
+  The Fix: The Accumulator Pattern (Time Buffer)
+</h3>
+
+<p>A naive fix would be:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// ❌ Loses short sessions (45 seconds rounds to 0)</span>
+<span class="kd">const</span> <span class="nx">elapsedMinutes</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">round</span><span class="p">(</span><span class="nx">elapsedTime</span> <span class="o">/</span> <span class="mi">60000</span><span class="p">);</span>
+<span class="k">if </span><span class="p">(</span><span class="nx">elapsedMinutes</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">'</span><span class="s1">logQuranTime</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">minutes</span><span class="p">:</span> <span class="nx">elapsedMinutes</span> <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The problem: a user who listens 3 times for 45 seconds each gets <strong>0 minutes logged</strong>, even though they listened for over 2 minutes total.</p>
+
+<p>The better approach — accumulate milliseconds until a full minute is ready:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// In constructor</span>
+<span class="k">this</span><span class="p">.</span><span class="nx">unloggedMs</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+
+<span class="nf">stopTimeTracking</span><span class="p">()</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="k">this</span><span class="p">.</span><span class="nx">playStartTime</span><span class="p">)</span> <span class="k">return</span><span class="p">;</span>
+
+    <span class="kd">const</span> <span class="nx">now</span> <span class="o">=</span> <span class="nb">Date</span><span class="p">.</span><span class="nf">now</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">elapsedMs</span> <span class="o">=</span> <span class="nx">now</span> <span class="o">-</span> <span class="k">this</span><span class="p">.</span><span class="nx">playStartTime</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">currentSessionTime</span> <span class="o">+=</span> <span class="nx">elapsedMs</span><span class="p">;</span>
+
+    <span class="c1">// Add to time buffer</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">unloggedMs</span> <span class="o">+=</span> <span class="nx">elapsedMs</span><span class="p">;</span>
+
+    <span class="c1">// localStorage tracking (existing)</span>
+    <span class="kd">const</span> <span class="nx">today</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Date</span><span class="p">().</span><span class="nf">toISOString</span><span class="p">().</span><span class="nf">split</span><span class="p">(</span><span class="dl">'</span><span class="s1">T</span><span class="dl">'</span><span class="p">)[</span><span class="mi">0</span><span class="p">];</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="k">this</span><span class="p">.</span><span class="nx">listeningStats</span><span class="p">.</span><span class="nx">dailyTimeStats</span><span class="p">[</span><span class="nx">today</span><span class="p">])</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">listeningStats</span><span class="p">.</span><span class="nx">dailyTimeStats</span><span class="p">[</span><span class="nx">today</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">listeningStats</span><span class="p">.</span><span class="nx">totalTimePlayed</span> <span class="o">+=</span> <span class="nx">elapsedMs</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">listeningStats</span><span class="p">.</span><span class="nx">dailyTimeStats</span><span class="p">[</span><span class="nx">today</span><span class="p">]</span> <span class="o">+=</span> <span class="nx">elapsedMs</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">listeningStats</span><span class="p">.</span><span class="nx">lastUpdated</span> <span class="o">=</span> <span class="nx">now</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nf">saveListeningStats</span><span class="p">();</span>
+
+    <span class="c1">// Only send complete minutes to SpiritualTracker</span>
+    <span class="kd">const</span> <span class="nx">minutesToLog</span> <span class="o">=</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">floor</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">unloggedMs</span> <span class="o">/</span> <span class="mi">60000</span><span class="p">);</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">minutesToLog</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">this</span><span class="p">.</span><span class="nf">postMessage</span><span class="p">(</span><span class="dl">'</span><span class="s1">logQuranTime</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span> <span class="na">minutes</span><span class="p">:</span> <span class="nx">minutesToLog</span> <span class="p">});</span>
+        <span class="c1">// Keep the remainder for next session</span>
+        <span class="k">this</span><span class="p">.</span><span class="nx">unloggedMs</span> <span class="o">-=</span> <span class="p">(</span><span class="nx">minutesToLog</span> <span class="o">*</span> <span class="mi">60000</span><span class="p">);</span>
+    <span class="p">}</span>
+
+    <span class="k">this</span><span class="p">.</span><span class="nx">playStartTime</span> <span class="o">=</span> <span class="kc">null</span><span class="p">;</span>
+    <span class="k">this</span><span class="p">.</span><span class="nx">currentSessionTime</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Why this is correct:</strong></p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Math.round (broken)</th>
+<th>Accumulator (fixed)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3 × 45-second sessions</td>
+<td>0 min logged ❌</td>
+<td>~2.25 min logged ✅</td>
+</tr>
+<tr>
+<td>1 × 90-second session</td>
+<td>2 min logged (wrong) ❌</td>
+<td>1 min logged, 30s saved ✅</td>
+</tr>
+<tr>
+<td>1 × 5-minute session</td>
+<td>5 min ✅</td>
+<td>5 min ✅</td>
+</tr>
+</tbody>
+</table></div>
+
+<p>The accumulator pattern ensures no listening time is lost AND no phantom minutes are added.</p>
+
+
+<hr>
+
+<h2>
+  <a name="streak-calculation" href="#streak-calculation">
+  </a>
+  Streak Calculation
+</h2>
+
+<p>The streak logic needed to handle the Fajr boundary too. A user who hasn't done Dhikr yet <em>today</em> (it's 10 AM) shouldn't lose their streak — they still have until the next Fajr.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">private</span> <span class="nf">calculateCurrentStreak</span><span class="p">(</span><span class="nx">activeDates</span><span class="p">:</span> <span class="kr">string</span><span class="p">[]):</span> <span class="kr">number</span> <span class="p">{</span>
+    <span class="k">if </span><span class="p">(</span><span class="nx">activeDates</span><span class="p">.</span><span class="nx">length</span> <span class="o">===</span> <span class="mi">0</span><span class="p">)</span> <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kd">const</span> <span class="nx">activeSet</span> <span class="o">=</span> <span class="k">new</span> <span class="nc">Set</span><span class="p">(</span><span class="nx">activeDates</span><span class="p">);</span>
+
+    <span class="kd">const</span> <span class="nx">todayStr</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getHabitTrackingDate</span><span class="p">();</span>
+    <span class="kd">const</span> <span class="nx">yesterdayStr</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getPreviousDateString</span><span class="p">(</span><span class="nx">todayStr</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+
+    <span class="c1">// Streak survives if either today OR yesterday has activity</span>
+    <span class="k">if </span><span class="p">(</span><span class="o">!</span><span class="nx">activeSet</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="nx">todayStr</span><span class="p">)</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="nx">activeSet</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="nx">yesterdayStr</span><span class="p">))</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kd">let</span> <span class="nx">streak</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="kd">let</span> <span class="nx">currentCheckStr</span> <span class="o">=</span> <span class="nx">activeSet</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="nx">todayStr</span><span class="p">)</span> <span class="p">?</span> <span class="nx">todayStr</span> <span class="p">:</span> <span class="nx">yesterdayStr</span><span class="p">;</span>
+
+    <span class="k">for </span><span class="p">(</span><span class="kd">let</span> <span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="mi">365</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if </span><span class="p">(</span><span class="nx">activeSet</span><span class="p">.</span><span class="nf">has</span><span class="p">(</span><span class="nx">currentCheckStr</span><span class="p">))</span> <span class="p">{</span>
+            <span class="nx">streak</span><span class="o">++</span><span class="p">;</span>
+            <span class="nx">currentCheckStr</span> <span class="o">=</span> <span class="k">this</span><span class="p">.</span><span class="nf">getPreviousDateString</span><span class="p">(</span><span class="nx">currentCheckStr</span><span class="p">,</span> <span class="mi">1</span><span class="p">);</span>
+        <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+            <span class="k">break</span><span class="p">;</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="nx">streak</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="ux-explaining-islamic-tracking-to-users" href="#ux-explaining-islamic-tracking-to-users">
+  </a>
+  💡 UX: Explaining Islamic Tracking to Users
+</h2>
+
+<p>One challenge: users might think the tracker is broken when their daily goals don't reset at midnight. The solution — a small info tooltip next to the dashboard title:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="o">&lt;</span><span class="nx">div</span> <span class="kd">class</span><span class="o">=</span><span class="dl">"</span><span class="s2">info-tooltip-container</span><span class="dl">"</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="nx">span</span> <span class="kd">class</span><span class="o">=</span><span class="dl">"</span><span class="s2">info-icon</span><span class="dl">"</span><span class="o">&gt;</span><span class="nx">ℹ️</span><span class="o">&lt;</span><span class="sr">/span</span><span class="err">&gt;
+</span>    <span class="o">&lt;</span><span class="nx">div</span> <span class="kd">class</span><span class="o">=</span><span class="dl">"</span><span class="s2">info-tooltip-content</span><span class="dl">"</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="nx">strong</span><span class="o">&gt;</span><span class="err">🕌</span> <span class="nx">Smart</span> <span class="nx">Islamic</span> <span class="nx">Tracking</span><span class="o">&lt;</span><span class="sr">/strong&gt;&lt;br</span><span class="err">&gt;
+</span>        <span class="nx">Daily</span> <span class="nx">goals</span> <span class="nx">reset</span> <span class="nx">at</span> <span class="o">&lt;</span><span class="nx">b</span><span class="o">&gt;</span><span class="nx">Fajr</span><span class="o">&lt;</span><span class="sr">/b&gt; </span><span class="se">(</span><span class="sr">not midnight</span><span class="se">)</span><span class="sr">.&lt;br</span><span class="err">&gt;
+</span>        <span class="nx">Friday</span> <span class="nx">events</span> <span class="nx">begin</span> <span class="nx">after</span> <span class="o">&lt;</span><span class="nx">b</span><span class="o">&gt;</span><span class="nx">Maghrib</span><span class="o">&lt;</span><span class="sr">/b&gt; the evening before</span><span class="err">.
+</span>    <span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span><span class="o">&lt;</span><span class="sr">/div</span><span class="err">&gt;
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight css"><code><span class="nc">.info-tooltip-content</span> <span class="p">{</span>
+    <span class="nl">visibility</span><span class="p">:</span> <span class="nb">hidden</span><span class="p">;</span>
+    <span class="nl">opacity</span><span class="p">:</span> <span class="m">0</span><span class="p">;</span>
+    <span class="nl">position</span><span class="p">:</span> <span class="nb">absolute</span><span class="p">;</span>
+    <span class="nl">bottom</span><span class="p">:</span> <span class="m">125%</span><span class="p">;</span>
+    <span class="nl">left</span><span class="p">:</span> <span class="m">50%</span><span class="p">;</span>
+    <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">-50%</span><span class="p">)</span> <span class="n">translateY</span><span class="p">(</span><span class="m">10px</span><span class="p">);</span>
+    <span class="nl">width</span><span class="p">:</span> <span class="m">220px</span><span class="p">;</span>
+    <span class="nl">background</span><span class="p">:</span> <span class="n">var</span><span class="p">(</span><span class="n">--glass-bg</span><span class="p">,</span> <span class="n">rgba</span><span class="p">(</span><span class="m">30</span><span class="p">,</span> <span class="m">30</span><span class="p">,</span> <span class="m">30</span><span class="p">,</span> <span class="m">0.95</span><span class="p">));</span>
+    <span class="py">backdrop-filter</span><span class="p">:</span> <span class="n">blur</span><span class="p">(</span><span class="m">10px</span><span class="p">);</span>
+    <span class="nl">border</span><span class="p">:</span> <span class="m">1px</span> <span class="nb">solid</span> <span class="n">var</span><span class="p">(</span><span class="n">--glass-border</span><span class="p">,</span> <span class="n">rgba</span><span class="p">(</span><span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">255</span><span class="p">,</span> <span class="m">0.1</span><span class="p">));</span>
+    <span class="nl">border-radius</span><span class="p">:</span> <span class="m">8px</span><span class="p">;</span>
+    <span class="nl">padding</span><span class="p">:</span> <span class="m">12px</span><span class="p">;</span>
+    <span class="nl">font-size</span><span class="p">:</span> <span class="m">12px</span><span class="p">;</span>
+    <span class="nl">transition</span><span class="p">:</span> <span class="n">all</span> <span class="m">0.3s</span> <span class="n">ease</span><span class="p">;</span>
+    <span class="nl">pointer-events</span><span class="p">:</span> <span class="nb">none</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="nc">.info-tooltip-container</span><span class="nd">:hover</span> <span class="nc">.info-tooltip-content</span> <span class="p">{</span>
+    <span class="nl">visibility</span><span class="p">:</span> <span class="nb">visible</span><span class="p">;</span>
+    <span class="nl">opacity</span><span class="p">:</span> <span class="m">1</span><span class="p">;</span>
+    <span class="nl">transform</span><span class="p">:</span> <span class="n">translateX</span><span class="p">(</span><span class="m">-50%</span><span class="p">)</span> <span class="n">translateY</span><span class="p">(</span><span class="m">0</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Small detail, big impact — users now understand the feature instead of reporting it as a bug.</p>
+
+
+<hr>
+
+<h2>
+  <a name="other-notable-bug-fixes" href="#other-notable-bug-fixes">
+  </a>
+  🐛 Other Notable Bug Fixes
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fstiywdgtguwdukwcxoxy.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fstiywdgtguwdukwcxoxy.png" alt="Quran Reader" loading="lazy" width="800" height="869"></a></p>
+
+<p><strong>Dhikr counters not updating the dashboard</strong> — The counter component was incrementing its own local state but never notifying the extension host:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="c1">// Before: only updated local UI</span>
+<span class="kd">function</span> <span class="nf">incrementSalawatCounter</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">localCount</span><span class="o">++</span><span class="p">;</span>
+    <span class="nf">updateDisplay</span><span class="p">();</span>
+<span class="p">}</span>
+
+<span class="c1">// After: also syncs to SpiritualTracker</span>
+<span class="kd">function</span> <span class="nf">incrementSalawatCounter</span><span class="p">()</span> <span class="p">{</span>
+    <span class="nx">localCount</span><span class="o">++</span><span class="p">;</span>
+    <span class="nf">updateDisplay</span><span class="p">();</span>
+    <span class="nb">window</span><span class="p">.</span><span class="nx">vscode</span><span class="p">?.</span><span class="nf">postMessage</span><span class="p">({</span> <span class="na">type</span><span class="p">:</span> <span class="dl">'</span><span class="s1">incrementDhikr</span><span class="dl">'</span><span class="p">,</span> <span class="na">count</span><span class="p">:</span> <span class="mi">1</span> <span class="p">});</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Adhkar hyphenated names not resolving</strong> — <code>rabbi-ghifir</code> was being looked up as-is instead of converting to <code>rabbiGhifir</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">function</span> <span class="nf">incrementAdhkarCounter</span><span class="p">(</span><span class="nx">adhkarName</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">const</span> <span class="nx">camelCaseName</span> <span class="o">=</span> <span class="nx">adhkarName</span><span class="p">.</span><span class="nf">replace</span><span class="p">(</span>
+        <span class="sr">/-</span><span class="se">([</span><span class="sr">a-z</span><span class="se">])</span><span class="sr">/g</span><span class="p">,</span> 
+        <span class="p">(</span><span class="nx">g</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="nx">g</span><span class="p">[</span><span class="mi">1</span><span class="p">].</span><span class="nf">toUpperCase</span><span class="p">()</span>
+    <span class="p">);</span>
+    <span class="c1">// Now correctly resolves rabbi-ghifir → rabbiGhifir</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Missing configuration properties</strong> — VS Code showed "Unable to write to User Settings" because <code>fridaySurahLastReset</code> and <code>fridaySurahState</code> were never registered in <code>package.json</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight json"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"contributes"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"configuration"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+      </span><span class="nl">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+        </span><span class="nl">"codeTune.fridaySurahLastReset"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"default"</span><span class="p">:</span><span class="w"> </span><span class="s2">""</span><span class="w">
+        </span><span class="p">},</span><span class="w">
+        </span><span class="nl">"codeTune.fridaySurahState"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+          </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">,</span><span class="w">
+          </span><span class="nl">"default"</span><span class="p">:</span><span class="w"> </span><span class="s2">"disabled"</span><span class="w">
+        </span><span class="p">}</span><span class="w">
+      </span><span class="p">}</span><span class="w">
+    </span><span class="p">}</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ficr0b2b6v2flm4zi2g8q.gif" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Ficr0b2b6v2flm4zi2g8q.gif" alt="Friday Surah Al-Kahf" loading="lazy" width="720" height="781"></a></p>
+
+<p><strong>Webview can't load new_features.txt</strong> — Getting 403 Forbidden because <code>src/media</code> wasn't in <code>localResourceRoots</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="nx">localResourceRoots</span><span class="p">:</span> <span class="p">[</span>
+    <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">.</span><span class="nf">file</span><span class="p">(</span><span class="nx">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">extensionPath</span><span class="p">,</span> <span class="dl">'</span><span class="s1">src</span><span class="dl">'</span><span class="p">,</span> <span class="dl">'</span><span class="s1">media</span><span class="dl">'</span><span class="p">)),</span>
+    <span class="nx">vscode</span><span class="p">.</span><span class="nx">Uri</span><span class="p">.</span><span class="nf">file</span><span class="p">(</span><span class="nx">path</span><span class="p">.</span><span class="nf">join</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">extensionPath</span><span class="p">,</span> <span class="dl">'</span><span class="s1">images</span><span class="dl">'</span><span class="p">))</span>
+<span class="p">]</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+<hr>
+
+<h2>
+  <a name="files-changed-in-v120" href="#files-changed-in-v120">
+  </a>
+  📁 Files Changed in v1.2.0
+</h2>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F6q5brgdd98du4rfgaw1c.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2F6q5brgdd98du4rfgaw1c.png" alt="Update Screen" loading="lazy" width="800" height="877"></a></p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/utils/SpiritualTracker.ts</code></td>
+<td>Islamic date logic, Fajr-based tracking</td>
+</tr>
+<tr>
+<td><code>src/logic/activityBarView.ts</code></td>
+<td>Prayer times sync, Fajr update on location</td>
+</tr>
+<tr>
+<td><code>src/logic/islamicReminders.ts</code></td>
+<td>SpiritualTracker integration</td>
+</tr>
+<tr>
+<td><code>src/ui/components/audioPlayer.js</code></td>
+<td>Accumulator audio sync fix</td>
+</tr>
+<tr>
+<td><code>src/ui/components/counter.js</code></td>
+<td>Dhikr → SpiritualTracker sync</td>
+</tr>
+<tr>
+<td><code>src/ui/components/trackerDashboard.js</code></td>
+<td>Info tooltip</td>
+</tr>
+<tr>
+<td><code>src/ui/components/trackerDashboard.css</code></td>
+<td>Card wrapper, modal fixes</td>
+</tr>
+<tr>
+<td><code>package.json</code></td>
+<td>Missing configuration properties</td>
+</tr>
+</tbody>
+</table></div>
+
+<p><strong>Deleted:</strong> <code>src/ui/components/statistics.js</code> (duplicate of dashboard)</p>
+
+
+<hr>
+
+<h2>
+  <a name="whats-next" href="#whats-next">
+  </a>
+  What's Next
+</h2>
+
+<p><strong>v1.3.0</strong> will focus on <strong>Settings &amp; Localization</strong> — fixing all settings panels, ensuring every string is properly localized across all 5 languages (EN, AR, ES, FR, RU), and unifying the settings UI across all components.</p>
+
+
+<hr>
+
+<p>If you're building VS Code extensions with webviews, the key lesson from this release: <strong>the webview and extension host are separate processes</strong>. Any state that needs to persist or be shared must explicitly cross the message bridge. <code>localStorage</code> is a webview-only sandbox.</p>
+
+<p>The extension is open source — feedback and contributions are welcome.</p>
+
+<p><em>بارك الله فيكم</em> 🤲</p>
+
+
+<hr>
+
+<h2>
+  <a name="links" href="#links">
+  </a>
+  🔗 Links
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>📦 <strong>VS Code Marketplace</strong>
+</td>
+<td><a href="https://marketplace.visualstudio.com/items?itemName=FreeRave.codetune" target="_blank" rel="noopener noreferrer">Install CodeTune</a></td>
+</tr>
+<tr>
+<td>🟣 <strong>Open VSX Registry</strong>
+</td>
+<td><a href="https://open-vsx.org/extension/freerave/codetune" target="_blank" rel="noopener noreferrer">Install CodeTune</a></td>
+</tr>
+<tr>
+<td>🐙 <strong>GitHub</strong>
+</td>
+<td><a href="https://github.com/kareem2099/codetune" target="_blank" rel="noopener noreferrer">kareem2099/codetune</a></td>
+</tr>
+</tbody>
+</table></div>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-codetune-v120-islamic-date-tracking-audio-sync-in-a-vs-code-extension-4oh9" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 0
+    · <a href="https://dev.to/freerave/building-codetune-v120-islamic-date-tracking-audio-sync-in-a-vs-code-extension-4oh9#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

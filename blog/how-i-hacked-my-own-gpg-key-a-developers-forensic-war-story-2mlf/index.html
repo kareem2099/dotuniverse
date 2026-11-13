@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>How I Hacked My Own GPG Key: A Developer's Forensic War Story — FreeRave</title>
+<meta name="description" content="I forgot my GPG passphrase mid-release. Instead of generating a new key, I treated it as a...">
+<link rel="canonical" href="https://dev.to/freerave/how-i-hacked-my-own-gpg-key-a-developers-forensic-war-story-2mlf">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/how-i-hacked-my-own-gpg-key-a-developers-forensic-war-story-2mlf">
+<meta property="og:title" content="How I Hacked My Own GPG Key: A Developer's Forensic War Story — FreeRave">
+<meta property="og:description" content="I forgot my GPG passphrase mid-release. Instead of generating a new key, I treated it as a...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fczihyk9b6mdayx98u2rj.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.amazonaws.com%2Fuploads%2Farticles%2Fczihyk9b6mdayx98u2rj.png" alt="">
+  <h1 class="post-title">How I Hacked My Own GPG Key: A Developer's Forensic War Story</h1>
+  <div class="post-meta">
+    <time datetime="2026-06-12T16:29:51Z">12 June 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#security</span><span class="post-tag">#linux</span><span class="post-tag">#devops</span><span class="post-tag">#tutorial</span></div>
+  </div>
+  <article class="post-body">
+<h2>
+  <a name="i-forgot-my-gpg-passphrase-midrelease-instead-of-generating-a-new-key-i-treated-it-as-a-ctf-challenge-using-clipboard-forensics-vault-analysis-and-a-targeted-dictionary-attack-to-crack-it-in-under-3-seconds" href="#i-forgot-my-gpg-passphrase-midrelease-instead-of-generating-a-new-key-i-treated-it-as-a-ctf-challenge-using-clipboard-forensics-vault-analysis-and-a-targeted-dictionary-attack-to-crack-it-in-under-3-seconds">
+  </a>
+  I forgot my GPG passphrase mid-release. Instead of generating a new key, I treated it as a CTF challenge — using clipboard forensics, vault analysis, and a targeted dictionary attack to crack it in under 3 seconds.
+</h2>
+
+<p>It was 11 PM. The release was almost done.</p>
+
+<p>I was wrapping up a new build of <strong>DotScramble</strong> — my image redaction tool — when the terminal froze at the worst possible line:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Signing DotScramble-Linux-x86_64.deb with GPG...
+[GPG Password Prompt Appears]
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>My fingers hovered over the keyboard.</p>
+
+<p>I typed my go-to password. <em>Incorrect.</em><br>
+A variation. <em>Incorrect.</em><br>
+Three more attempts. <em>Incorrect. Incorrect. Incorrect.</em></p>
+
+<p>The cursor blinked at me, completely indifferent to my suffering.</p>
+
+<blockquote>
+<p><strong>Here's the brutal truth about GPG passphrases:</strong> there is no "Forgot Password" button. No recovery email. No support ticket. The passphrase <em>is</em> the key. Lose one, you've lost the other — permanently.</p>
+</blockquote>
+
+<p>Most people would generate a new key and move on.</p>
+
+<p>I decided to do something more interesting.</p>
+
+<p>I treated my own key as a <strong>CTF target</strong> — simultaneously playing the attacker and the defender, with one night to crack it. Here's exactly how it went down.</p>
+
+<hr>
+<h2>
+  <a name="step-1-digital-forensics-first-never-skip-this" href="#step-1-digital-forensics-first-never-skip-this">
+  </a>
+  🔬 Step 1: Digital Forensics First (Never Skip This)
+</h2>
+
+<p>Before touching any attack tooling, there's a golden rule in forensics:</p>
+
+<p><strong>Look before you break things.</strong></p>
+
+<p>On Linux, desktop environments often cache credentials silently in keyring managers. I opened <strong>Seahorse</strong> (GNOME's "Passwords and Keys" GUI) and combed through the login keyring entry by entry.</p>
+
+<p>What I found:</p>
+
+<ul>
+<li>🟡 Old browser session tokens</li>
+<li>🟡 A stale VS Code credential</li>
+<li>🟡 Some SSH passphrases from old servers</li>
+<li>🔴 GPG passphrase: <strong>nowhere</strong>
+</li>
+</ul>
+
+<p>It had never been saved there. The key was generated on a night when I apparently didn't think to cache it.</p>
+
+<p>Next stop: shell history.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">grep</span> <span class="s2">"gen-key</span><span class="se">\|</span><span class="s2">passphrase"</span> ~/.bash_history ~/.zsh_history
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Nothing useful. I hadn't typed the passphrase inline during key generation — which is actually correct OpSec, ironically working against me now.</p>
+
+<p><strong>Dead end. Moving on.</strong></p>
+
+
+<hr>
+
+<h2>
+  <a name="step-2-interrogating-the-clipboard-raw-ghostdb-endraw-" href="#step-2-interrogating-the-clipboard-raw-ghostdb-endraw-">
+  </a>
+  📋 Step 2: Interrogating the Clipboard (<code>ghost.db</code>)
+</h2>
+
+<p>Then a thought hit me.</p>
+
+<p><em>What if I copied the passphrase when I first created the key?</em></p>
+
+<p>I run <strong>DotGhostBoard</strong> — a local clipboard manager I built that silently logs everything you copy into a SQLite database:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight conf"><code>~/.<span class="n">config</span>/<span class="n">dotghostboard</span>/<span class="n">ghost</span>.<span class="n">db</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>If that passphrase ever touched <code>Ctrl+C</code>, it would be fossilized in that database.</p>
+
+<p>I wrote a quick query to surface short text items — the kind a passphrase would look like:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>sqlite3 ~/.config/dotghostboard/ghost.db <span class="se">\</span>
+  <span class="s2">"SELECT content, created_at FROM clipboard_items </span><span class="se">\</span><span class="s2">
+   WHERE length(content) BETWEEN 4 AND 100 </span><span class="se">\</span><span class="s2">
+   AND content NOT LIKE '%Device%' </span><span class="se">\</span><span class="s2">
+   ORDER BY created_at DESC LIMIT 50"</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Dozens of entries scrolled past — code snippets, terminal output, random URLs. I scanned every line.</p>
+
+<p>No passphrase.</p>
+
+<p>The database has a <code>max_history = 200</code> prune limit. My GPG key had been generated <strong>months</strong> earlier. The entry was already garbage-collected.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Result: Forensic trail cold. No direct match found.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Time to shift strategies entirely.</p>
+
+
+<hr>
+
+<h2>
+  <a name="step-3-the-human-factor-building-a-targeted-wordlist" href="#step-3-the-human-factor-building-a-targeted-wordlist">
+  </a>
+  🧠 Step 3: The Human Factor — Building a Targeted Wordlist
+</h2>
+
+<p>At this point I had to accept one thing:</p>
+
+<p>I wasn't going to <em>find</em> the password. I was going to have to <em>deduce</em> it.</p>
+
+<p>Generic brute-force was never on the table. GPG's key derivation function (S2K) is intentionally slow — without lockout policies, you can technically try forever, but the entropy in a real passphrase makes raw brute-forcing take <strong>centuries</strong> on consumer hardware.</p>
+
+<p>What <em>does</em> work is a <strong>targeted dictionary attack</strong> — one built not from <code>rockyou.txt</code>, but from your own brain.</p>
+
+<p>I exported my browser password vault to a <code>passwords.csv</code> and ran a filter:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="nb">grep</span> <span class="nt">-i</span> <span class="nt">-E</span> <span class="s2">"gpg|git|key|passphrase|sign|dev"</span> ~/passwords.csv
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A pattern emerged immediately.</p>
+
+<p>For local dev tooling and signing keys, I tend to use a consistent <strong>base formula</strong> — a core string I rotate the capitalization and trailing special characters on, depending on mood and how late it is when I'm generating the key.</p>
+
+<p>I'd done the same thing here. I just didn't remember <em>which</em> variant I'd used that night.</p>
+
+<p>I assembled a shortlist of the most likely candidates — each one a small mutation of the same base pattern. No random strings. No guesses. Pure informed deduction.</p>
+
+
+<hr>
+
+<h2>
+  <a name="step-4-the-targeted-dictionary-attack" href="#step-4-the-targeted-dictionary-attack">
+  </a>
+  💀 Step 4: The Targeted Dictionary Attack
+</h2>
+
+<p>Armed with my candidate list, I needed a way to test passphrases programmatically — no GUI prompts, no interruptions, no manual <code>gpg</code> invocations.</p>
+
+<p>This is where <code>--pinentry-mode loopback</code> becomes your best friend.</p>
+
+<p>It tells GPG to accept the passphrase directly from stdin/environment instead of spawning a graphical pinentry dialog — which makes it <strong>completely scriptable</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code><span class="c">#!/bin/bash</span>
+
+<span class="nv">candidates</span><span class="o">=(</span>
+  <span class="s2">"D3vSig@#"</span>
+  <span class="s2">"d3vsig22"</span>
+  <span class="s2">"D3vSig@"</span>
+  <span class="s2">"qX7#mLP9sKRvZn2"</span>
+<span class="o">)</span>
+
+<span class="nv">target_key</span><span class="o">=</span><span class="s2">"A7BC4921FE83D105"</span>
+
+<span class="k">for </span><span class="nb">pwd </span><span class="k">in</span> <span class="s2">"</span><span class="k">${</span><span class="nv">candidates</span><span class="p">[@]</span><span class="k">}</span><span class="s2">"</span><span class="p">;</span> <span class="k">do
+    </span><span class="nb">echo</span> <span class="nt">-n</span> <span class="s2">"Testing: </span><span class="nv">$pwd</span><span class="s2"> ... "</span>
+
+    <span class="nb">echo</span> <span class="s2">"test"</span> | gpg <span class="se">\</span>
+      <span class="nt">--batch</span> <span class="se">\</span>
+      <span class="nt">--yes</span> <span class="se">\</span>
+      <span class="nt">--pinentry-mode</span> loopback <span class="se">\</span>
+      <span class="nt">--passphrase</span> <span class="s2">"</span><span class="nv">$pwd</span><span class="s2">"</span> <span class="se">\</span>
+      <span class="nt">-u</span> <span class="s2">"</span><span class="nv">$target_key</span><span class="s2">"</span> <span class="se">\</span>
+      <span class="nt">--sign</span> <span class="o">&gt;</span>/dev/null 2&gt;&amp;1
+
+    <span class="k">if</span> <span class="o">[</span> <span class="nv">$?</span> <span class="nt">-eq</span> 0 <span class="o">]</span><span class="p">;</span> <span class="k">then
+        </span><span class="nb">echo</span> <span class="s2">""</span>
+        <span class="nb">echo</span> <span class="s2">"==========================================="</span>
+        <span class="nb">echo</span> <span class="s2">"🎉  SUCCESS! Passphrase recovered: </span><span class="nv">$pwd</span><span class="s2">"</span>
+        <span class="nb">echo</span> <span class="s2">"==========================================="</span>
+        <span class="nb">exit </span>0
+    <span class="k">else
+        </span><span class="nb">echo</span> <span class="s2">"FAILED"</span>
+    <span class="k">fi
+done
+
+</span><span class="nb">echo</span> <span class="s2">"All candidates exhausted. Expand the wordlist."</span>
+<span class="nb">exit </span>1
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>I hit Enter and watched the output:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight console"><code><span class="gp">Testing: D3vSig@#</span><span class="w">      </span>... FAILED
+<span class="go">Testing: d3vsig22      ... FAILED
+Testing: D3vSig@       ... SUCCESS ✅
+</span></code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>Three seconds. Four candidates. One answer.</strong></p>
+
+<p>The passphrase was the variant with a single trailing <code>@</code> — not <code>@#</code>, not lowercase, not the longer entropy string. The specific variant I'd typed on a tired night when I didn't feel like looking up my usual suffix.</p>
+
+<p>Human pattern recognition in action — working both <em>for</em> me (I knew the base formula) and <em>against</em> me (I didn't remember the exact mutation).</p>
+
+
+<hr>
+
+<h2>
+  <a name="step-5-victory-and-a-green-badge" href="#step-5-victory-and-a-green-badge">
+  </a>
+  🏆 Step 5: Victory — And a Green Badge
+</h2>
+
+<p>With the passphrase recovered, I ran the build pipeline again:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>python3 build.py
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>Processing: Creating release package...
+
+Signing DotScramble-Linux-x86_64.deb with GPG...
+   ✅ Detached signature created: DotScramble-Linux-x86_64.deb.asc
+
+Signing DotScramble-Linux-x86_64.AppImage with GPG...
+   ✅ Detached signature created: DotScramble-Linux-x86_64.AppImage.asc
+
+Build completed successfully! 🎉
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>I uploaded the GPG public key block to my GitHub profile settings.</p>
+
+<p>Every commit and release I push now shows that beautiful, green <strong>Verified</strong> badge.</p>
+
+<p>At midnight, after all of that, it felt genuinely earned.</p>
+
+
+<hr>
+
+<h2>
+  <a name="what-this-actually-teaches-us" href="#what-this-actually-teaches-us">
+  </a>
+  📌 What This Actually Teaches Us
+</h2>
+
+<p>This wasn't just a fun personal war story. It surfaces three things every developer should internalize:</p>
+
+<h3>
+  <a name="1-password-managers-arent-optional-for-gpg-keys" href="#1-password-managers-arent-optional-for-gpg-keys">
+  </a>
+  1. Password managers aren't optional for GPG keys
+</h3>
+
+<p>The moment you run <code>gpg --gen-key</code> — <strong>not tomorrow, not later</strong> — open Bitwarden, 1Password, or KeePassXC and store that passphrase. GPG has zero mercy for forgetful humans. You will forget. Everyone forgets.</p>
+
+<h3>
+  <a name="2-targeted-attacks-will-always-beat-generic-ones" href="#2-targeted-attacks-will-always-beat-generic-ones">
+  </a>
+  2. Targeted attacks will always beat generic ones
+</h3>
+
+<p>We <em>think</em> we make random passphrases. We don't. We make <strong>variations of patterns we already know</strong>, adjusted by habit, mood, and how late it is. A wordlist of 20 informed candidates will almost always outperform <code>rockyou.txt</code> by orders of magnitude when the target is yourself.</p>
+
+<p>This is also why a single compromised vault can expose your entire security posture — your patterns leak across credentials.</p>
+
+<h3>
+  <a name="3-your-clipboard-manager-is-a-forensic-goldmine-and-a-liability" href="#3-your-clipboard-manager-is-a-forensic-goldmine-and-a-liability">
+  </a>
+  3. Your clipboard manager is a forensic goldmine (and a liability)
+</h3>
+
+<p><strong>DotGhostBoard</strong> has saved me in plenty of other recovery scenarios — but it's also a reminder that clipboard history databases are sensitive data stores. If yours isn't encrypted or access-controlled, a single compromised session can expose everything you've ever copied.</p>
+
+<ul>
+<li>Know your prune window</li>
+<li>Exclude sensitive applications from being tracked</li>
+<li>Treat the database file itself like a secrets vault</li>
+</ul>
+
+
+<hr>
+
+<h2>
+  <a name="the-full-attack-surface-summary" href="#the-full-attack-surface-summary">
+  </a>
+  🛠️ The Full Attack Surface Summary
+</h2>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Method</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keyring check (Seahorse)</td>
+<td>GUI inspection</td>
+<td>❌ Not cached</td>
+</tr>
+<tr>
+<td>Shell history</td>
+<td>
+<code>grep</code> on <code>.bash_history</code>
+</td>
+<td>❌ Not found</td>
+</tr>
+<tr>
+<td>Clipboard forensics</td>
+<td>SQLite query on <code>ghost.db</code>
+</td>
+<td>❌ Pruned</td>
+</tr>
+<tr>
+<td>Vault analysis</td>
+<td>
+<code>grep</code> on <code>passwords.csv</code>
+</td>
+<td>✅ Pattern identified</td>
+</tr>
+<tr>
+<td>Dictionary attack</td>
+<td>Loopback pinentry script</td>
+<td>✅ Cracked (3.2s)</td>
+</tr>
+</tbody>
+</table></div>
+
+
+<hr>
+
+<p><em>[</em><em>DotScramble</em><em>](<a href="https://github.com/kareem2099/DotScramble" target="_blank" rel="noopener noreferrer">https://github.com/kareem2099/DotScramble</a>) is a standalone Python desktop app for image privacy protection — think face detection, license plate auto-blur, OCR text censoring, EXIF metadata spoofing, and batch processing across entire folders. It runs fully offline, ships as a single executable, and supports Arabic RTL out of the box. This build pipeline — the one that needed the GPG passphrase — is what packages and signs every release.</em></p>
+
+<p><em>Next up: how DotScramble's freemium licensing system uses **Ed25519 asymmetric signing</em>* to prevent key sharing — with the private key living entirely server-side, never touching the client.*</p>
+
+
+<hr>
+
+<p><strong>Did you ever lose a GPG passphrase? How did you handle it?</strong> Drop it in the comments 👇</p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/how-i-hacked-my-own-gpg-key-a-developers-forensic-war-story-2mlf" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/how-i-hacked-my-own-gpg-key-a-developers-forensic-war-story-2mlf#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

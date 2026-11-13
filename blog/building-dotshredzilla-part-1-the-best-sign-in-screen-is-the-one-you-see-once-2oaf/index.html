@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 1): The Best Sign-In Screen Is the One You See Once — FreeRave</title>
+<meta name="description" content="A sign-in screen has an odd job. It's the first thing every new user sees, and the thing a returning...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-1-the-best-sign-in-screen-is-the-one-you-see-once-2oaf">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-1-the-best-sign-in-screen-is-the-one-you-see-once-2oaf">
+<meta property="og:title" content="Building DotShredzilla (Part 1): The Best Sign-In Screen Is the One You See Once — FreeRave">
+<meta property="og:description" content="A sign-in screen has an odd job. It's the first thing every new user sees, and the thing a returning...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdh3an4xokcxf4ctkkl10.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdh3an4xokcxf4ctkkl10.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 1): The Best Sign-In Screen Is the One You See Once</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-12T18:53:14Z">12 November 2026</time> · 4 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#firebase</span><span class="post-tag">#jetpackcompose</span></div>
+  </div>
+  <article class="post-body">
+<p>A sign-in screen has an odd job. It's the first thing every new user sees, and the thing a returning user should never see again. Someone opening a workout tracker between sets wants their training, not a login form.</p>
+
+<p>So before redesigning anything, I rebuilt what sits between launching DotShredzilla and seeing your training: signing in, deciding which screen to open, and loading your history.</p>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, written in Kotlin with Jetpack Compose and Firebase, and open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<h2>
+  <a name="one-sheet-for-every-way-to-sign-in" href="#one-sheet-for-every-way-to-sign-in">
+  </a>
+  One sheet for every way to sign in
+</h2>
+
+<p>The app used the old Google Sign-In SDK, which Google has deprecated. It also needed an <code>ActivityResultLauncher</code> in <code>MainActivity</code>, so the activity, the launcher callback and the navigation code all had to know about each other.</p>
+
+<p>I moved to <strong>Credential Manager</strong> (<code>androidx.credentials</code>). It shows one system bottom sheet that offers both the user's Google accounts and the passwords saved for the app:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">val</span> <span class="n">googleIdOption</span> <span class="o">=</span> <span class="nc">GetGoogleIdOption</span><span class="p">.</span><span class="nc">Builder</span><span class="p">(</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setFilterByAuthorizedAccounts</span><span class="p">(</span><span class="n">filterByAuthorizedAccounts</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setServerClientId</span><span class="p">(</span><span class="n">activity</span><span class="p">.</span><span class="nf">getString</span><span class="p">(</span><span class="no">R</span><span class="p">.</span><span class="kt">string</span><span class="p">.</span><span class="n">default_web_client_id</span><span class="p">)</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setAutoSelectEnabled</span><span class="p">(</span><span class="n">filterByAuthorizedAccounts</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span>
+
+<span class="kd">val</span> <span class="n">request</span> <span class="o">=</span> <span class="nc">GetCredentialRequest</span><span class="p">.</span><span class="nc">Builder</span><span class="p">(</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">addCredentialOption</span><span class="p">(</span><span class="n">googleIdOption</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">addCredentialOption</span><span class="p">(</span><span class="nc">GetPasswordOption</span><span class="p">(</span><span class="n">isAutoSelectAllowed</span> <span class="o">=</span> <span class="n">filterByAuthorizedAccounts</span><span class="p">)</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Sign-in tries twice, and the order matters:</p>
+
+<ol>
+<li>
+<strong>Returning users first.</strong> Only accounts that already used the app are offered, and if there is exactly one, it's picked automatically. For most people, signing in again is one tap or none.</li>
+<li>
+<strong>Everyone else.</strong> If nothing was found (<code>NoCredentialException</code>), the same request runs again with every Google account on the phone.</li>
+</ol>
+
+<p>Whatever the user picks, the result becomes a Firebase sign-in. A Google ID token goes through <code>GoogleAuthProvider</code>. A saved password goes through Firebase's email and password sign-in, so the sheet works for accounts that never used Google at all.</p>
+
+<p>The best part was what disappeared. Sign-in is now one function that a coroutine can call from anywhere:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">suspend</span> <span class="k">fun</span> <span class="nf">signInWithGoogle</span><span class="p">(</span><span class="p">)</span><span class="p">:</span> <span class="nc">Result</span><span class="o">&lt;</span><span class="nc">FirebaseUser</span><span class="o">&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>No launcher, no activity callback, and no navigation code inside <code>MainActivity</code>. Closing the sheet comes back as a failure the UI quietly ignores, because cancelling isn't an error worth a toast.</p>
+
+<h2>
+  <a name="two-taps-two-requests" href="#two-taps-two-requests">
+  </a>
+  Two taps, two requests
+</h2>
+
+<p>On a slow connection, tapping "Create account" twice sent two sign-up requests. The first created the account. The second failed with "email already in use", so a brand-new user saw an error about the account they had just made.</p>
+
+<p>The fix is a lock that's set <strong>before</strong> anything asynchronous starts:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">onRegisterClick</span> <span class="o">=</span> <span class="p">{</span> <span class="n">name</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">,</span> <span class="n">_</span> <span class="o">-&gt;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">isLoading</span><span class="p">)</span> <span class="k">return</span>@<span class="nc">RegisterScreen</span>  <span class="c1">// double-tap guard</span>
+    <span class="n">isLoading</span> <span class="o">=</span> <span class="kc">true</span>                      <span class="c1">// set synchronously, before launch</span>
+    <span class="n">scope</span><span class="p">.</span><span class="n">launch</span> <span class="p">{</span>
+        <span class="kd">val</span> <span class="n">result</span> <span class="o">=</span> <span class="n">auth</span><span class="p">.</span><span class="nf">createUser</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">email</span><span class="p">,</span> <span class="n">password</span><span class="p">)</span>
+        <span class="c1">// navigate or show the error</span>
+        <span class="n">isLoading</span> <span class="o">=</span> <span class="kc">false</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The order is the whole point. Setting <code>isLoading</code> inside the coroutine leaves a gap where a second tap still gets through. Set on the main thread, in the click handler itself, the second tap sees the lock immediately. The same flag disables the fields and swaps the button for a progress indicator, so the screen also shows that something is happening.</p>
+
+<h2>
+  <a name="opening-on-the-right-screen-without-a-flicker" href="#opening-on-the-right-screen-without-a-flicker">
+  </a>
+  Opening on the right screen, without a flicker
+</h2>
+
+<p>Every launch has to answer one question: where does this person belong? The answer can be the login screen, the first unfinished onboarding step, or the main app.</p>
+
+<p>The old code answered it twice, in <code>MainActivity</code> and again in the navigation file. The app always started on the login screen and then jumped elsewhere from a <code>LaunchedEffect</code>. You could see the login screen flash before the jump, and the back stack sometimes kept screens that shouldn't be there.</p>
+
+<p>Now the <code>MainViewModel</code> works out the destination once, and the navigation graph <strong>starts</strong> there instead of jumping:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// MainViewModel</span>
+<span class="kd">val</span> <span class="n">startDestinationFlow</span> <span class="o">=</span> <span class="n">savedStateHandle</span><span class="p">.</span><span class="n">getStateFlow</span><span class="o">&lt;</span><span class="kt">String</span><span class="o">?&gt;</span><span class="p">(</span><span class="s2">"startDestination"</span><span class="p">,</span> <span class="k">null</span><span class="p">)</span>
+
+<span class="c1">// MainActivity</span>
+<span class="kd">val</span> <span class="n">startDestination</span> <span class="n">by</span> <span class="n">mainViewModel</span><span class="p">.</span><span class="n">startDestinationFlow</span><span class="p">.</span><span class="nf">collectAsState</span><span class="p">(</span><span class="p">)</span>
+<span class="n">startDestination</span><span class="o">?</span><span class="p">.</span><span class="n">let</span> <span class="p">{</span> <span class="nc">AppNavigationHost</span><span class="p">(</span><span class="n">navController</span><span class="p">,</span> <span class="n">startDestination</span> <span class="o">=</span> <span class="n">it</span><span class="p">,</span> <span class="p">.</span><span class="p">.</span><span class="p">.</span><span class="p">)</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Keeping it in a <code>SavedStateHandle</code> means the decision survives process death. If Android kills the app in the background, it comes back where it was instead of running the whole check again. On sign-out the saved destination goes back to the login screen, so a restored process can't land a signed-out user inside the app.</p>
+
+<h2>
+  <a name="loading-history-in-parallel" href="#loading-history-in-parallel">
+  </a>
+  Loading history in parallel
+</h2>
+
+<p>Exercise history and the progress charts need the last 90 days of logged sets. Firestore stores them per day, so loading meant one request for the list of days and then one request per day, one after another. On a weak mobile connection that was 90 round trips in a row.</p>
+
+<p>The requests don't depend on each other, so they can run at the same time:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">val</span> <span class="n">sets</span> <span class="o">=</span> <span class="n">days</span><span class="p">.</span><span class="n">map</span> <span class="p">{</span> <span class="n">dayDoc</span> <span class="o">-&gt;</span>
+    <span class="k">async</span><span class="p">(</span><span class="nc">Dispatchers</span><span class="p">.</span><span class="no">IO</span><span class="p">)</span> <span class="p">{</span> <span class="n">dayDoc</span><span class="p">.</span><span class="n">reference</span><span class="p">.</span><span class="nf">collection</span><span class="p">(</span><span class="s2">"recordedSets"</span><span class="p">)</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="k">await</span><span class="p">(</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">}</span><span class="p">.</span><span class="nf">awaitAll</span><span class="p">(</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The chart calculations then run on <code>Dispatchers.Default</code>, so neither the network nor the math touches the main thread.</p>
+
+<h2>
+  <a name="a-small-cleanup-with-a-big-effect" href="#a-small-cleanup-with-a-big-effect">
+  </a>
+  A small cleanup with a big effect
+</h2>
+
+<p>The login and register screens each had their own copy of the text field colors, slightly different from each other. Changing the accent color meant finding both. They now share one definition.</p>
+
+<p>That was a two-minute change, but it turned into a rule for the next part of this series: no screen gets its own private copy of a component.</p>
+
+<h2>
+  <a name="what-id-tell-myself-before-touching-signin" href="#what-id-tell-myself-before-touching-signin">
+  </a>
+  What I'd tell myself before touching sign-in
+</h2>
+
+<ul>
+<li>Make sign-in a <code>suspend</code> function that returns a <code>Result</code>. The UI and navigation get much simpler when they don't have to know about activity callbacks.</li>
+<li>Lock a button in the click handler, not inside the coroutine it starts.</li>
+<li>Decide the start destination once, in one place, and start there. Don't start somewhere else and jump.</li>
+<li>Test on a slow connection. Every bug in this part only showed up there.</li>
+</ul>
+
+<p>Sign-in wasn't finished with me, though. Much later, users who had signed in once were sent back to the login screen every time they opened the app, and none of the code in this article was the cause. That story comes later in the series.</p>
+
+<p>Part 2 covers what came next: rebuilding every screen around one glass design system with two palettes.</p>
+
+<p>How does your app decide which screen to open on launch?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Project:</strong> <a href="https://dotsuite.dev" target="_blank" rel="noopener noreferrer">DotSuite</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-1-the-best-sign-in-screen-is-the-one-you-see-once-2oaf" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-1-the-best-sign-in-screen-is-the-one-you-see-once-2oaf#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

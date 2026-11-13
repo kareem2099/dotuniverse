@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Blog** at `/blog/`: `scripts/sync-blog.mjs` mirrors every published dev.to article into a static page (canonical link to dev.to, cover, tags, code highlighting, YouTube embeds) plus a list page, adds a "latest posts" section to the home page, and keeps the post count current. The daily Action runs it after the stats sync.
 - **DotMorph** tool card: radial-menu file converter for Linux (440+ conversions, edge dock, global hotkey, file-manager menus), linking to GitHub and its [dotsuite.dev](https://dotsuite.dev/en/product/dotmorph) page.
 - `DotMorph` in the terminal's `~/tools` folder, with a `cat DotMorph` info box.
 - DotMorph row in the README's CLI Tools table.
