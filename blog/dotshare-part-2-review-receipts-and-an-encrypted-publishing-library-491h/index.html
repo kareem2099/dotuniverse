@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare Part 2: Review, receipts, and an encrypted publishing library — FreeRave</title>
+<meta name="description" content="How DotShare binds publication to a saved revision, handles uncertain retries, and encrypts local drafts and receipts.">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-part-2-review-receipts-and-an-encrypted-publishing-library-491h">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-part-2-review-receipts-and-an-encrypted-publishing-library-491h">
+<meta property="og:title" content="DotShare Part 2: Review, receipts, and an encrypted publishing library — FreeRave">
+<meta property="og:description" content="How DotShare binds publication to a saved revision, handles uncertain retries, and encrypts local drafts and receipts.">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F46efkn5bu9szo52yifwu.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F46efkn5bu9szo52yifwu.png" alt="">
+  <h1 class="post-title">DotShare Part 2: Review, receipts, and an encrypted publishing library</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-14T11:26:58Z">14 November 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#mcp</span><span class="post-tag">#security</span><span class="post-tag">#opensource</span><span class="post-tag">#vscode</span></div>
+  </div>
+  <article class="post-body">
+<p>In <a href="https://dev.to/freerave/dotshare-part-1-from-an-ai-draft-to-a-reviewed-social-post-21jn">Part 1</a>, a post started in Codex, passed through a saved preview in VS Code, and ended with a public Mastodon receipt. The engineering work behind that flow came down to three questions. What exactly did I approve? What happens if the process dies during delivery? Where do drafts and credentials live?</p>
+
+<p>I wanted those answers to survive a restart. DotShare <strong>3.6.0</strong> and CLI <strong>3.0.0</strong> ship the same publishing library across the VS Code interface, CLI, and local MCP server. The library stores drafts, their revisions, and publication attempts. The platform adapter reports what it actually delivered. <a href="https://github.com/kareem2099/DotShare/releases/tag/v3.6.0" target="_blank" rel="noopener noreferrer">Release and changelog</a>.</p>
+
+<h2>
+  <a name="a-preview-belongs-to-a-specific-revision" href="#a-preview-belongs-to-a-specific-revision">
+  </a>
+  A preview belongs to a specific revision
+</h2>
+
+<p><code>create_draft</code> returns a saved draft ID and revision. <code>update_draft</code> checks the expected revision before saving an edit. That matters when I have the library open in VS Code while an agent edits the same record. If one edit wins, the other client needs to reload before saving against the new revision.</p>
+
+<p><code>preview_draft</code> validates the saved revision and creates a preview ID. The preview records the account plan, including the effective copy, thread parts, and media. Before publishing, DotShare revalidates the plan and the local image fingerprints. A change to the draft, an account binding, or the image bytes can require a fresh preview.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fzco3y5ugzkhfp1893r29.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fzco3y5ugzkhfp1893r29.png" alt="Draft revisions move from Draft to Preview to Publishing and then Published. Edits require a new preview, and uncertain delivery leads to NeedsReview." loading="lazy" width="800" height="344"></a></p>
+
+<p>To publish a saved preview from the CLI, use the draft ID and the revision and preview ID returned by <code>drafts preview</code>. Give that action one stable request ID.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotshare-agent drafts publish DRAFT_ID \
+  --revision 1 \
+  --preview-id PREVIEW_ID \
+  --request-id reviewed-release-1
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>1</code> is an example revision. Use the revision you actually reviewed. This command can publish to real accounts, so run it after checking the saved preview and its destinations. <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md#saved-drafts-draft-preview-and-published" target="_blank" rel="noopener noreferrer">Saved draft commands</a>.</p>
+
+<p>Templates follow a similar versioning rule. The tool checks which template revision you filled, substitutes literal values, then creates an independent draft with its source template recorded. Effective content is resolved in this order: account override, platform version, shared copy. A preview always uses the resolved version for each selected destination.</p>
+
+<h2>
+  <a name="a-retry-starts-with-the-receipt-journal" href="#a-retry-starts-with-the-receipt-journal">
+  </a>
+  A retry starts with the receipt journal
+</h2>
+
+<p>DotShare reserves a publication operation before sending requests. It records delivery results and receipts per account, including receipts for individual parts of a thread. Repeating the same request ID lets the caller recover that operation instead of sending a second copy.</p>
+
+<p>The hard case is a connection drop after a platform accepted the post but before DotShare could confirm it. That case can land in <code>NeedsReview</code>. I inspect the journal and the destination before deciding what to do next. For a multi-account publish, the journal can show which destinations already received their posts.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotshare-agent operation reviewed-release-1
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>Published</code> records a completed publication. When Dev.to accepts an article sent with <code>published: false</code>, DotShare records <code>SavedRemotely</code> and returns the unpublished article’s receipt. <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md#saved-drafts-draft-preview-and-published" target="_blank" rel="noopener noreferrer">Publication states and recovery</a>.</p>
+
+<h2>
+  <a name="keep-the-key-and-the-encrypted-records-separate" href="#keep-the-key-and-the-encrypted-records-separate">
+  </a>
+  Keep the key and the encrypted records separate
+</h2>
+
+<p>The CLI keeps platform tokens in the OS credential store. Linux requires Secret Service. The draft store uses a separate, randomly generated master key, also held in the OS keyring. DotShare uses AES-256-GCM to encrypt the contents of saved drafts, custom templates, and operation journals. Authentication ties each encrypted record to its identity, so a swapped or modified record fails verification.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnajxewkhnp48kje5t8tj.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fnajxewkhnp48kje5t8tj.png" alt="The OS credential store holds platform credentials and a separate vault key. The vault key encrypts local drafts, custom templates, and publication journals." loading="lazy" width="800" height="343"></a></p>
+
+<p>This protects the shared library records on disk. Account labels and other non-secret metadata use private files. The OS credential provider, original images, VS Code’s separate composer drafts, and data held by DotSuite’s cloud backend have their own storage rules. <a href="https://github.com/kareem2099/DotShare/blob/master/SECURITY.md" target="_blank" rel="noopener noreferrer">Local security model</a>.</p>
+
+<p>I also removed the legacy CLI route that forwarded platform credentials through a relay. The new CLI publishes directly through named accounts. Local image uploads are limited to directories explicitly configured for the MCP server. DotSuite cloud scheduling uses a separate set of connected accounts. <a href="https://github.com/kareem2099/DotShare/blob/master/CHANGELOG.md#cli-300-upgrade" target="_blank" rel="noopener noreferrer">CLI upgrade notes</a>.</p>
+
+<h2>
+  <a name="upgrade-and-practice-a-restore" href="#upgrade-and-practice-a-restore">
+  </a>
+  Upgrade and practice a restore
+</h2>
+
+<p>For an existing library, stop active publications, install the current CLI, and run the migration.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>npm install -g dotshare-cli
+dotshare-agent security status
+dotshare-agent security protect
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>protect</code> verifies access to the keyring, fixes local permissions where needed, and encrypts older plaintext records in place. It reads back each migrated record to verify the original content survived. If the MCP launcher path changed, review the replacement configuration with <code>dotshare-agent setup --dry-run --replace</code>. After applying it, restart the MCP clients and VS Code, then run <code>dotshare-agent doctor --check-accounts</code>.</p>
+
+<p>For the restore test, I used a disposable library with a draft and a publication receipt. I copied the encrypted files and <code>security.json</code> to a new directory. A missing key and an incorrect key both caused reads to fail. Restoring the matching test key through the OS keyring recovered the draft and the original receipt. That’s the recovery dependency to plan for: keep the encrypted library and its matching keyring backup. <a href="https://github.com/kareem2099/DotShare/blob/master/SECURITY.md#recovery-and-rotation" target="_blank" rel="noopener noreferrer">Recovery instructions</a>.</p>
+
+<h2>
+  <a name="what-i-verified-before-shipping" href="#what-i-verified-before-shipping">
+  </a>
+  What I verified before shipping
+</h2>
+
+<ul>
+<li>
+<strong>Automated checks.</strong> 353 tests passed across 33 suites. The CLI and MCP smoke checks also exercised templates, variants, and saved drafts through the installed package.</li>
+<li>
+<strong>Upgrade and restore.</strong> A legacy test draft and receipt survived encryption and could be read back. Repeating the migration had no additional records to convert. The restore test exercised the actual OS keyring with a disposable key.</li>
+<li>
+<strong>Live publishing.</strong> One real draft went from Codex to the VS Code library to a public Mastodon post. I verified the saved <code>Published</code> status and receipt. <a href="https://mastodon.social/@FreeRave/117574826108449747" target="_blank" rel="noopener noreferrer">Public test post</a>.</li>
+<li>
+<strong>Distribution.</strong> The CLI installed from npm as <code>3.0.0</code>. The <code>3.6.0</code> extension was available from Visual Studio Marketplace, Open VSX, and the GitHub release. The DotSuite product page also gained a Docs tab with both guides. <a href="https://www.npmjs.com/package/dotshare-cli" target="_blank" rel="noopener noreferrer">npm</a> · <a href="https://marketplace.visualstudio.com/items?itemName=freerave.dotshare" target="_blank" rel="noopener noreferrer">Marketplace</a> · <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX</a> · <a href="https://dotsuite.dev/en/product/dotshare/docs" target="_blank" rel="noopener noreferrer">DotSuite docs</a>.</li>
+</ul>
+
+<p>If you try the workflow, I’d like to know which part of your own publishing process you’d keep in the editor. Account variants and review steps are especially interesting because teams often handle them differently. <a href="https://github.com/kareem2099/DotShare" target="_blank" rel="noopener noreferrer">DotShare on GitHub</a>.</p>
+
+<p><em>I used AI assistance to draft and edit this write-up. The implementation, release checks, and live test are linked above.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-part-2-review-receipts-and-an-encrypted-publishing-library-491h" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotshare-part-2-review-receipts-and-an-encrypted-publishing-library-491h#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
