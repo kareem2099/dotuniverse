@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 3): What a Real Gym Session Taught My Data Model — FreeRave</title>
+<meta name="description" content="After the redesign in Part 2, DotShredzilla looked finished. Then I took it to the gym and logged a...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-3-what-a-real-gym-session-taught-my-data-model-1ng7">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-3-what-a-real-gym-session-taught-my-data-model-1ng7">
+<meta property="og:title" content="Building DotShredzilla (Part 3): What a Real Gym Session Taught My Data Model — FreeRave">
+<meta property="og:description" content="After the redesign in Part 2, DotShredzilla looked finished. Then I took it to the gym and logged a...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fvyk0q838gzgstnbe099z.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fvyk0q838gzgstnbe099z.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 3): What a Real Gym Session Taught My Data Model</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-18T13:07:28Z">18 November 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#firebase</span><span class="post-tag">#fitness</span></div>
+  </div>
+  <article class="post-body">
+<p>After the redesign in Part 2, DotShredzilla looked finished. Then I took it to the gym and logged a real leg day with it.</p>
+
+<p>Three problems showed up before the first exercise was done:</p>
+
+<ol>
+<li>The gym had poor signal, and the app wasn't built for that.</li>
+<li>Most machines use a weight stack, and you count plates, not kilograms. The app only accepted kilograms.</li>
+<li>I wanted leg curl first, but the list order was fixed.</li>
+</ol>
+
+<p>This part is about turning that session into changes in the data model. DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, written in Kotlin, Jetpack Compose and Firestore, and open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<h2>
+  <a name="offlinefirst-with-firestore" href="#offlinefirst-with-firestore">
+  </a>
+  Offline-first with Firestore
+</h2>
+
+<p>Firestore already queues writes offline, so I assumed the app worked without signal. It mostly didn't. Three things were waiting on the server:</p>
+
+<ul>
+<li>
+<strong>Refreshing after a save.</strong> The UI refreshed history in the write's success listener. Offline, that listener doesn't fire until the device reconnects, so a saved set seemed to vanish. Local writes are applied to the cache immediately, so the refresh now runs right after the write is issued.</li>
+<li>
+<strong>A transaction for adding an exercise.</strong> Transactions need the server. Because the exercise id is derived from its name, a merge write does the same job and queues offline.</li>
+<li>
+<strong>Loading 90 days of history from the server.</strong> On weak signal that was slow and sometimes empty. History now loads from the cache first, so it shows instantly, then refreshes from the server.</li>
+</ul>
+
+<p>An offline banner appears when the default network isn't <em>validated</em>, so gym Wi-Fi that's connected but has no real internet counts as offline too.</p>
+
+<h2>
+  <a name="the-bug-hiding-in-an-empty-history" href="#the-bug-hiding-in-an-empty-history">
+  </a>
+  The bug hiding in an "empty" history
+</h2>
+
+<p>While testing history I found a deeper bug: the progress chart and exercise history were always empty, even with sets logged.</p>
+
+<p>Sets were written to <code>users/{uid}/dailyActivity/{date}/recordedSets/{id}</code>, but the day document <code>dailyActivity/{date}</code> itself was never created. Firestore can't list documents that don't exist, even when they have subcollections, so listing the days returned nothing.</p>
+
+<p>The fix had two parts. History reads the last 90 days by date key instead of listing the collection, and every new set also writes its day document with a merge. Existing days are backfilled the first time they're read.</p>
+
+<h2>
+  <a name="loads-arent-just-kilograms" href="#loads-arent-just-kilograms">
+  </a>
+  Loads aren't just kilograms
+</h2>
+
+<p>A set's "load" turned out to have four shapes:</p>
+
+<ul>
+<li>
+<strong>Weight</strong>, stored in kilograms and shown in the user's unit.</li>
+<li>
+<strong>Plates</strong> on a weight-stack machine: "6 plates × 13".</li>
+<li>
+<strong>Bodyweight</strong>, optionally with weight added on top: "BW + 10 kg".</li>
+<li>
+<strong>Per side</strong> on plate-loaded machines: "30 kg/side". The total (60 kg) is stored, so volume and records stay correct.</li>
+</ul>
+
+<p>The record sheet has one load card with a <code>kg | Plates | Bodyweight</code> switch, and the next set starts from the last one you logged. Choose plates once on the leg press and it stays on plates.</p>
+
+<p>New Firestore fields are written only when they differ from the default. Older sets simply read as "normal set, kilograms, both sides", and no migration was needed. Edits explicitly delete fields that were turned off, so switching a set from plates back to kilograms doesn't leave a stale plate count behind.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpl1ccvkx40bc9srr24sx.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpl1ccvkx40bc9srr24sx.png" alt="The record sheet on a cable machine: reps for both sides or one, the Load switch set to plates (15 plates), set type and tempo" loading="lazy" width="800" height="1556"></a></p>
+
+<h2>
+  <a name="one-leg-at-a-time" href="#one-leg-at-a-time">
+  </a>
+  One leg at a time
+</h2>
+
+<p>My measurements showed one thigh noticeably bigger than the other, and the usual answer is to train one side at a time. That needed more than a "left/right" label:</p>
+
+<ul>
+<li>The next set opens on the <strong>other side</strong> automatically.</li>
+<li>The rest timer starts only after <strong>both</strong> sides are done, not between them.</li>
+<li>A left and a right set count as <strong>one</strong> set toward the target, so "3 sets" means three per leg.</li>
+</ul>
+
+<p>The counting rule is small enough to show in full:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nc">List</span><span class="o">&lt;</span><span class="nc">LoggedSet</span><span class="o">&gt;</span><span class="p">.</span><span class="nf">workingSetCount</span><span class="p">(</span><span class="p">)</span><span class="p">:</span> <span class="kt">Int</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="n">working</span> <span class="o">=</span> <span class="n">filter</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">setType</span> <span class="o">!=</span> <span class="nc">SetType</span><span class="p">.</span><span class="no">WARMUP</span> <span class="p">}</span>
+    <span class="k">return</span> <span class="n">working</span><span class="p">.</span><span class="n">count</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="k">null</span> <span class="p">}</span> <span class="o">+</span>
+        <span class="nf">maxOf</span><span class="p">(</span><span class="n">working</span><span class="p">.</span><span class="n">count</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="nc">Side</span><span class="p">.</span><span class="no">LEFT</span> <span class="p">}</span><span class="p">,</span> <span class="n">working</span><span class="p">.</span><span class="n">count</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="nc">Side</span><span class="p">.</span><span class="no">RIGHT</span> <span class="p">}</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>And the rest timer waits until the pair is complete:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// One side at a time: rest once both sides of the pair are done, not between them</span>
+<span class="kd">val</span> <span class="n">pairComplete</span> <span class="o">=</span> <span class="n">entry</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="k">null</span> <span class="o">||</span>
+    <span class="n">todaySets</span><span class="p">.</span><span class="n">count</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">entry</span><span class="p">.</span><span class="n">side</span> <span class="p">}</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">todaySets</span><span class="p">.</span><span class="n">count</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">side</span> <span class="o">==</span> <span class="n">entry</span><span class="p">.</span><span class="n">side</span><span class="p">.</span><span class="n">opposite</span> <span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<h2>
+  <a name="warmups-and-tempo" href="#warmups-and-tempo">
+  </a>
+  Warm-ups and tempo
+</h2>
+
+<p>My training log was full of notes like "warm-up", "5 seconds down", "2 second hold at the top", and "rest-pause: to 7 reps, 5 seconds, then to 13". Typing those every set was tedious, and warm-ups were inflating my volume.</p>
+
+<p>Each set now has a <strong>type</strong> (normal, warm-up, rest-pause, drop set, to failure) and a <strong>tempo</strong> (lowering and hold seconds, as quick chips). Tempo carries over to the next set, so "5 seconds down" is chosen once per exercise.</p>
+
+<p>Warm-ups are still logged but stay out of set counts, daily totals, volume, personal records and progression suggestions. That one rule fixed several numbers at once.</p>
+
+<h2>
+  <a name="putting-leg-curl-first" href="#putting-leg-curl-first">
+  </a>
+  Putting leg curl first
+</h2>
+
+<p>The last problem was the simplest: lists now support drag-to-reorder through a handle on each row. The order updates live while dragging and saves once when you let go. It's one Firestore write, and it queues offline like everything else.</p>
+
+<h2>
+  <a name="a-smaller-catalog-problem" href="#a-smaller-catalog-problem">
+  </a>
+  A smaller catalog problem
+</h2>
+
+<p>Several machines from my log weren't in the app, and adding one meant knowing that the search box doubled as a "create" field. The add-exercise page now has a catalog grouped by muscle (legs, chest, back, shoulders, biceps, triceps, forearms, core) with the common machines, and typing still creates anything missing.</p>
+
+<h2>
+  <a name="what-i-took-from-it" href="#what-i-took-from-it">
+  </a>
+  What I took from it
+</h2>
+
+<ul>
+<li>Test offline on purpose: airplane mode, then a weak connection, then back online.</li>
+<li>If a Firestore path has subcollections, write the parent document too, or you can't list it later.</li>
+<li>Model a set around how people actually train. "Kilograms × reps" is one case, not the whole model.</li>
+</ul>
+
+<p>Next, in Part 4: the features built on top of this data, including workout mode with supersets, last-session comparison, personal records, deload reminders and body-measurement insights.</p>
+
+<p>How do you log machine exercises: by plate number, by weight, or not at all?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Project:</strong> <a href="https://dotsuite.dev" target="_blank" rel="noopener noreferrer">DotSuite</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-3-what-a-real-gym-session-taught-my-data-model-1ng7" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-3-what-a-real-gym-session-taught-my-data-model-1ng7#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
