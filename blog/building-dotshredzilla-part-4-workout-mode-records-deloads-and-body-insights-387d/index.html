@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 4): Workout Mode, Records, Deloads and Body Insights — FreeRave</title>
+<meta name="description" content="Part 3 reshaped how a set is stored: plates, bodyweight, per-side loads, left and right, warm-ups and...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-4-workout-mode-records-deloads-and-body-insights-387d">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-4-workout-mode-records-deloads-and-body-insights-387d">
+<meta property="og:title" content="Building DotShredzilla (Part 4): Workout Mode, Records, Deloads and Body Insights — FreeRave">
+<meta property="og:description" content="Part 3 reshaped how a set is stored: plates, bodyweight, per-side loads, left and right, warm-ups and...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fk0in6rfpljgco6kiy9fz.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fk0in6rfpljgco6kiy9fz.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 4): Workout Mode, Records, Deloads and Body Insights</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-19T19:49:53Z">19 November 2026</time> · 5 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#fitness</span></div>
+  </div>
+  <article class="post-body">
+<p><a href="https://dev.to/freerave/building-dotshredzilla-part-3-what-a-real-gym-session-taught-my-data-model-1ng7">Part 3</a> reshaped how a set is stored: plates, bodyweight, per-side loads, left and right, warm-ups and tempo. With that data in place, the next question was what the app should <em>do</em> with it during and after a workout.</p>
+
+<p>The guiding idea came from my own training notes. I kept writing "+2 reps compared to last week" by hand. The app should be doing that comparison for me.</p>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<h2>
+  <a name="workout-mode" href="#workout-mode">
+  </a>
+  Workout mode
+</h2>
+
+<p>Logging from a list worked, but mid-workout you want one screen that answers three questions: what's next, what did I do last time, and how long do I rest.</p>
+
+<p><strong>Start workout</strong> on a list opens a guided session:</p>
+
+<ul>
+<li>The current exercise, its target sets (from a program) and the sets done so far.</li>
+<li>
+<strong>Last time</strong>: every working set from the previous session of this exercise.</li>
+<li>One big button that logs the next set and starts the rest timer.</li>
+<li>Once the target is reached, the button becomes "Next: Leg Press", with "Log another set" one tap away.</li>
+</ul>
+
+<p>Each new set shows how it compares to the matching set from last time: "+2 reps", "+1 plate", or "Same". When the load changed, the load difference wins over reps, because that's the change that usually matters.</p>
+
+<p><strong>Supersets</strong> link the current exercise with the next one. A set of the first exercise jumps straight to the second without rest; a set of the second starts the rest and goes back to the first.</p>
+
+<p>A session isn't stored separately while it runs. It's simply every set logged since you pressed Start, which also means it works offline like everything else. When you finish, a summary is saved to <code>users/{uid}/workouts</code>, with duration, sets, volume, records and each exercise's best set, and it appears on a History page.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F9r5l7xfdpzpo7o588u3b.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F9r5l7xfdpzpo7o588u3b.png" alt="Workout mode on a push day: the current exercise with its target, a superset with Shoulder Press, the hint &quot;Try 60 kg × 11 · last session 60 kg × 10&quot; and last session's sets" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="a-progression-hint-not-a-coach" href="#a-progression-hint-not-a-coach">
+  </a>
+  A progression hint, not a coach
+</h2>
+
+<p>The record sheet suggests the next step using <strong>double progression</strong>, a common approach: work up to the top of a rep range at a load, then add load and drop back down.</p>
+
+<ul>
+<li>Take the top set from the last session (warm-ups excluded).</li>
+<li>Below 12 reps: suggest one more rep at the same load.</li>
+<li>At 12 reps: suggest +2.5 kg (or +5 lb, or one more plate) at 8 reps.</li>
+</ul>
+
+<p>It appears as "Try 60 kg × 11 · last session 60 kg × 10", and <strong>Use</strong> fills the values in. It's a hint. The app doesn't know if your shoulder hurts today, and the terms of use say so.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fo9h9ygmh7qjamztpwenc.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fo9h9ygmh7qjamztpwenc.png" alt="Double progression across four sessions: 60 kg × 10, then 60 kg × 11, then 60 kg × 12 at the top of the range, then 62.5 kg × 8" loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="personal-records-that-survive-beyond-90-days" href="#personal-records-that-survive-beyond-90-days">
+  </a>
+  Personal records that survive beyond 90 days
+</h2>
+
+<p>History loads the last 90 days, so records calculated from that window would quietly reset over time. All-time bests are therefore stored separately in <code>users/{uid}/records/{exerciseId}</code>, one best per kind, because a plate count and a kilogram value aren't comparable.</p>
+
+<p>Checking a new set looks at both the stored record and the loaded history:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">checkRecord</span><span class="p">(</span><span class="n">history</span><span class="p">:</span> <span class="kt">List</span><span class="o">&lt;</span><span class="nc">LoggedSet</span><span class="o">&gt;</span><span class="p">,</span> <span class="n">stored</span><span class="p">:</span> <span class="nc">PersonalRecord</span><span class="o">?</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="nc">SetEntry</span><span class="p">,</span> <span class="n">unitSystem</span><span class="p">:</span> <span class="nc">UnitSystem</span><span class="p">)</span><span class="p">:</span> <span class="nc">RecordCheck</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="n">isPlates</span> <span class="o">=</span> <span class="n">entry</span><span class="p">.</span><span class="n">plates</span> <span class="o">!=</span> <span class="k">null</span>
+    <span class="kd">val</span> <span class="n">load</span> <span class="o">=</span> <span class="n">entry</span><span class="p">.</span><span class="n">plates</span><span class="o">?</span><span class="p">.</span><span class="nf">toDouble</span><span class="p">(</span><span class="p">)</span> <span class="o">?:</span> <span class="nf">displayToKg</span><span class="p">(</span><span class="n">entry</span><span class="p">.</span><span class="n">weight</span><span class="p">,</span> <span class="n">unitSystem</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">load</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="o">||</span> <span class="n">entry</span><span class="p">.</span><span class="n">bodyweight</span> <span class="o">||</span> <span class="n">entry</span><span class="p">.</span><span class="n">setType</span> <span class="o">==</span> <span class="nc">SetType</span><span class="p">.</span><span class="no">WARMUP</span><span class="p">)</span> <span class="k">return</span> <span class="nc">RecordCheck</span><span class="p">.</span><span class="no">NONE</span>
+    <span class="kd">val</span> <span class="n">storedBest</span> <span class="o">=</span> <span class="p">(</span><span class="k">if</span> <span class="p">(</span><span class="n">isPlates</span><span class="p">)</span> <span class="n">stored</span><span class="o">?</span><span class="p">.</span><span class="n">mostPlates</span> <span class="k">else</span> <span class="n">stored</span><span class="o">?</span><span class="p">.</span><span class="n">heaviest</span><span class="p">)</span><span class="o">?</span><span class="p">.</span><span class="n">load</span>
+    <span class="kd">val</span> <span class="n">historyBest</span> <span class="o">=</span> <span class="n">history</span><span class="p">.</span><span class="n">filter</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">isPlates</span> <span class="o">==</span> <span class="n">isPlates</span> <span class="o">&amp;&amp;</span> <span class="n">it</span><span class="p">.</span><span class="n">countsForRecords</span> <span class="p">}</span><span class="p">.</span><span class="n">maxOfOrNull</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">load</span> <span class="p">}</span>
+    <span class="kd">val</span> <span class="n">previousBest</span> <span class="o">=</span> <span class="nf">listOfNotNull</span><span class="p">(</span><span class="n">storedBest</span><span class="p">,</span> <span class="n">historyBest</span><span class="p">)</span><span class="p">.</span><span class="nf">maxOrNull</span><span class="p">(</span><span class="p">)</span> <span class="o">?:</span> <span class="k">return</span> <span class="nc">RecordCheck</span><span class="p">.</span><span class="no">FIRST</span>
+    <span class="k">return</span> <span class="k">if</span> <span class="p">(</span><span class="n">load</span> <span class="o">&gt;</span> <span class="n">previousBest</span> <span class="o">+</span> <span class="no">LOAD_EPSILON</span><span class="p">)</span> <span class="nc">RecordCheck</span><span class="p">.</span><span class="no">BEATEN</span> <span class="k">else</span> <span class="nc">RecordCheck</span><span class="p">.</span><span class="no">NONE</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>FIRST</code> means there was nothing to beat yet. It's saved quietly, because celebrating someone's very first set as a "record" feels silly. <code>BEATEN</code> shows a banner and saves the new best.</p>
+
+<p>Records started with this feature, so older bests are backfilled from loaded history. That only happens after the records snapshot has arrived; otherwise every best would look new. A Records page lists the bests, with a reset for the occasional mistyped 600 kg set.</p>
+
+<h2>
+  <a name="weekly-goal-streak-and-deload" href="#weekly-goal-streak-and-deload">
+  </a>
+  Weekly goal, streak and deload
+</h2>
+
+<p>The weekly goal set during onboarding finally has a home on the Today tab: a progress ring ("3/4 workouts this week") and a streak of consecutive weeks that met the goal. Weeks start on the device locale's first day, which is Saturday on my phone.</p>
+
+<p>I also wanted a reminder I actually follow: a <strong>deload week</strong> every six weeks or so, lighter loads and about half the sets, to let joints and the nervous system recover. The app counts consecutive training weeks. After six, Today shows a card suggesting a deload, and you can mark the week or dismiss the card until next week. It's advice, never enforced.</p>
+
+<p>Marked deload weeks <strong>pause</strong> the streak instead of breaking it. Taking the recommended rest shouldn't cost you your streak.</p>
+
+<h2>
+  <a name="body-measurements-with-restraint" href="#body-measurements-with-restraint">
+  </a>
+  Body measurements, with restraint
+</h2>
+
+<p>I track arms, forearms, thighs and calves on both sides, plus chest, waist and body weight. The Body page stores sessions in <code>users/{uid}/measurements</code> and shows:</p>
+
+<ul>
+<li>The latest reading of each site, the change since the previous one, and the right-vs-left difference.</li>
+<li>A trend chart for any site or side, including body weight.</li>
+<li>Plain-language insights from simple rules: weight up with the waist steady reads as lean gain; both up suggests some of the gain is fat; both down reads as fat loss.</li>
+</ul>
+
+<p>The app encourages measuring <strong>weekly or monthly</strong>. If you measure sooner than your chosen rhythm, it gently notes that day-to-day numbers mostly reflect water and food. It accepts past dates, so older paper notes can be entered, and it parses Arabic-Indic digits typed on an Arabic keyboard.</p>
+
+<p>These insights are heuristics on your own numbers. They're useful for spotting a trend and not meant to be anything more.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0nkmm1t66qk2liqugdcq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0nkmm1t66qk2liqugdcq.png" alt="The Body page: the measuring rhythm, the latest reading with changes since the previous one, right and left arms, and the start of the insights" loading="lazy" width="800" height="1422"></a></p>
+
+<h2>
+  <a name="sharing-a-workout" href="#sharing-a-workout">
+  </a>
+  Sharing a workout
+</h2>
+
+<p>The workout summary is also a share card: brand mark, date, time, sets, volume, records and each exercise's best set. The card is drawn into a Compose graphics layer as it renders, so sharing snapshots exactly what's on screen. The image is framed on an opaque background first, because some apps turn transparent rounded corners black, then handed to the system share sheet through a <code>FileProvider</code>.</p>
+
+<h2>
+  <a name="what-made-these-features-easier" href="#what-made-these-features-easier">
+  </a>
+  What made these features easier
+</h2>
+
+<ul>
+<li>Most features are queries over the same set data. That only worked because Part 3 got the set model right.</li>
+<li>Warm-ups excluded in one place fixed counts, volume, records and suggestions together.</li>
+<li>Anything that sounds like health advice is phrased as a suggestion, and the legal pages say the same thing.</li>
+</ul>
+
+<p>Part 5 covers getting all of this onto Google Play: a release-only crash, Play policies, legal pages in five languages, and cleaning up the Firebase project.</p>
+
+<p>Which would you use most: last-session comparison, the progression hint, or deload reminders?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Project:</strong> <a href="https://dotsuite.dev" target="_blank" rel="noopener noreferrer">DotSuite</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-4-workout-mode-records-deloads-and-body-insights-387d" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-4-workout-mode-records-deloads-and-body-insights-387d#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
