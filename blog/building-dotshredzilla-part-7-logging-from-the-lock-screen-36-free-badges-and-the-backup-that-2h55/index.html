@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 7): Logging From the Lock Screen, 36 Free Badges, and the Backup That Signed Everyone Out — FreeRave</title>
+<meta name="description" content="Part 6 ended with version 1.6.0 in Play review: no forced ads, Pro for life, and ad hours a server...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-7-logging-from-the-lock-screen-36-free-badges-and-the-backup-that-2h55">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-7-logging-from-the-lock-screen-36-free-badges-and-the-backup-that-2h55">
+<meta property="og:title" content="Building DotShredzilla (Part 7): Logging From the Lock Screen, 36 Free Badges, and the Backup That Signed Everyone Out — FreeRave">
+<meta property="og:description" content="Part 6 ended with version 1.6.0 in Play review: no forced ads, Pro for life, and ad hours a server...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fw8nr1hnsku7vqax7amw1.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fw8nr1hnsku7vqax7amw1.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 7): Logging From the Lock Screen, 36 Free Badges, and the Backup That Signed Everyone Out</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-22T11:57:55Z">22 November 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#jetpackcompose</span><span class="post-tag">#firebase</span></div>
+  </div>
+  <article class="post-body">
+<p><a href="https://dev.to/freerave/building-dotshredzilla-part-6-pro-without-forced-ads-and-ad-rewards-a-server-can-trust-1kpb">Part 6</a> ended with version 1.6.0 in Play review: no forced ads, Pro for life, and ad hours a server can trust. Version 1.7.0 came from the same place as every other release, a training session.</p>
+
+<p>Between sets my phone is in my pocket or on the bench, locked. Unlocking it with chalk on my hands to tap "Log set" got old fast. So the biggest feature of 1.7.0 doesn't live in the app at all. It lives in the notification shade.</p>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, written in Kotlin with Jetpack Compose and Firebase, and open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<h2>
+  <a name="logging-a-set-without-unlocking-your-phone" href="#logging-a-set-without-unlocking-your-phone">
+  </a>
+  Logging a set without unlocking your phone
+</h2>
+
+<p>When a workout starts, a notification shows what you're doing and what comes next, on the lock screen too. Its buttons cover most of a workout:</p>
+
+<ul>
+<li>
+<strong>Log 60 kg × 10</strong> repeats your last set with one tap.</li>
+<li>
+<strong>+1 rep</strong> for the set where you got one more than last time.</li>
+<li>
+<strong>Next: Leg Press</strong> once the target sets are done, and <strong>Finish</strong> on the last exercise.</li>
+<li>
+<strong>Edit</strong> opens an inline reply. Type <code>8</code> for eight reps at the same load, or <code>9 8</code> for 9 kg × 8.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbl1uqqpvirxij1g3c7mo.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbl1uqqpvirxij1g3c7mo.png" alt="The DotShredzilla workout notification before and after Log: Leg Extension set 1 ready with Log 10 plates × 18, +1 rep and Edit, then set 2 resting with the countdown and the next set suggested" loading="lazy" width="800" height="450"></a></p>
+
+<p>The timer in the notification is the system's, not mine. The notification is posted once with a target time, and Android draws the clock. It counts up the workout time and counts down the rest:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="nc">NotificationCompat</span><span class="p">.</span><span class="nc">Builder</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="no">CHANNEL_ID</span><span class="p">)</span>
+    <span class="c1">// Counts down the rest, otherwise counts up the workout time</span>
+    <span class="p">.</span><span class="nf">setWhen</span><span class="p">(</span><span class="k">if</span> <span class="p">(</span><span class="n">resting</span><span class="p">)</span> <span class="n">notice</span><span class="p">.</span><span class="n">restEndsAt</span> <span class="k">else</span> <span class="n">notice</span><span class="p">.</span><span class="n">startedAt</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setShowWhen</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setUsesChronometer</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setChronometerCountDown</span><span class="p">(</span><span class="n">resting</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setOngoing</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setOnlyAlertOnce</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setCategory</span><span class="p">(</span><span class="nc">NotificationCompat</span><span class="p">.</span><span class="no">CATEGORY_WORKOUT</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setVisibility</span><span class="p">(</span><span class="nc">NotificationCompat</span><span class="p">.</span><span class="no">VISIBILITY_PUBLIC</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><code>VISIBILITY_PUBLIC</code> is what makes the buttons usable without unlocking. That's a choice worth making on purpose: the lock screen shows the list, the exercise and your last set, and nothing else from your account.</p>
+
+<h3>
+  <a name="reading-9-8-from-a-keyboard" href="#reading-9-8-from-a-keyboard">
+  </a>
+  Reading "9 8" from a keyboard
+</h3>
+
+<p>The reply box gets whatever the keyboard sends. On my phone that can be Arabic-Indic digits (<code>٩ ٨</code>) or a decimal comma, so the parser normalizes first, then counts the numbers:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">fun</span> <span class="nf">parseSetInput</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="kt">String</span><span class="p">,</span> <span class="n">template</span><span class="p">:</span> <span class="nc">SetEntry</span><span class="o">?</span><span class="p">)</span><span class="p">:</span> <span class="nc">SetEntry</span><span class="o">?</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="n">normalized</span> <span class="o">=</span> <span class="n">text</span><span class="p">.</span><span class="n">map</span> <span class="p">{</span> <span class="n">c</span> <span class="o">-&gt;</span>
+        <span class="k">when</span> <span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">in</span> <span class="s1">'٠'</span><span class="p">.</span><span class="p">.</span><span class="s1">'٩'</span> <span class="o">-&gt;</span> <span class="s1">'0'</span> <span class="o">+</span> <span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="s1">'٠'</span><span class="p">)</span>
+            <span class="k">in</span> <span class="s1">'۰'</span><span class="p">.</span><span class="p">.</span><span class="s1">'۹'</span> <span class="o">-&gt;</span> <span class="s1">'0'</span> <span class="o">+</span> <span class="p">(</span><span class="n">c</span> <span class="o">-</span> <span class="s1">'۰'</span><span class="p">)</span>
+            <span class="s1">'٫'</span><span class="p">,</span> <span class="s1">','</span> <span class="o">-&gt;</span> <span class="s1">'.'</span>
+            <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">c</span>
+        <span class="p">}</span>
+    <span class="p">}</span><span class="p">.</span><span class="nf">joinToString</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
+    <span class="kd">val</span> <span class="n">numbers</span> <span class="o">=</span> <span class="nc">Regex</span><span class="p">(</span><span class="s2">"""\d+(?:\.\d+)?"""</span><span class="p">)</span><span class="p">.</span><span class="nf">findAll</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span><span class="p">.</span><span class="n">map</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">value</span><span class="p">.</span><span class="nf">toDouble</span><span class="p">(</span><span class="p">)</span> <span class="p">}</span><span class="p">.</span><span class="nf">toList</span><span class="p">(</span><span class="p">)</span>
+    <span class="kd">val</span> <span class="k">base</span> <span class="o">=</span> <span class="n">template</span> <span class="o">?:</span> <span class="nc">SetEntry</span><span class="p">(</span><span class="p">)</span>
+    <span class="k">return</span> <span class="k">when</span> <span class="p">(</span><span class="n">numbers</span><span class="p">.</span><span class="n">size</span><span class="p">)</span> <span class="p">{</span>
+        <span class="mi">1</span> <span class="o">-&gt;</span> <span class="n">template</span><span class="o">?</span><span class="p">.</span><span class="nf">copy</span><span class="p">(</span><span class="n">reps</span> <span class="o">=</span> <span class="n">numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="p">.</span><span class="nf">toInt</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+        <span class="mi">2</span> <span class="o">-&gt;</span> <span class="p">{</span>
+            <span class="kd">val</span> <span class="p">(</span><span class="n">load</span><span class="p">,</span> <span class="n">reps</span><span class="p">)</span> <span class="o">=</span> <span class="n">numbers</span>
+            <span class="k">when</span> <span class="p">{</span>
+                <span class="k">base</span><span class="p">.</span><span class="n">plates</span> <span class="o">!=</span> <span class="k">null</span> <span class="o">-&gt;</span> <span class="k">base</span><span class="p">.</span><span class="nf">copy</span><span class="p">(</span><span class="n">plates</span> <span class="o">=</span> <span class="n">load</span><span class="p">.</span><span class="nf">toInt</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="n">reps</span> <span class="o">=</span> <span class="n">reps</span><span class="p">.</span><span class="nf">toInt</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+                <span class="k">base</span><span class="p">.</span><span class="n">perSide</span> <span class="o">-&gt;</span> <span class="k">base</span><span class="p">.</span><span class="nf">copy</span><span class="p">(</span><span class="n">weight</span> <span class="o">=</span> <span class="n">load</span> <span class="o">*</span> <span class="mi">2</span><span class="p">,</span> <span class="n">reps</span> <span class="o">=</span> <span class="n">reps</span><span class="p">.</span><span class="nf">toInt</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+                <span class="k">else</span> <span class="o">-&gt;</span> <span class="k">base</span><span class="p">.</span><span class="nf">copy</span><span class="p">(</span><span class="n">weight</span> <span class="o">=</span> <span class="n">load</span><span class="p">,</span> <span class="n">reps</span> <span class="o">=</span> <span class="n">reps</span><span class="p">.</span><span class="nf">toInt</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="k">else</span> <span class="o">-&gt;</span> <span class="k">null</span>
+    <span class="p">}</span><span class="o">?</span><span class="p">.</span><span class="n">takeIf</span> <span class="p">{</span> <span class="n">it</span><span class="p">.</span><span class="n">reps</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="p">}</span><span class="o">?</span><span class="p">.</span><span class="nf">copy</span><span class="p">(</span><span class="n">notes</span> <span class="o">=</span> <span class="s2">""</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>One number means reps at the same load. Two numbers mean load and reps, and the load follows the last set's kind: plates stay plates, and a per-side machine doubles what you typed. Anything else gets a short "Try 8, or 9 8" message instead of a wrong set.</p>
+
+<h3>
+  <a name="what-a-notification-cant-do" href="#what-a-notification-cant-do">
+  </a>
+  What a notification can't do
+</h3>
+
+<p>Buttons on a notification go to a <code>BroadcastReceiver</code>, and a receiver isn't allowed to open screens. So <strong>Finish</strong> is a normal tap target that opens the app on the workout summary, not a background action.</p>
+
+<p>The receiver also needs the running workout. If Android has killed the app in the meantime, the buttons say "Open DotShredzilla to continue your workout" rather than logging a set into nothing. Tapping the notification itself brings the workout back.</p>
+
+<h3>
+  <a name="four-looks" href="#four-looks">
+  </a>
+  Four looks
+</h3>
+
+<p>Detailed and Compact are free. <strong>Rest focus</strong> puts the countdown first, and <strong>Progress bar</strong> uses <code>NotificationCompat.ProgressStyle</code> with a segment per exercise. On Android 16 it also asks to be promoted, which turns it into a Live Update chip in the status bar:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">builder</span><span class="p">.</span><span class="nf">setStyle</span><span class="p">(</span><span class="n">style</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setRequestPromotedOngoing</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+    <span class="p">.</span><span class="nf">setShortCriticalText</span><span class="p">(</span><span class="k">if</span> <span class="p">(</span><span class="n">resting</span><span class="p">)</span> <span class="s2">"Rest"</span> <span class="k">else</span> <span class="s2">"${notice.progress}/${notice.totalSets}"</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Here's the whole thing in 20 seconds, recorded on my own phone:</p>
+
+<p>  <iframe src="https://www.youtube.com/embed/jH8eO6-3yfs" width="710" height="399" style="width: 100%; height: auto; aspect-ratio: 16 / 9;" allowfullscreen loading="lazy">
+  </iframe>
+</p>
+
+<h2>
+  <a name="reminders-that-know-your-training" href="#reminders-that-know-your-training">
+  </a>
+  Reminders that know your training
+</h2>
+
+<p>1.7.0 also added the first notifications that aren't about a workout in progress. Every one of them is judged against your own training, not a fixed schedule:</p>
+
+<ul>
+<li>
+<strong>Workout reminder</strong> after the number of days without training you choose, then again every that many days while the break lasts. It opens the next day of your split, not just the app.</li>
+<li>
+<strong>Weekly goal alert</strong> on the last day you can still hit your goal.</li>
+<li>
+<strong>Measurement reminder</strong> following the rhythm you measure in, weekly or monthly.</li>
+<li>
+<strong>Pro time ending</strong> when banked ad hours are about to run out.</li>
+</ul>
+
+<p>The permission isn't requested on first launch. It's requested on your first rest, the moment a notification is obviously useful. Quiet hours (10 PM to 8 AM by default) hold everything back, and each kind has its own switch.</p>
+
+<p>The rules themselves are plain functions that take a snapshot of your training and return what's due today. A WorkManager job runs them in the background, and unit tests cover the edges, like a deload week that shouldn't trigger a weekly goal alert.</p>
+
+<h2>
+  <a name="36-badges-free-for-everyone" href="#36-badges-free-for-everyone">
+  </a>
+  36 badges, free for everyone
+</h2>
+
+<p>Pro is the layer that interprets your data. Badges are motivation, and motivation shouldn't be paywalled. So all 36 are free: milestones, training, strength, consistency, body and community.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjb3knboazxwz54493kgp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjb3knboazxwz54493kgp.png" alt="The badges page: body badges and the community badges, including Founding member #9, Pro for life, Supporter and Big supporter" loading="lazy" width="800" height="1630"></a></p>
+
+<p>Two lessons from earlier parts showed up again:</p>
+
+<ul>
+<li>
+<strong>Count all-time, not 90 days.</strong> History loads 90 days, so the Centurion badge (train on 100 different days) can't be counted from it. Training days, sets and records are counters on the account, the same way records moved to their own collection in Part 4.</li>
+<li>
+<strong>Compare in one unit.</strong> The weight clubs are 60 to 180 kg, or 135 to 405 lb. Progress is stored in tenths of a kilogram, so 225 lb logged in pounds reaches the 225 lb goal exactly, without a rounding error in between.</li>
+</ul>
+
+<p>Badges earned before the feature existed are saved quietly. The first launch after the update would otherwise have shown a stack of banners for things you did months ago. After that, each new badge gets its own banner.</p>
+
+<p>My favorite one is <strong>Pocket logger</strong>: log a set from the notification.</p>
+
+<p><strong>Event badges</strong> come from Remote Config. A JSON list in <code>badge_events</code> defines a title, a window and a goal ("train 3 times this week"), so an event can start without an app update. A broken entry is skipped instead of breaking the badges page, and an earned event badge stays on the account after the event ends.</p>
+
+<h2>
+  <a name="founding-member-from-a-date-to-a-number" href="#founding-member-from-a-date-to-a-number">
+  </a>
+  Founding member: from a date to a number
+</h2>
+
+<p>The first version of the Founding member badge used a Remote Config date: sign up before it, get the badge. That had two problems. A date doesn't mean "the first 100", and the app decided who qualified.</p>
+
+<p>Version 1.7.1 gives out numbers instead, #1 to #100, from a Cloud Function in a Firestore transaction:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">db</span><span class="p">.</span><span class="nf">runTransaction</span><span class="p">(</span><span class="k">async</span> <span class="p">(</span><span class="n">tx</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span>
+  <span class="kd">const</span> <span class="n">meta</span> <span class="o">=</span> <span class="k">await</span> <span class="n">tx</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nf">foundingMeta</span><span class="p">(</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="n">existing</span> <span class="o">=</span> <span class="k">await</span> <span class="n">tx</span><span class="p">.</span><span class="nf">get</span><span class="p">(</span><span class="nf">founderRef</span><span class="p">(</span><span class="n">user</span><span class="p">.</span><span class="n">uid</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">existing</span><span class="p">.</span><span class="n">exists</span><span class="p">)</span> <span class="k">return</span> <span class="s2">"already"</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="n">count</span> <span class="o">=</span> <span class="n">meta</span><span class="p">.</span><span class="n">exists</span> <span class="o">?</span> <span class="n">meta</span><span class="p">.</span><span class="nf">data</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="n">count</span> <span class="o">||</span> <span class="mi">0</span> <span class="p">:</span> <span class="mi">0</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">count</span> <span class="o">&gt;=</span> <span class="no">FOUNDING_LIMIT</span><span class="p">)</span> <span class="k">return</span> <span class="s2">"full"</span><span class="p">;</span>
+  <span class="n">tx</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="nf">founderRef</span><span class="p">(</span><span class="n">user</span><span class="p">.</span><span class="n">uid</span><span class="p">)</span><span class="p">,</span> <span class="p">{</span> <span class="kt">number</span><span class="p">:</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">at</span><span class="p">:</span> <span class="nc">Timestamp</span><span class="p">.</span><span class="nf">now</span><span class="p">(</span><span class="p">)</span> <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="n">tx</span><span class="p">.</span><span class="nf">set</span><span class="p">(</span><span class="nf">foundingMeta</span><span class="p">(</span><span class="p">)</span><span class="p">,</span> <span class="p">{</span> <span class="n">count</span><span class="p">:</span> <span class="n">count</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="no">FOUNDING_LIMIT</span> <span class="p">}</span><span class="p">,</span> <span class="p">{</span> <span class="n">merge</span><span class="p">:</span> <span class="kc">true</span> <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">return</span> <span class="sb">`#${count + 1}`</span><span class="p">;</span>
+<span class="p">}</span><span class="p">)</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The number lives in <code>founders/{uid}</code>, which its member can read and nobody can write from the app. I first wanted to put it in the profile document, but version 1.6.0 creates email accounts with a plain <code>set()</code>, which replaces the whole document. A field there could be wiped by an app version that's still installed. A separate document no app version ever writes is safer than any rule about fields.</p>
+
+<p>Since then the function has moved from "account created" to "onboarding finished", so a sign-up someone abandons halfway doesn't take one of the hundred numbers.</p>
+
+<h2>
+  <a name="the-backup-that-signed-everyone-out" href="#the-backup-that-signed-everyone-out">
+  </a>
+  The backup that signed everyone out
+</h2>
+
+<p>The worst bug of this release was simple to describe: on some installs, the app forgot the sign-in every time it closed. Sign in, close, open: signed out.</p>
+
+<p>The cause was Android's Auto Backup. Firebase Auth stores the signed-in user encrypted, with a key from the <strong>Android Keystore</strong>. Auto Backup happily restored Firebase's files to the new install, including the encrypted keyset. The Keystore key that opens it never leaves the device, by design. So Firebase found a keyset it couldn't use, couldn't save any sign-in with it, and every launch started signed out.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fps86f1nw0n4vov4rl61r.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fps86f1nw0n4vov4rl61r.png" alt="How Auto Backup broke sign-in: the saved sign-in and its keyset were restored to a new install, but the Keystore key that opens the keyset never leaves a phone; the fixes exclude those files from backups and delete an unusable keyset at startup" loading="lazy" width="800" height="450"></a></p>
+
+<p>The fix has two halves. New backups leave those files out, in both rule files, because Android 12 and later read <code>data_extraction_rules.xml</code> and older versions read <code>backup_rules.xml</code>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight xml"><code><span class="nt">&lt;cloud-backup&gt;</span>
+    <span class="nt">&lt;exclude</span> <span class="na">domain</span><span class="o">=</span><span class="s">"sharedpref"</span> <span class="na">path</span><span class="o">=</span><span class="s">"com.google.firebase.auth.api.crypto.….xml"</span> <span class="nt">/&gt;</span>
+    <span class="nt">&lt;exclude</span> <span class="na">domain</span><span class="o">=</span><span class="s">"sharedpref"</span> <span class="na">path</span><span class="o">=</span><span class="s">"com.google.firebase.auth.api.Store.….xml"</span> <span class="nt">/&gt;</span>
+<span class="nt">&lt;/cloud-backup&gt;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Phones that already restored a broken keyset needed more. At startup, if no sign-in is saved, the old keyset protects nothing, so it's removed before Firebase Auth starts and Firebase creates a working one on the next sign-in:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">private</span> <span class="k">fun</span> <span class="nf">resetUnusableAuthKey</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="n">store</span> <span class="o">=</span> <span class="nf">getSharedPreferences</span><span class="p">(</span><span class="s2">"com.google.firebase.auth.api.Store.$suffix"</span><span class="p">,</span> <span class="no">MODE_PRIVATE</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">store</span><span class="p">.</span><span class="nf">contains</span><span class="p">(</span><span class="s2">"com.google.firebase.auth.FIREBASE_USER"</span><span class="p">)</span><span class="p">)</span> <span class="k">return</span>
+    <span class="kd">val</span> <span class="n">crypto</span> <span class="o">=</span> <span class="s2">"com.google.firebase.auth.api.crypto.$suffix"</span>
+    <span class="k">if</span> <span class="p">(</span><span class="nf">getSharedPreferences</span><span class="p">(</span><span class="n">crypto</span><span class="p">,</span> <span class="no">MODE_PRIVATE</span><span class="p">)</span><span class="p">.</span><span class="n">all</span><span class="p">.</span><span class="nf">isNotEmpty</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="nf">deleteSharedPreferences</span><span class="p">(</span><span class="n">crypto</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>While I was in there, I removed a second way to get signed out. The app used to sign out when the profile couldn't be loaded, which on a weak gym connection happened often. Now only an account that was deleted or disabled is signed out. Anything else opens the app and syncs later.</p>
+
+<p>1.7.0 had already been approved by Play. I never published it, and shipped 1.7.1 with the fix instead.</p>
+
+<h2>
+  <a name="smaller-things" href="#smaller-things">
+  </a>
+  Smaller things
+</h2>
+
+<ul>
+<li>
+<strong>Separate units</strong> for weights (kg or lb) and body measurements (cm or in), chosen during onboarding and defaulting to your region.</li>
+<li>
+<strong>No camera permission.</strong> "Take photo" hands off to the system camera app, which needs no permission at all.</li>
+<li>
+<strong>About 900 KB smaller.</strong> The R8 rules no longer keep whole libraries.</li>
+<li>
+<strong>Set numbers that make sense.</strong> Left and right share a number (1, 1, 2, 3), warm-ups show "W", and a one-sided set counts once both sides are logged.</li>
+</ul>
+
+<h2>
+  <a name="what-id-tell-myself-before-170" href="#what-id-tell-myself-before-170">
+  </a>
+  What I'd tell myself before 1.7.0
+</h2>
+
+<ul>
+<li>Put the action where your hands already are. For a gym app, that's the lock screen.</li>
+<li>Anything restored from a backup has to survive without the old device's keys.</li>
+<li>Hand out scarce things, like the first 100 numbers, from a server in a transaction.</li>
+<li>Don't sign people out because the network is slow.</li>
+</ul>
+
+<p>Version 1.7.1 is live on Google Play. Next, DotShredzilla learns five languages, including right-to-left Arabic.</p>
+
+<p>What would you want to do from a notification without opening the app?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Privacy &amp; terms:</strong> <a href="https://dotsuite.dev/en/dotshredzilla/privacy" target="_blank" rel="noopener noreferrer">dotsuite.dev</a></p>
+
+<p><strong>Support:</strong> <a href="mailto:support@dotsuite.dev">support@dotsuite.dev</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-7-logging-from-the-lock-screen-36-free-badges-and-the-backup-that-2h55" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 1
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-7-logging-from-the-lock-screen-36-free-badges-and-the-backup-that-2h55#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

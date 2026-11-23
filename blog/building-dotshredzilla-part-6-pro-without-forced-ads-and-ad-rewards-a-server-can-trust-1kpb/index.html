@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 6): Pro Without Forced Ads, and Ad Rewards a Server Can Trust — FreeRave</title>
+<meta name="description" content="Part 5 ended with version 1.5.1 in Play review. Before that release even went live, I decided I...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-6-pro-without-forced-ads-and-ad-rewards-a-server-can-trust-1kpb">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-6-pro-without-forced-ads-and-ad-rewards-a-server-can-trust-1kpb">
+<meta property="og:title" content="Building DotShredzilla (Part 6): Pro Without Forced Ads, and Ad Rewards a Server Can Trust — FreeRave">
+<meta property="og:description" content="Part 5 ended with version 1.5.1 in Play review. Before that release even went live, I decided I...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ftr90tin1rbvl5nvikax4.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Ftr90tin1rbvl5nvikax4.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 6): Pro Without Forced Ads, and Ad Rewards a Server Can Trust</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-21T19:45:49Z">21 November 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#kotlin</span><span class="post-tag">#firebase</span><span class="post-tag">#monetization</span></div>
+  </div>
+  <article class="post-body">
+<p><a href="https://dev.to/freerave/building-dotshredzilla-part-5-shipping-to-google-play-the-parts-nobody-sees-15k1">Part 5</a> ended with version 1.5.1 in Play review. Before that release even went live, I decided I didn't want its biggest annoyance anymore: an ad every time the app opened.</p>
+
+<p>A workout tracker is opened between sets, with chalk on your hands and a timer running. An interstitial at that moment isn't a business model, it's friction. So version 1.6.0 removes every forced ad and replaces them with three things you choose:</p>
+
+<ul>
+<li>
+<strong>Pro for life</strong>, a one-time purchase.</li>
+<li>
+<strong>Pro hours</strong>: watch one optional ad, get one hour of Pro.</li>
+<li>
+<strong>Tips</strong>: a pre-workout shot, a protein scoop or a creatine tub. They say thanks and add a Supporter badge, nothing else.</li>
+</ul>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, written in Kotlin with Jetpack Compose and Firebase, and open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fb0twbyovh2ghurydabir.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fb0twbyovh2ghurydabir.png" alt="The DotShredzilla Pro page: &quot;You're Pro for life&quot; with the Supporter badge, and the list of what Pro adds: next-set coach, last-time comparison, body insights and advanced stats" loading="lazy" width="800" height="1600"></a></p>
+
+<h2>
+  <a name="deciding-what-pro-is" href="#deciding-what-pro-is">
+  </a>
+  Deciding what Pro is
+</h2>
+
+<p>The hardest part wasn't code. It was drawing the line between free and Pro without making the free app feel crippled.</p>
+
+<p>The rule I settled on: <strong>everything you need to train stays free</strong>. Logging, lists, programs, workout mode, supersets, the rest timer, the plate calculator, personal records, streaks, deload reminders, measurements, history and sharing.</p>
+
+<p><strong>Pro is the layer that interprets your data:</strong></p>
+
+<ul>
+<li>The next-set coach and the "+2 reps" comparison with last session.</li>
+<li>Body-measurement insights and trend charts.</li>
+<li>A new stats screen: hard sets per muscle each week against the usual 10 to 20, an estimated 1RM trend per exercise, and eight weeks of sets, volume and training time.</li>
+<li>Four accent themes and two extra share-card styles.</li>
+</ul>
+
+<p>Locked features don't disappear. Each one shows a small gold card saying what it would do, and the stats screen renders your real numbers blurred behind an "Unlock" button. Seeing your own data is a much better pitch than a feature list.</p>
+
+<h2>
+  <a name="play-billing-three-rules" href="#play-billing-three-rules">
+  </a>
+  Play Billing: three rules
+</h2>
+
+<p>Billing Library 8 is pleasant to use, but three details matter:</p>
+
+<ol>
+<li>
+<strong>Acknowledge non-consumables.</strong> If Pro for life isn't acknowledged within three days, Google refunds it automatically.</li>
+<li>
+<strong>Consume tips.</strong> A tip that isn't consumed can't be bought again ("You already own this item").</li>
+<li>
+<strong>Play is the source of truth.</strong> Pro for life is restored from <code>queryPurchasesAsync</code> on every connection, so it follows the Google Play account to new phones. A cached flag only covers offline launches.
+</li>
+</ol>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">when</span> <span class="p">{</span>
+    <span class="nc">ProCatalog</span><span class="p">.</span><span class="no">PRO_LIFETIME</span> <span class="k">in</span> <span class="n">purchase</span><span class="p">.</span><span class="n">products</span> <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">purchase</span><span class="p">.</span><span class="n">isAcknowledged</span> <span class="o">-&gt;</span>
+        <span class="n">client</span><span class="p">.</span><span class="nf">acknowledgePurchase</span><span class="p">(</span><span class="nc">AcknowledgePurchaseParams</span><span class="p">.</span><span class="nf">newBuilder</span><span class="p">(</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">setPurchaseToken</span><span class="p">(</span><span class="n">purchase</span><span class="p">.</span><span class="n">purchaseToken</span><span class="p">)</span><span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span> <span class="cm">/* ProUnlocked */</span> <span class="p">}</span>
+    <span class="nc">SupportTip</span><span class="p">.</span><span class="nf">forProduct</span><span class="p">(</span><span class="n">purchase</span><span class="p">.</span><span class="n">products</span><span class="p">.</span><span class="nf">first</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="o">!=</span> <span class="k">null</span> <span class="o">-&gt;</span>
+        <span class="n">client</span><span class="p">.</span><span class="nf">consumeAsync</span><span class="p">(</span><span class="nc">ConsumeParams</span><span class="p">.</span><span class="nf">newBuilder</span><span class="p">(</span><span class="p">)</span>
+            <span class="p">.</span><span class="nf">setPurchaseToken</span><span class="p">(</span><span class="n">purchase</span><span class="p">.</span><span class="n">purchaseToken</span><span class="p">)</span><span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">-&gt;</span> <span class="cm">/* TipReceived */</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Purchase events go through a buffered <code>Channel</code>, collected at the app root rather than on the Pro page. A payment can finish while you're somewhere else in the app, and the thank-you still has to appear.</p>
+
+<h2>
+  <a name="the-first-version-of-ad-hours-trusted-the-phone" href="#the-first-version-of-ad-hours-trusted-the-phone">
+  </a>
+  The first version of ad hours trusted the phone
+</h2>
+
+<p>My first implementation of "one ad, one hour" did the obvious thing: when AdMob reported a reward, the app wrote a new <code>proUntil</code> timestamp to the user's Firestore document.</p>
+
+<p>It worked, and it was trivially abusable. Anyone could write <code>proUntil: 2099</code> to their own document, change the phone's clock to reset a "5 ads per day" limit, or replay the write.</p>
+
+<p>So the rule became: <strong>the app never writes Pro time. A server does, and only after Google confirms the ad was watched.</strong></p>
+
+<h2>
+  <a name="admob-serverside-verification" href="#admob-serverside-verification">
+  </a>
+  AdMob server-side verification
+</h2>
+
+<p>AdMob supports exactly this. You give the ad unit a callback URL. When someone finishes a rewarded ad, Google calls that URL with the reward details and an ECDSA signature made with keys it publishes.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpnqnj8sir27lfxoesowm.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fpnqnj8sir27lfxoesowm.png" alt="How an ad hour is granted: the app shows the rewarded ad with the user ID, AdMob calls the admobReward Cloud Function, which checks Google's signature and moves proUntil forward in Firestore on the server's clock; the app writing proUntil itself is denied by Firestore rules" loading="lazy" width="800" height="450"></a></p>
+
+<p>The app sets the Firebase user ID on the ad before showing it:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="n">ad</span><span class="p">.</span><span class="nf">setServerSideVerificationOptions</span><span class="p">(</span>
+    <span class="nc">ServerSideVerificationOptions</span><span class="p">.</span><span class="nc">Builder</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">setUserId</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span><span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The callback is a Firebase Cloud Function. It verifies the signature against Google's published keys, then grants the hour inside a Firestore transaction using <strong>the server's clock</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">function</span> <span class="nf">grantAdHour</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">transactionId</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">state</span><span class="p">.</span><span class="n">transactions</span><span class="p">.</span><span class="nf">includes</span><span class="p">(</span><span class="n">transactionId</span><span class="p">)</span><span class="p">)</span> <span class="k">return</span> <span class="p">{</span> <span class="n">granted</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="s2">"duplicate"</span> <span class="p">}</span><span class="p">;</span>
+  <span class="kd">const</span> <span class="n">recent</span> <span class="o">=</span> <span class="n">state</span><span class="p">.</span><span class="n">adTimes</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="n">now</span> <span class="o">-</span> <span class="n">t</span> <span class="o">&lt;</span> <span class="no">DAY</span><span class="p">)</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="n">recent</span><span class="p">.</span><span class="n">length</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">)</span> <span class="k">return</span> <span class="p">{</span> <span class="n">granted</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="s2">"daily_limit"</span> <span class="p">}</span><span class="p">;</span>
+  <span class="k">if</span> <span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">state</span><span class="p">.</span><span class="n">untilMillis</span> <span class="o">-</span> <span class="n">now</span><span class="p">)</span> <span class="o">+</span> <span class="no">HOUR</span> <span class="o">&gt;</span> <span class="mi">8</span> <span class="o">*</span> <span class="no">HOUR</span><span class="p">)</span> <span class="k">return</span> <span class="p">{</span> <span class="n">granted</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span> <span class="n">reason</span><span class="p">:</span> <span class="s2">"bank_full"</span> <span class="p">}</span><span class="p">;</span>
+  <span class="k">return</span> <span class="p">{</span>
+    <span class="n">granted</span><span class="p">:</span> <span class="kc">true</span><span class="p">,</span>
+    <span class="n">untilMillis</span><span class="p">:</span> <span class="nb">Math</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">state</span><span class="p">.</span><span class="n">untilMillis</span><span class="p">)</span> <span class="o">+</span> <span class="no">HOUR</span><span class="p">,</span>
+    <span class="n">adTimes</span><span class="p">:</span> <span class="p">[</span><span class="p">.</span><span class="p">.</span><span class="p">.</span><span class="n">recent</span><span class="p">,</span> <span class="n">now</span><span class="p">]</span><span class="p">,</span>
+    <span class="n">transactions</span><span class="p">:</span> <span class="p">[</span><span class="p">.</span><span class="p">.</span><span class="p">.</span><span class="n">state</span><span class="p">.</span><span class="n">transactions</span><span class="p">,</span> <span class="n">transactionId</span><span class="p">]</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="o">-</span><span class="mi">20</span><span class="p">)</span><span class="p">,</span>
+  <span class="p">}</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Three details in there came from thinking about how it could go wrong:</p>
+
+<ul>
+<li>
+<strong>A rolling 24 hours instead of "per day".</strong> A calendar day depends on a time zone, and the phone's time zone is under the user's control.</li>
+<li>
+<strong>Transaction IDs are remembered.</strong> AdMob retries callbacks, and a retry must not grant a second hour.</li>
+<li>
+<strong>The function answers 200 even when a limit is hit.</strong> The callback was genuine, so retrying won't change anything.</li>
+</ul>
+
+<p>The logic is a plain function with no Firebase imports, so it has unit tests. The signature check has tests too, using a key pair generated in the test itself.</p>
+
+<h3>
+  <a name="locking-the-fields-with-firestore-rules" href="#locking-the-fields-with-firestore-rules">
+  </a>
+  Locking the fields with Firestore rules
+</h3>
+
+<p>The server can only be the sole writer if the client is stopped from writing. Firestore rules can compare an update with the stored document:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rego"><code><span class="n">function</span> <span class="nf">serverOwned</span><span class="p">(</span><span class="p">)</span> <span class="p">{</span> <span class="k">return</span> <span class="p">[</span><span class="s1">'proUntil'</span><span class="p">,</span> <span class="s1">'proAdTimes'</span><span class="p">,</span> <span class="s1">'proAdTxns'</span><span class="p">]</span><span class="p">;</span> <span class="p">}</span>
+
+<span class="n">match</span> <span class="o">/</span><span class="n">users</span><span class="o">/</span><span class="p">{</span><span class="n">uid</span><span class="p">}</span> <span class="p">{</span>
+  <span class="n">allow</span> <span class="n">update</span><span class="p">:</span> <span class="k">if</span> <span class="nf">isOwner</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span>
+    <span class="o">&amp;&amp;</span> <span class="o">!</span><span class="n">request</span><span class="p">.</span><span class="n">resource</span><span class="p">.</span><span class="n">data</span><span class="p">.</span><span class="nf">diff</span><span class="p">(</span><span class="n">resource</span><span class="p">.</span><span class="n">data</span><span class="p">)</span><span class="p">.</span><span class="nf">affectedKeys</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">hasAny</span><span class="p">(</span><span class="nf">serverOwned</span><span class="p">(</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+  <span class="n">match</span> <span class="o">/</span><span class="p">{</span><span class="n">collection</span><span class="p">}</span><span class="o">/</span><span class="p">{</span><span class="n">document</span><span class="o">=**</span><span class="p">}</span> <span class="p">{</span>
+    <span class="n">allow</span> <span class="n">read</span><span class="p">,</span> <span class="n">write</span><span class="p">:</span> <span class="k">if</span> <span class="nf">isOwner</span><span class="p">(</span><span class="n">uid</span><span class="p">)</span><span class="p">;</span>
+  <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That inner match first read <code>match /{document=**}</code>, and it would have quietly undone everything. A recursive wildcard matches <strong>zero</strong> or more segments, so it also matched the profile document itself and granted full write access to it. Putting <code>{collection}</code> first forces at least one segment.</p>
+
+<p>I only trusted the rules after running them in the Firestore emulator: 11 tests covering normal profile edits, attempts to grant yourself Pro time, set-merge tricks, new accounts and other users. One test failed, and the bug was in the test, not the rules. Writing <code>[]</code> over an empty array changes nothing, so it was allowed. Seeding a real value fixed it.</p>
+
+<h2>
+  <a name="the-403-that-taught-me-how-google-signs" href="#the-403-that-taught-me-how-google-signs">
+  </a>
+  The 403 that taught me how Google signs
+</h2>
+
+<p>The first time AdMob's "Verify URL" button called the function, it returned <strong>403</strong>. The signature was being rejected.</p>
+
+<p>I was verifying the raw query string exactly as received. Google's own verifier, in Tink's <code>RewardedAdsVerifier</code>, reads the query with Java's <code>URI.getQuery()</code>, which <strong>percent-decodes</strong> it before checking. Matching that was a one-line change:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight javascript"><code><span class="kd">const</span> <span class="n">message</span> <span class="o">=</span> <span class="nf">decodeURIComponent</span><span class="p">(</span><span class="n">rawQuery</span><span class="p">.</span><span class="nf">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">rawQuery</span><span class="p">.</span><span class="nf">indexOf</span><span class="p">(</span><span class="s2">"&amp;signature="</span><span class="p">)</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>I also made a failed download of Google's keys return 503 instead of 403, so AdMob retries later instead of treating it as forged. After a redeploy, AdMob showed "Your callback URL has been verified".</p>
+
+<h2>
+  <a name="testing-real-ads-without-risking-the-admob-account" href="#testing-real-ads-without-risking-the-admob-account">
+  </a>
+  Testing real ads without risking the AdMob account
+</h2>
+
+<p>Google's shared test ad unit never calls your server, so it can't test this flow. Clicking real ads on your own phone can get an AdMob account suspended.</p>
+
+<p>The answer is a registered test device: the real ad unit serves labelled test ads, and the callback still fires. The device ID AdMob expects is the MD5 of the app's <code>ANDROID_ID</code>, so debug builds register whatever device they run on:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="k">if</span> <span class="p">(</span><span class="nc">BuildConfig</span><span class="p">.</span><span class="no">DEBUG</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kd">val</span> <span class="n">id</span> <span class="o">=</span> <span class="nc">MessageDigest</span><span class="p">.</span><span class="nf">getInstance</span><span class="p">(</span><span class="s2">"MD5"</span><span class="p">)</span>
+        <span class="p">.</span><span class="nf">digest</span><span class="p">(</span><span class="n">androidId</span><span class="p">.</span><span class="nf">toByteArray</span><span class="p">(</span><span class="p">)</span><span class="p">)</span><span class="p">.</span><span class="nf">joinToString</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span> <span class="p">{</span> <span class="s2">"%02X"</span><span class="p">.</span><span class="nf">format</span><span class="p">(</span><span class="n">it</span><span class="p">)</span> <span class="p">}</span>
+    <span class="nc">MobileAds</span><span class="p">.</span><span class="nf">setRequestConfiguration</span><span class="p">(</span>
+        <span class="nc">RequestConfiguration</span><span class="p">.</span><span class="nc">Builder</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">setTestDeviceIds</span><span class="p">(</span><span class="nf">listOf</span><span class="p">(</span><span class="n">id</span><span class="p">)</span><span class="p">)</span><span class="p">.</span><span class="nf">build</span><span class="p">(</span><span class="p">)</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>On the first try, Logcat said "This request is sent from a test device", and the function logged <code>granted: true</code> for my account.</p>
+
+<h2>
+  <a name="two-things-the-today-page-got-wrong" href="#two-things-the-today-page-got-wrong">
+  </a>
+  Two things the Today page got wrong
+</h2>
+
+<p>While building Pro I kept finding smaller problems.</p>
+
+<ul>
+<li>
+<strong>Every set was number 1.</strong> The loader for the Today page hard-coded <code>setNumber = 1</code>. Sets are now numbered in the order they were logged, per exercise and per side, and warm-ups show "W".</li>
+<li>
+<strong>Training time didn't exist.</strong> Workouts started from workout mode already stored their duration, but sets logged from the exercise list had nothing. Today now groups any sets logged outside a workout into sessions, splitting at gaps longer than 45 minutes so morning and evening training stay apart, and merges overlaps so nothing is counted twice. The stats screen uses the same function to show time per week.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fec25ab6uxrsstaoa233v.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fec25ab6uxrsstaoa233v.png" alt="How training time is counted: sets with a 20-minute pause stay in one session, a gap over 45 minutes starts a new one, the last set adds 2 minutes, and warm-ups logged before Start merge with the workout, giving 49m plus 1h, 1h 49m in total" loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="the-paperwork" href="#the-paperwork">
+  </a>
+  The paperwork
+</h2>
+
+<p>Selling things on Google Play brought its own list of steps, most of them outside the code:</p>
+
+<ul>
+<li>
+<strong>A merchant account.</strong> I reused my existing individual payments profile, the one AdMob already pays into. You don't need a company to sell as an individual.</li>
+<li>
+<strong>The 15% service fee.</strong> It isn't automatic: you create an account group and accept the terms. Otherwise Google takes 30%.</li>
+<li>
+<strong>Products need an uploaded build.</strong> The one-time products page stays locked until a bundle with the <code>BILLING</code> permission is in a track. I uploaded 1.6.0 to Internal testing first.</li>
+<li>
+<strong>License testers.</strong> I created a list with just my own email. The existing tester list wasn't used, because license testers buy for free.</li>
+<li>
+<strong>Data safety.</strong> Purchase history is now declared as collected, optional and used for app functionality.</li>
+<li>
+<strong>Terms and privacy in five languages.</strong> Both gained a section on Pro, purchases and server-verified ad hours. The website changes were pushed together with the release, not earlier, so the published policy never described an app that wasn't on the store.</li>
+</ul>
+
+<p>Then I tested everything from the Internal testing track with Play's test card: Pro for life, all three tips, and the same tip twice to prove it was consumed. The receipts said "Test:", the prices showed in local currency, and the Supporter badge appeared.</p>
+
+<h2>
+  <a name="what-id-tell-myself-before-adding-payments" href="#what-id-tell-myself-before-adding-payments">
+  </a>
+  What I'd tell myself before adding payments
+</h2>
+
+<ul>
+<li>Decide what stays free before writing any code. It shapes every screen.</li>
+<li>If a reward has value, the client must not be able to grant it. Put the grant behind a server and lock the fields with rules.</li>
+<li>Test security rules in the emulator, including the attempts that should fail.</li>
+<li>When a signature doesn't verify, read the reference verifier before assuming the keys are wrong.</li>
+<li>Buy everything once on a test track, including the same consumable twice, before sending a release to review.</li>
+</ul>
+
+<p>Version 1.6.0 is in Play review as I write this. Free training stays free, and nobody sees an ad unless they ask for one.</p>
+
+<p>How do you monetize a small app you'd still want to use yourself: one-time purchase, subscription, optional ads or tips?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Privacy &amp; terms:</strong> <a href="https://dotsuite.dev/en/dotshredzilla/privacy" target="_blank" rel="noopener noreferrer">dotsuite.dev</a></p>
+
+<p><strong>Support:</strong> <a href="mailto:support@dotsuite.dev">support@dotsuite.dev</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-6-pro-without-forced-ads-and-ad-rewards-a-server-can-trust-1kpb" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 2
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-6-pro-without-forced-ads-and-ad-rewards-a-server-can-trust-1kpb#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>

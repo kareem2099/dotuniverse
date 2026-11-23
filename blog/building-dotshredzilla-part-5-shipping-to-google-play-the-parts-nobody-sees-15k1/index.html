@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>Building DotShredzilla (Part 5): Shipping to Google Play, the Parts Nobody Sees — FreeRave</title>
+<meta name="description" content="Parts 2 to 4 covered the visible work: the glass redesign, the gym-driven data model, and the...">
+<link rel="canonical" href="https://dev.to/freerave/building-dotshredzilla-part-5-shipping-to-google-play-the-parts-nobody-sees-15k1">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/building-dotshredzilla-part-5-shipping-to-google-play-the-parts-nobody-sees-15k1">
+<meta property="og:title" content="Building DotShredzilla (Part 5): Shipping to Google Play, the Parts Nobody Sees — FreeRave">
+<meta property="og:description" content="Parts 2 to 4 covered the visible work: the glass redesign, the gym-driven data model, and the...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjkfbl74o1unoctfwbjp5.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fjkfbl74o1unoctfwbjp5.png" alt="">
+  <h1 class="post-title">Building DotShredzilla (Part 5): Shipping to Google Play, the Parts Nobody Sees</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-20T18:01:01Z">20 November 2026</time> · 6 min read
+    <div class="post-tags"><span class="post-tag">#android</span><span class="post-tag">#googleplay</span><span class="post-tag">#firebase</span><span class="post-tag">#kotlin</span></div>
+  </div>
+  <article class="post-body">
+<p>Parts 2 to 4 covered the visible work: the glass redesign, the gym-driven data model, and the training features. This part is about everything between "it works on my phone" and "it's on Google Play".</p>
+
+<p>Most of it isn't visible in the app at all. A lot of it only showed up because I tested the actual release build and read every warning in Play Console instead of clicking past it.</p>
+
+<p>DotShredzilla is an Android workout tracker from <strong>FreeRave (DotSuite)</strong>, open source under <strong>Apache License 2.0</strong>: <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a>.</p>
+
+<h2>
+  <a name="a-rest-timer-you-can-trust-with-the-screen-off" href="#a-rest-timer-you-can-trust-with-the-screen-off">
+  </a>
+  A rest timer you can trust with the screen off
+</h2>
+
+<p>The old rest timer re-posted its notification every 100 ms, used the colored launcher icon as a status-bar icon, and restarted the app when tapped. Worse, with the screen off the phone could sleep, so "rest over" sometimes arrived late.</p>
+
+<p>The new one:</p>
+
+<ul>
+<li>Posts the notification <strong>once</strong> and lets the system count down, also on the lock screen:
+</li>
+</ul>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code>  <span class="p">.</span><span class="nf">setWhen</span><span class="p">(</span><span class="n">endsAtMillis</span><span class="p">)</span>
+  <span class="p">.</span><span class="nf">setUsesChronometer</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+  <span class="p">.</span><span class="nf">setChronometerCountDown</span><span class="p">(</span><span class="kc">true</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<ul>
+<li>Holds a partial wake lock only for the length of the rest, so the end is on time.</li>
+<li>Vibrates with alarm usage when the rest ends, so it's felt even on silent in a gym bag.</li>
+<li>Brings the running app forward on tap, the way the launcher icon does, instead of restarting it.</li>
+</ul>
+
+<h2>
+  <a name="the-crash-that-only-existed-in-release" href="#the-crash-that-only-existed-in-release">
+  </a>
+  The crash that only existed in release
+</h2>
+
+<p>Every build I'd tested was a debug build. Before uploading, I installed the minified release APK on my phone, and it crashed on launch:</p>
+
+<blockquote>
+<p>Failed to create an instance of androidx.work.impl.WorkDatabase</p>
+</blockquote>
+
+<p>Nothing in my code uses WorkManager. AdMob does, and it pulled in <strong>WorkManager 2.7.0 with Room 2.2.5</strong>. That Room version creates its database class by reflection without shipping the keep rules R8 needs, so R8 removed the class. Depending on a current WorkManager directly brings a newer Room with its consumer rules:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="c1">// AdMob pulls in WorkManager 2.7 with Room 2.2, whose database is created by reflection and</span>
+<span class="c1">// stripped by R8 (release crash on launch); a current WorkManager brings Room's keep rules</span>
+<span class="nf">implementation</span><span class="p">(</span><span class="n">libs</span><span class="p">.</span><span class="n">androidx</span><span class="p">.</span><span class="n">work</span><span class="p">.</span><span class="n">runtime</span><span class="p">)</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The lesson is boring and important: install the release build on a real device before uploading, every time.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fud2sygohzbwirpzd8q27.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fud2sygohzbwirpzd8q27.png" alt="The chain behind the release-only crash: AdMob pulls in WorkManager 2.7.0, which uses Room 2.2.5, which creates WorkDatabase by reflection without keep rules, so R8 removes it; the fix is a direct WorkManager dependency" loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="updates-without-leaving-users-behind" href="#updates-without-leaving-users-behind">
+  </a>
+  Updates without leaving users behind
+</h2>
+
+<p>Older versions used a small library that read an <code>update-info.json</code> from Firebase Hosting and showed a dialog. It always had a "Dismiss" button, so it couldn't require anything.</p>
+
+<p>From 1.5.0 onward, updates go through <strong>Google Play In-App Updates</strong>:</p>
+
+<ul>
+<li>When Play has a newer version, the app offers it at most once a day and downloads it in the background, then asks for a restart.</li>
+<li>A Firebase <strong>Remote Config</strong> parameter, <code>min_supported_version_code</code>, sets the lowest version allowed to run. Anything below it gets a full-screen "Update required" screen that uses Play's immediate update flow.</li>
+</ul>
+
+<p>The minimum can be raised from the Firebase console without a release. The old JSON still exists for installs that predate this, now pointing at the new version.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fu0wzj77wrrx9wuvg238p.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fu0wzj77wrrx9wuvg238p.png" alt="How updates work: at start the app reads min_supported_version_code from Remote Config; below it, a full-screen Update required uses Play's immediate update, otherwise a newer version is offered at most once a day" loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="android-16-and-plays-checks" href="#android-16-and-plays-checks">
+  </a>
+  Android 16 and Play's checks
+</h2>
+
+<p>The release targets API 37 (Android 17), above Play's Android 16 requirement, with minimum API 29 unchanged. Edge-to-edge and predictive back were already handled during the redesign.</p>
+
+<p>Before uploading I checked the bundle itself:</p>
+
+<ul>
+<li>
+<strong>16 KB page alignment.</strong> Play requires it for native libraries. The only native code was a small AndroidX library, and its <code>LOAD</code> segments were aligned at <code>0x4000</code>.</li>
+<li>
+<strong>Version and signing.</strong> The final merged manifest's <code>versionCode</code> and <code>targetSdkVersion</code>, and the upload key's certificate.</li>
+</ul>
+
+<h2>
+  <a name="the-upload-that-play-blocked" href="#the-upload-that-play-blocked">
+  </a>
+  The upload that Play blocked
+</h2>
+
+<p>Two surprises waited in Play Console.</p>
+
+<p>The first: the version live on Google Play was <strong>1.2.0</strong>. Versions 1.3.0 and 1.4.0 had never been uploaded. So this release was a much bigger jump than the version number suggested.</p>
+
+<p>The second: Play's pre-review checks blocked versionCode 8 under the <strong>photo and video permissions policy</strong>. The app requested <code>READ_MEDIA_IMAGES</code> just to pick a profile picture. Version <strong>1.5.1</strong> switches to the system photo picker, which needs no storage permission and gives the app access only to the chosen image:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight kotlin"><code><span class="kd">val</span> <span class="n">galleryLauncher</span> <span class="o">=</span> <span class="nf">rememberLauncherForActivityResult</span><span class="p">(</span><span class="nc">ActivityResultContracts</span><span class="p">.</span><span class="nc">PickVisualMedia</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="p">{</span> <span class="n">uri</span> <span class="o">-&gt;</span>
+    <span class="n">uri</span><span class="o">?</span><span class="p">.</span><span class="n">let</span> <span class="p">{</span> <span class="nf">usePhoto</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="s2">"user_profile_gallery_"</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>Old testing tracks that still shipped the broad permission were paused, because the policy applies to every track.</p>
+
+<h2>
+  <a name="being-accurate-about-data" href="#being-accurate-about-data">
+  </a>
+  Being accurate about data
+</h2>
+
+<p>The <strong>Data safety</strong> form claimed the app collected only device IDs. In reality it collects workouts, weight and body measurements, and uses analytics. The listing now declares health and fitness information and app interactions as collected for app functionality and analytics, with device IDs shared only for ads.</p>
+
+<p>The account also needed a <strong>trader status</strong> declaration, plus an app-level confirmation and a link to app-specific terms. That's a legal decision about how you publish, not a checkbox to click through.</p>
+
+<h2>
+  <a name="legal-pages-in-five-languages" href="#legal-pages-in-five-languages">
+  </a>
+  Legal pages in five languages
+</h2>
+
+<p>DotShredzilla's privacy policy, account deletion page and terms of use now live on <a href="https://dotsuite.dev/en/privacy#dotshredzilla" target="_blank" rel="noopener noreferrer">dotsuite.dev</a> in English, Arabic, German, French and Russian:</p>
+
+<ul>
+<li>The <strong>privacy section</strong> describes what's stored, explains that health and fitness data isn't sold or used for ads, and includes in-app deletion.</li>
+<li>The <strong>terms</strong> include a section on training, health and safety: the app isn't medical advice, its suggestions are general, and you should stop if something hurts.</li>
+<li>The <strong>source documents</strong> live in the app's repository under <code>docs/legal</code>, and a script bundles them into the website so the published text and the repository can't drift apart.</li>
+</ul>
+
+<p>DotSuite already had the same pages for DotReminder, so I turned those into shared components rather than copying them. Each app now provides only its own text.</p>
+
+<h2>
+  <a name="cleaning-up-firebase" href="#cleaning-up-firebase">
+  </a>
+  Cleaning up Firebase
+</h2>
+
+<p>The Firebase project still showed its age:</p>
+
+<ul>
+<li>
+<strong>Hosting</strong> showed the default "Welcome to Firebase Hosting" page. It now redirects <code>/privacy</code>, <code>/terms</code> and <code>/delete-account</code> to dotsuite.dev, and serves the update JSON uncached.</li>
+<li>
+<strong>The old privacy policy</strong> on GitHub Pages now forwards to the new one, so two different policies aren't public at the same time.</li>
+<li>
+<strong>The public-facing name</strong> shown in Firebase emails was <code>project-501485535836</code>. It's now DotShredzilla.</li>
+<li>
+<strong>Firestore delete protection</strong> is on.</li>
+<li>
+<strong>A legacy shared collection</strong> from the old app was removed, and the rules now allow nothing outside each user's own documents.</li>
+<li>
+<strong>Scheduled backups</strong> need billing, so they'll come once real users are storing real training history.</li>
+</ul>
+
+<h2>
+  <a name="a-new-icon" href="#a-new-icon">
+  </a>
+  A new icon
+</h2>
+
+<p>The launcher icon became an adaptive vector: claw marks behind a dumbbell, in the brand violet and blue, with a monochrome variant for Android 13 themed icons.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F5mfkqg7ata9i66mv1qbs.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F5mfkqg7ata9i66mv1qbs.png" alt="The new DotShredzilla icon: claw marks behind a dumbbell in violet and blue" loading="lazy" width="512" height="512"></a></p>
+
+<h2>
+  <a name="what-id-tell-myself-before-the-next-release" href="#what-id-tell-myself-before-the-next-release">
+  </a>
+  What I'd tell myself before the next release
+</h2>
+
+<ul>
+<li>Install the minified release build on a real device.</li>
+<li>Read every Play pre-review check. They found a real policy problem before review did.</li>
+<li>Keep the Data safety form, the privacy policy and the code saying the same thing.</li>
+<li>Look at what's actually live on the store before assuming you know the version history.</li>
+</ul>
+
+<p>Version 1.5.1 is going through Play review as I write this. Every part of this series came from using the app, and the next improvements will too.</p>
+
+<p>Part 6 covers what came next: removing every forced ad, selling Pro with Play Billing, and granting ad rewards only after a server has verified them.</p>
+
+<p>What's the most surprising thing Play Console has flagged on one of your releases?</p>
+
+<p><strong>Google Play:</strong> <a href="https://play.google.com/store/apps/details?id=com.FreeRave.shredzilla" target="_blank" rel="noopener noreferrer">DotShredzilla</a></p>
+
+<p><strong>Source:</strong> <a href="https://github.com/kareem2099/Shredzilla" target="_blank" rel="noopener noreferrer">github.com/kareem2099/Shredzilla</a></p>
+
+<p><strong>Privacy &amp; terms:</strong> <a href="https://dotsuite.dev/en/privacy#dotshredzilla" target="_blank" rel="noopener noreferrer">dotsuite.dev</a></p>
+
+<p><strong>Support:</strong> <a href="mailto:support@dotsuite.dev">support@dotsuite.dev</a></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/building-dotshredzilla-part-5-shipping-to-google-play-the-parts-nobody-sees-15k1" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 3 · 💬 2
+    · <a href="https://dev.to/freerave/building-dotshredzilla-part-5-shipping-to-google-play-the-parts-nobody-sees-15k1#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
