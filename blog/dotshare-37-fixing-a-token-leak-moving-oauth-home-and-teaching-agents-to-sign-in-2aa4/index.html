@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare 3.7: Fixing a token leak, moving OAuth home, and teaching agents to sign in — FreeRave</title>
+<meta name="description" content="The small OAuth server behind DotShare's LinkedIn and X sign-in could hand a user's LinkedIn or X...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-37-fixing-a-token-leak-moving-oauth-home-and-teaching-agents-to-sign-in-2aa4">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-37-fixing-a-token-leak-moving-oauth-home-and-teaching-agents-to-sign-in-2aa4">
+<meta property="og:title" content="DotShare 3.7: Fixing a token leak, moving OAuth home, and teaching agents to sign in — FreeRave">
+<meta property="og:description" content="The small OAuth server behind DotShare's LinkedIn and X sign-in could hand a user's LinkedIn or X...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fo0u2oagtyq71907ilnv6.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fo0u2oagtyq71907ilnv6.png" alt="">
+  <h1 class="post-title">DotShare 3.7: Fixing a token leak, moving OAuth home, and teaching agents to sign in</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-23T12:45:48Z">23 November 2026</time> · 9 min read
+    <div class="post-tags"><span class="post-tag">#mcp</span><span class="post-tag">#security</span><span class="post-tag">#oauth</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>The small OAuth server behind DotShare's LinkedIn and X sign-in could hand a user's LinkedIn or X tokens to anyone who sent them the right link. I found it while planning something unrelated: moving DotShare's sign-in from a separate Vercel app onto dotsuite.dev, so every DotShare service would live under one domain.</p>
+
+<p>This post covers that fix, the move, and what the move made possible. AI agents can now sign in through the browser instead of pasting tokens. X tokens renew themselves. Saved drafts can be scheduled. Agents can post videos and read how their posts are doing. It all ships as <strong>DotShare 3.7.0</strong> and <strong><code>dotshare-cli</code> 3.1.0</strong>.</p>
+
+<p>This isn't Part 2 of the series: <a href="https://dev.to/freerave/dotshare-part-2-review-receipts-and-an-encrypted-publishing-library-491h">Part 2</a> covers revision-bound approval and encrypted storage. This one is about sign-in, and what changes once sign-in is done properly.</p>
+
+<h2>
+  <a name="the-old-server-and-three-problems-in-it" href="#the-old-server-and-three-problems-in-it">
+  </a>
+  The old server, and three problems in it
+</h2>
+
+<p>DotShare is an open-source VS Code extension that turns commits and release notes into posts for LinkedIn, X, Bluesky, Mastodon, Telegram, Discord and Dev.to. Since 3.6.0 it also ships a local MCP server, so an agent like Codex or Claude Code can draft and publish through the same library.</p>
+
+<p>LinkedIn and X need OAuth, and OAuth needs a server that holds the client secret. For DotShare that was <code>dotshare-auth-server</code>, a small Next.js app on Vercel. The extension opened <code>/auth/x?scheme=vscode</code> in the browser. The page ran PKCE, the provider sent the user back, the page exchanged the code, and then it sent the tokens to the editor with a deep link:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="nb">window</span><span class="p">.</span><span class="n">location</span><span class="p">.</span><span class="n">href</span> <span class="o">=</span> <span class="sb">`${scheme}://freerave.dotshare/auth?${params}`</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p><strong>1. <code>scheme</code> came straight from the URL.</strong> It was meant to be <code>vscode</code>, <code>cursor</code> and so on, because each editor registers its own URI scheme. Nothing checked it, though. With <code>?scheme=https://attacker.example/?</code>, the "deep link" became an ordinary web URL, and after a perfectly normal LinkedIn or X sign-in, the victim's access and refresh tokens went to the attacker. The attacker only had to get someone to click a sign-in link.</p>
+
+<p><strong>2. The token exchange accepted a <code>userId</code> from the request body</strong> and saved the tokens to that DotSuite account through an internal endpoint. Nothing in DotShare sent <code>userId</code>, but the endpoint was public. Anyone with their own authorization code could attach their social account to someone else's DotSuite user.</p>
+
+<p><strong>3. LinkedIn sign-in had no <code>state</code> parameter</strong>, which left the classic login CSRF open. X had one, because PKCE flows usually do. LinkedIn didn't.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frbylofcswvu0er6a6pyq.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frbylofcswvu0er6a6pyq.png" alt="Before: the sign-in page put any scheme into the deep link, so ?scheme=https://attacker.example/? sent the tokens to the attacker. After: only editor schemes are allowed, anything else becomes vscode. Also fixed: userId from the request body, and LinkedIn's missing state." loading="lazy" width="800" height="450"></a></p>
+
+<p>The fix for the first one is an allowlist with a safe default:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="k">export</span> <span class="kd">const</span> <span class="no">EDITOR_SCHEMES</span> <span class="o">=</span> <span class="p">[</span>
+  <span class="s1">'vscode'</span><span class="p">,</span> <span class="s1">'vscode-insiders'</span><span class="p">,</span> <span class="s1">'vscodium'</span><span class="p">,</span> <span class="s1">'code-oss'</span><span class="p">,</span>
+  <span class="s1">'cursor'</span><span class="p">,</span> <span class="s1">'windsurf'</span><span class="p">,</span> <span class="s1">'kiro'</span><span class="p">,</span> <span class="s1">'trae'</span><span class="p">,</span> <span class="s1">'positron'</span><span class="p">,</span>
+<span class="p">]</span> <span class="k">as</span> <span class="kd">const</span><span class="p">;</span>
+
+<span class="k">export</span> <span class="kd">function</span> <span class="nf">editorScheme</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="kt">string</span> <span class="o">|</span> <span class="kc">null</span> <span class="o">|</span> <span class="kc">undefined</span><span class="p">)</span><span class="p">:</span> <span class="nc">EditorScheme</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="no">EDITOR_SCHEMES</span><span class="p">.</span><span class="nf">find</span><span class="p">(</span><span class="n">scheme</span> <span class="o">=&gt;</span> <span class="n">scheme</span> <span class="o">===</span> <span class="n">value</span><span class="p">)</span> <span class="o">??</span> <span class="s1">'vscode'</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <code>userId</code> field and the sync behind it are gone. Tokens from that server now go only to the user's own editor, and <code>state</code> is required for both providers. The fix went to Vercel before anything else in this post, and it's live there now.</p>
+
+<h2>
+  <a name="moving-signin-onto-dotsuitedev" href="#moving-signin-onto-dotsuitedev">
+  </a>
+  Moving sign-in onto dotsuite.dev
+</h2>
+
+<p>With the holes closed, I moved sign-in into the DotSuite site, which is also Next.js. Instead of copying the client-side flow, I rewrote it to run entirely on the server:</p>
+
+<ol>
+<li>
+<code>GET /api/connect/x</code> creates the state and PKCE verifier and stores them, with the target editor, in an <strong>HMAC-signed, httpOnly cookie</strong> that lasts 10 minutes. Then it redirects to X.</li>
+<li>X redirects back to <code>/api/connect/x/callback</code>. The server checks the signature, compares the state in constant time, and exchanges the code. The client secret never reaches a browser.</li>
+<li>The cookie is cleared whatever the outcome, so each sign-in can be used once.</li>
+</ol>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frbnfpvuinc7ivvutfm8e.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Frbnfpvuinc7ivvutfm8e.png" alt="Sign-in on dotsuite.dev: GET /api/connect/x stores state and the PKCE verifier in a signed httpOnly cookie, X asks the user, and the callback checks the cookie, compares state in constant time and exchanges the code. The result goes to the editor, the DotSuite account, or the CLI." loading="lazy" width="800" height="450"></a></p>
+
+<p>Nothing depends on <code>sessionStorage</code> anymore. A sign-in that expired, or that started in a different browser, ends with a clear message and a <strong>Try again</strong> button instead of a blank page.</p>
+
+<p>The same callback now serves three destinations:</p>
+
+<ul>
+<li>
+<strong>editor</strong>: a small page that opens <code>vscode://freerave.dotshare/auth?...</code> (or Cursor, Windsurf, VSCodium and the others) and offers a button in case the browser asks first.</li>
+<li>
+<strong>cloud</strong>: saves the account to the signed-in DotSuite user for scheduled posts. The user comes from the session, and the callback checks that the same user both started and finished the sign-in.</li>
+<li>
+<strong>cli</strong>: the new one, covered next.</li>
+</ul>
+
+<p>I used a path on the main domain (<code>dotsuite.dev/api/connect</code>) instead of <code>auth.dotsuite.dev</code>. On the same origin, the dashboard's <strong>Connect</strong> button can use the DotSuite session as it is, with no cross-subdomain cookies to manage.</p>
+
+<p>The Vercel server keeps running for now. DotShare 3.6.x calls it directly and refuses HTTP redirects, so redirecting it would quietly break X token refresh for everyone who hasn't updated. It retires once traffic reaches zero.</p>
+
+<h2>
+  <a name="agents-sign-in-through-the-browser" href="#agents-sign-in-through-the-browser">
+  </a>
+  Agents sign in through the browser
+</h2>
+
+<p>Until 3.7, adding a LinkedIn or X account to the agent CLI meant pasting an access token. For LinkedIn, that meant using LinkedIn's token generator, which failed during launch with a "state parameter" error. Now it's one command:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>dotshare-agent accounts connect work-x --platform x
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The browser opens, you approve DotShare on X, and the terminal prints the saved account. There's nothing to copy.</p>
+
+<p>The interesting part is how the tokens get back to the terminal. The CLI listens on <code>127.0.0.1</code> on a random port, and the obvious approach is to redirect the browser to <code>http://127.0.0.1:PORT/callback?access_token=...</code>. That puts live tokens in a URL, in browser history, and in front of anything else listening on that machine.</p>
+
+<p>Instead, the CLI generates a fresh <strong>X25519</strong> key pair for each sign-in and sends dotsuite.dev only the public key and a random nonce. The server encrypts the result to that key:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight typescript"><code><span class="kd">const</span> <span class="n">own</span> <span class="o">=</span> <span class="nf">generateKeyPairSync</span><span class="p">(</span><span class="s1">'x25519'</span><span class="p">)</span><span class="p">;</span>
+<span class="kd">const</span> <span class="n">shared</span> <span class="o">=</span> <span class="nf">diffieHellman</span><span class="p">(</span><span class="p">{</span> <span class="n">privateKey</span><span class="p">:</span> <span class="n">own</span><span class="p">.</span><span class="n">privateKey</span><span class="p">,</span> <span class="n">publicKey</span><span class="p">:</span> <span class="n">cliKey</span> <span class="p">}</span><span class="p">)</span><span class="p">;</span>
+<span class="kd">const</span> <span class="n">key</span> <span class="o">=</span> <span class="nf">hkdfSync</span><span class="p">(</span><span class="s1">'sha256'</span><span class="p">,</span> <span class="n">shared</span><span class="p">,</span> <span class="n">salt</span><span class="p">,</span> <span class="s1">'dotshare-connect-v1'</span><span class="p">,</span> <span class="mi">32</span><span class="p">)</span><span class="p">;</span>
+<span class="c1">// AES-256-GCM over { nonce, platform, token }</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The loopback URL carries only ciphertext. The private key exists in the memory of that one CLI process and nowhere else, so the payload is useless even if it ends up in history.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgaku484gcglj55ktvupx.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fgaku484gcglj55ktvupx.png" alt="The CLI makes an X25519 key pair and a nonce and opens the browser with the public key. dotsuite.dev encrypts the token with AES-256-GCM to that key and redirects to 127.0.0.1 with ciphertext only. The CLI decrypts it, checks the nonce and saves the account to the OS keyring." loading="lazy" width="800" height="450"></a></p>
+
+<p>Encryption alone doesn't stop one thing: anyone can encrypt to a public key. A malicious page could send its own tokens to the CLI's port and connect the user to the attacker's account. The nonce prevents that. It sits inside the ciphertext, the CLI checks it, and the attacker never sees it.</p>
+
+<p>My first version failed the whole sign-in when a result didn't verify. That's a denial of service: any page could cancel your sign-in just by hitting the port. Now results that don't verify are ignored, and only the genuine one (or the timeout) ends the wait. A test sends a forged payload, a wrong platform, garbage and a forged cancel before the real one, and checks that only the real one is saved.</p>
+
+<h2>
+  <a name="x-tokens-that-last-two-hours" href="#x-tokens-that-last-two-hours">
+  </a>
+  X tokens that last two hours
+</h2>
+
+<blockquote>
+<p><strong>Update since 3.8:</strong> X posts now go through DotSuite, which keeps the X token on the server. X tokens no longer reach your device, and the refresh endpoint described here is retired. This section describes how 3.7 handled them.</p>
+</blockquote>
+
+<p>X OAuth 2.0 access tokens expire after about two hours. The agent used to store only the access token, so MCP posting to X stopped working shortly after an account was added.</p>
+
+<p>Accounts connected through the browser now keep the refresh token. Before publishing (or a <code>doctor</code> check), DotShare swaps it through <code>dotsuite.dev/api/connect/refresh/x</code> when the access token has less than five minutes left. Two details mattered.</p>
+
+<p><strong>X rotates refresh tokens.</strong> The old one dies as soon as X accepts the request, so the new pair is written to the OS keyring before it's used. If two MCP clients refresh at the same moment, one of them loses. The loser doesn't fail: it re-reads the keyring, sees that the other process already saved a new pair, and uses that.</p>
+
+<p><strong>Refreshing mustn't invalidate a saved preview.</strong> DotShare binds approval to a preview, and the preview records a fingerprint of every account it targets, so changed credentials force a new review. Hashing the access token would have expired every X preview within two hours. A connected account now gets a <code>connectionId</code> at sign-in, and the fingerprint covers that instead of the rotating tokens. A refresh leaves previews valid. Connecting a different login still invalidates them.</p>
+
+<h2>
+  <a name="scheduling-a-saved-draft" href="#scheduling-a-saved-draft">
+  </a>
+  Scheduling a saved draft
+</h2>
+
+<p><code>schedule_post</code> existed, but it took one text for every platform and public image URLs only. The new <strong><code>schedule_draft</code></strong> takes a previewed draft, with the same revision and preview checks as <code>publish_draft</code>, and sends DotSuite one post per platform, each with that platform's own version. Local images are uploaded to DotSuite first, so a failed upload schedules nothing. The draft's status becomes <code>Scheduled</code>.</p>
+
+<p>The cloud scheduler can't do everything yet, and the tool says so instead of half-doing it. It refuses threads, LinkedIn first comments, videos, Discord and Dev.to with a reason, and it refuses drafts where two accounts on the same platform have different text, because DotSuite holds one connection per platform.</p>
+
+<p>Writing it turned up an old bug. The CLI read the scheduled post's ID from <code>id</code>, but DotSuite returns <code>post_id</code>. Every schedule succeeded, but the receipt never recorded which post to cancel.</p>
+
+<h2>
+  <a name="video-gifs-and-one-thing-i-didnt-ship" href="#video-gifs-and-one-thing-i-didnt-ship">
+  </a>
+  Video, GIFs, and one thing I didn't ship
+</h2>
+
+<p>Agents can now attach MP4 and MOV videos on X, LinkedIn, Mastodon, Telegram and Discord (WebM on Mastodon and Discord), and GIFs on X, Mastodon, Telegram and Discord. Files are identified by their first bytes, not just the extension, and preview shows each platform's size limit before anything uploads.</p>
+
+<p>X needed real work. DotShare's video path used X's v1.1 <code>INIT/APPEND/FINALIZE</code> upload, which doesn't accept OAuth 2.0 user tokens. So video and GIF uploads to X could never have worked with those tokens. Following X's current docs, I replaced it with the v2 chunked upload: <code>initialize</code>, then 4 MB <code>append</code> segments, then <code>finalize</code>, then polling the status until processing succeeds before the post is created.</p>
+
+<p>Bluesky video isn't in this release. Its upload goes through a separate video service with its own auth, and I couldn't get the current documentation or the lexicon files from any source I tried. I wasn't going to ship it from memory, so the preview says plainly that Bluesky accepts images only.</p>
+
+<h2>
+  <a name="smaller-things" href="#smaller-things">
+  </a>
+  Smaller things
+</h2>
+
+<ul>
+<li>
+<strong>Bluesky mentions.</strong> <code>@handle.domain</code> becomes a real mention facet when the handle resolves. Unknown handles stay plain text, as they do in the Bluesky app. Links and hashtags were fixed in 3.6.1.</li>
+<li>
+<strong><code>get_post_stats</code>.</strong> Read-only engagement for something DotShare published: likes, reposts, replies and quotes on X, Bluesky and Mastodon, plus impressions on X, likes and comments on LinkedIn, and views, reactions and comments on Dev.to. Telegram and Discord don't offer message metrics. LinkedIn and X may withhold them depending on the app's access or API plan, and the result says why when that happens.</li>
+<li>
+<strong>One-command setup for Claude Code and Cursor.</strong> <code>setup --client claude</code> registers the server through <code>claude mcp add-json</code>. <code>--client cursor</code> merges into <code>~/.cursor/mcp.json</code> while keeping your other servers, and saves a backup.</li>
+<li>
+<strong>A skill for agents.</strong> The npm package now ships <code>skills/dotshare/SKILL.md</code>, which teaches an agent the draft → preview → approval → publish workflow and the per-platform rules. I checked every tool and field name in it against the server code. That check caught two mistakes in my own first draft: a wrong field name in the template tools, and a claim about Bluesky mentions that wasn't true yet. It's true now.</li>
+</ul>
+
+<h2>
+  <a name="how-it-was-tested" href="#how-it-was-tested">
+  </a>
+  How it was tested
+</h2>
+
+<ul>
+<li>399 Jest tests pass, 18 of them new for this release. The loopback tests use a real HTTP server.</li>
+<li>A cross-repository check ran the real <code>connectAccount</code> from the CLI against the real encryption code from dotsuite.dev, for both LinkedIn and X.</li>
+<li>The existing end-to-end scripts drive the real MCP transport (now 25 tools), the VS Code library bridge and the encrypted store.</li>
+<li>The CLI tarball was installed into a clean prefix and run from there.</li>
+</ul>
+
+<p>Live sign-ins against the production LinkedIn and X apps on dotsuite.dev, including a real X token refresh with rotation, have since been tested too.</p>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try it
+</h2>
+
+
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>npm install -g dotshare-cli
+dotshare-agent setup --client claude        <span class="c"># or --client cursor, or Codex by default</span>
+dotshare-agent accounts connect work-linkedin --platform linkedin
+dotshare-agent doctor --check-accounts
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The VS Code extension is on the <a href="https://marketplace.visualstudio.com/items?itemName=freerave.dotshare" target="_blank" rel="noopener noreferrer">Marketplace</a> and <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX</a>. The <a href="https://github.com/kareem2099/DotShare/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">full changelog</a> and the <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md" target="_blank" rel="noopener noreferrer">agent guide</a> cover everything above in more detail.</p>
+
+<p><em>I used AI assistance (Claude) to build, test and write up this release. The numbers and behavior described come from the shipped code and its tests.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-37-fixing-a-token-leak-moving-oauth-home-and-teaching-agents-to-sign-in-2aa4" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 1
+    · <a href="https://dev.to/freerave/dotshare-37-fixing-a-token-leak-moving-oauth-home-and-teaching-agents-to-sign-in-2aa4#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
