@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare 3.8: X charges per post, so every post now has a receipt — FreeRave</title>
+<meta name="description" content="I was publishing a post to X through DotShare when I noticed that X now needs prepaid credits for...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-38-x-charges-per-post-so-every-post-now-has-a-receipt-43pc">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-38-x-charges-per-post-so-every-post-now-has-a-receipt-43pc">
+<meta property="og:title" content="DotShare 3.8: X charges per post, so every post now has a receipt — FreeRave">
+<meta property="og:description" content="I was publishing a post to X through DotShare when I noticed that X now needs prepaid credits for...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fea2sl8uv0gp6vyilce08.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fea2sl8uv0gp6vyilce08.png" alt="">
+  <h1 class="post-title">DotShare 3.8: X charges per post, so every post now has a receipt</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-24T11:16:47Z">24 November 2026</time> · 8 min read
+    <div class="post-tags"><span class="post-tag">#mcp</span><span class="post-tag">#rust</span><span class="post-tag">#postgres</span><span class="post-tag">#opensource</span></div>
+  </div>
+  <article class="post-body">
+<p>I was publishing a post to X through DotShare when I noticed that X now needs prepaid credits for every post. That's how X's API works now: pay per use, with credits bought in advance. The obvious question followed. Every DotShare user who signs in to X goes through <em>my</em> X app. Whose credits pay for their posts?</p>
+
+<p>Mine. That one question turned into <strong>DotShare 3.8.0</strong> and <strong><code>dotshare-cli</code> 3.2.0</strong>: X posts now go through DotSuite, each plan includes a monthly X budget, and every post is charged what it actually cost. On the way there, writing a privacy policy found three things in DotShare that didn't do what the README said they did.</p>
+
+<p>This follows the <a href="https://dev.to/freerave/dotshare-37-fixing-a-token-leak-moving-oauth-home-and-teaching-agents-to-sign-in-2aa4">3.7 post</a>, where sign-in moved to dotsuite.dev.</p>
+
+<h2>
+  <a name="what-xs-terms-allow" href="#what-xs-terms-allow">
+  </a>
+  What X's terms allow
+</h2>
+
+<p>Before writing any code I read X's developer agreement, the pay-per-use agreement and the developer policy. Three things shaped the design.</p>
+
+<p><strong>The app owner pays.</strong> Credits are bought in the Developer Console and deducted "from your account based on your usage". The terms don't spell out who pays for a post a user authorized through your app. But the user isn't a party to the agreement, and the credits are yours, so that leaves you.</p>
+
+<p><strong>You can't resell credits.</strong> They are non-transferable and non-refundable. "Buy X credits from me" was never an option. "Your plan includes this much X usage" is a different thing: that's selling my own service.</p>
+
+<p><strong>You can't spread the load across apps.</strong> The policy is direct: "You may not register multiple applications for a single use case." I had wondered about running two or three X apps to split the traffic. That's out. The way to scale is X's Enterprise plan.</p>
+
+<p>At X's current list prices, a post costs <strong>$0.015</strong> and a post containing a link costs <strong>$0.200</strong>, about thirteen times more. For a tool that announces releases, links are the whole point.</p>
+
+<h2>
+  <a name="the-rule-never-undercharge" href="#the-rule-never-undercharge">
+  </a>
+  The rule: never under-charge
+</h2>
+
+<blockquote>
+<p><strong>Update since 3.8.1:</strong> DotSuite now holds the most a post can cost, then charges exactly what X deducted and releases the rest, and previews say "up to $X will be held". The first real thread showed that the rule below charged five times what X took. The next post in this series covers the change.</p>
+</blockquote>
+
+<p>A price mistake only hurts in one direction. If a post costs 20 cents and I charge 25, nobody notices. If it costs 10 and I charge 5, I pay the difference on every post. So every decision leans toward charging slightly more rather than less.</p>
+
+<p><strong>Integer micro-dollars.</strong> Every amount is an integer number of millionths of a dollar. Nothing gets lost to floating-point rounding, and a ledger total matches the budget to the micro-dollar.</p>
+
+<p><strong>Assume it's a link.</strong> X auto-links bare domains, so <code>dotsuite.dev</code> costs the same as <code>https://dotsuite.dev</code>. My detector treats any <code>name.tld</code> token as a link. That means <code>README.md</code> is charged as a link too, because <code>.md</code> is a real top-level domain and X really might link it. Overcharging a filename is the cheaper mistake.</p>
+
+<p><strong>Measure what X actually took.</strong> The price table is an estimate, and X can change its prices. So DotSuite reads its own X credit balance right before and right after each post, and charges the user <strong>the larger of the estimate and the difference</strong>:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// Never charge less than X took or than the price table says.</span>
+<span class="kd">let</span> <span class="n">charged</span> <span class="o">=</span> <span class="n">plan</span><span class="p">.</span><span class="n">estimated</span><span class="p">.</span><span class="nf">max</span><span class="p">(</span><span class="n">seen</span><span class="p">.</span><span class="nf">unwrap_or</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="p">)</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>That only works if each balance change belongs to exactly one post. So X posts across all DotSuite servers go out one at a time, under a PostgreSQL advisory lock scoped to a transaction. The lock releases however the function exits, including an early error return. I'd written it as a session lock first, and an error path would have left it held on a pooled connection forever.</p>
+
+<p>A balance change is only trusted when it's plausible: a top-up between the two readings, or a drop of more than a dollar from something unrelated, is ignored rather than billed. Every post's estimate, the amount X actually took, and the charge are all recorded. An admin report compares them per day. If X ever charges more than the table says, it shows up there, and the fix is an environment variable.</p>
+
+<h2>
+  <a name="reserve-first-then-post" href="#reserve-first-then-post">
+  </a>
+  Reserve first, then post
+</h2>
+
+<p>Nothing reaches X without a reservation. One PostgreSQL transaction checks the monthly budget, the user's daily post limit and an app-wide daily spend cap, then reserves the whole request:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight sql"><code><span class="k">UPDATE</span> <span class="n">x_budget_months</span> <span class="k">SET</span> <span class="n">reserved_micros</span> <span class="o">=</span> <span class="n">reserved_micros</span> <span class="o">+</span> <span class="nv">$3</span>
+<span class="k">WHERE</span> <span class="n">user_id</span> <span class="o">=</span> <span class="nv">$1</span> <span class="k">AND</span> <span class="n">month</span> <span class="o">=</span> <span class="nv">$2</span>
+  <span class="k">AND</span> <span class="n">spent_micros</span> <span class="o">+</span> <span class="n">reserved_micros</span> <span class="o">+</span> <span class="nv">$3</span> <span class="o">&lt;=</span> <span class="n">budget_micros</span>
+<span class="k">RETURNING</span> <span class="mi">1</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The condition lives in the <code>UPDATE</code>, so concurrent requests can't both pass a check and then both spend. To prove it, a test fires ten simultaneous 20-cent requests at a user with 77 cents left, on a real PostgreSQL running in Docker. Exactly three succeed.</p>
+
+<p>After posting, each part of a thread settles to one of three outcomes:</p>
+
+<ul>
+<li>
+<strong>Published:</strong> charged as described above.</li>
+<li>
+<strong>Rejected by X:</strong> nothing was posted, so it's free, apart from images X had already accepted. The remaining parts of the thread aren't sent.</li>
+<li>
+<strong>No answer from X:</strong> X may have published it, so it's charged and <strong>never resent automatically</strong>. Retrying could post it twice.</li>
+</ul>
+
+<p>Every request has an idempotency key, so repeating it returns the recorded outcome without posting or charging again. A reservation orphaned by a crash is settled after 30 minutes as "uncertain", charged, and never resent.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbb0ls6u9c62y36qn73lp.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fbb0ls6u9c62y36qn73lp.png" alt="Reserve first, then post: one transaction checks the monthly X budget, the daily post limit and an app-wide cap; posts go out one at a time under an advisory lock with X's balance read before and after; each part settles as published and charged, rejected and free, or no answer, charged and never resent. A test sends ten 20-cent posts at once with 77 cents left, and exactly three get through." loading="lazy" width="800" height="450"></a></p>
+
+<p>Writing this exposed an older bug. When a scheduled post failed on one platform, the scheduler retried the whole post, X included. One flaky Mastodon instance could have posted the same thing to X twice. X now has its own ledger entry per scheduled post, and a retry never sends it again.</p>
+
+<h2>
+  <a name="closing-the-leak" href="#closing-the-leak">
+  </a>
+  Closing the leak
+</h2>
+
+<p>Metering is useless if tokens can post without it. Until 3.8, signing in to X put an access token and a refresh token on the user's machine, and nothing stopped that token from posting directly.</p>
+
+<p>Two changes closed it:</p>
+
+<ol>
+<li>
+<strong>X became a confidential client.</strong> Refreshing a token now needs the app's client secret, which lives only on DotSuite's servers. Tokens already in the wild expire within two hours and can't be renewed.</li>
+<li>
+<strong>Tokens stay on the server.</strong> With <code>X_SERVER_ONLY</code> on, an X sign-in is saved to the user's DotSuite account. The editor or CLI is only told that X is connected, and X posts go through <code>POST /v1/x/posts</code>. The old refresh endpoint returns <code>410 Gone</code>.</li>
+</ol>
+
+<p>There was a cost. DotShare 3.7, which had shipped hours earlier, can't post to X until it's updated. I accepted that, rather than leave a window where anyone with a token could post on my balance.</p>
+
+<p>People who would rather pay X directly can still do that. The CLI accepts an access token from their own X developer app, and then DotSuite isn't involved at all.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fhlqx93mt00z65xc6z808.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fhlqx93mt00z65xc6z808.png" alt="Until 3.8, signing in to X put an access and refresh token on the device, which could post straight to X outside any budget. In 3.8 the X sign-in is saved to the DotSuite account, the device only knows X is connected, posts go through POST /v1/x/posts, and the old refresh endpoint returns 410 Gone." loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="showing-the-cost" href="#showing-the-cost">
+  </a>
+  Showing the cost
+</h2>
+
+<p>A budget only feels fair if you can see it. Before a post goes out, an agent's preview now says exactly what it will cost:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>x-cloud: X will charge $0.215 for 2 post(s), 1 with a link; $4.785 of this month's X budget will be left.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A post the budget can't cover is refused before anything is sent. The extension shows the charge and what's left after each post. The DotSuite dashboard lists recent charges in three columns: the estimate, what X actually deducted, and what you paid. The defaults are $1 a month on Free (roughly 66 text posts, or 5 with links), $5 on Pro and $15 on Max. All of them, and the prices, are environment variables.</p>
+
+<h2>
+  <a name="the-privacy-policy-found-three-bugs" href="#the-privacy-policy-found-three-bugs">
+  </a>
+  The privacy policy found three bugs
+</h2>
+
+<p>LinkedIn and X want a privacy policy URL, so DotShare got its own page. I wrote every sentence against the code rather than from memory, and three sentences turned out to be false.</p>
+
+<ul>
+<li>
+<strong>"Clear All Credentials" didn't exist.</strong> The README mentioned it, and the cleanup function existed, but no button or command called it. It's now a button in Settings and a command, behind a native confirmation, so a webview message alone can't trigger it.</li>
+<li>
+<strong>The live CodeSnap link pointed at a domain that never existed.</strong> "Copy Dynamic CodeSnap Markdown" produced <code>codesnap.dotsuite.dev</code> links, which didn't resolve. DotSuite now draws a gist as a syntax-highlighted image at <code>/api/codesnap/gist/{id}</code>, and refreshes it within ten minutes of an edit.</li>
+<li>
+<strong>Deleting your DotSuite account left your data behind.</strong> It removed the account record and nothing else: connected platform tokens, scheduled posts and their images, API keys and licence data all stayed. Now Core deletes all of it first, including the images in object storage. If any of that fails, the account is kept so the user can retry, instead of leaving data no account can reach. The dashboard also gained a <strong>Disconnect</strong> button for every connected platform.</li>
+</ul>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4vs66hy2n90ofomb13ft.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4vs66hy2n90ofomb13ft.png" alt="Three bugs the privacy policy found: Clear All Credentials existed in code but nothing called it, now a button and a command; live CodeSnap links pointed at a domain that never existed, now dotsuite.dev draws the gist; deleting a DotSuite account left data behind, now Core deletes all of it first." loading="lazy" width="800" height="450"></a></p>
+
+<p>The policy is fully written in English, Arabic, German, French and Russian. It has a section on X costs that says what's recorded for each post: the time, whether it counted as a link post, the image count, the estimate, the measured cost, the charge and the post ID. Post text isn't recorded.</p>
+
+<h2>
+  <a name="how-it-was-tested" href="#how-it-was-tested">
+  </a>
+  How it was tested
+</h2>
+
+<ul>
+<li>
+<strong>Core:</strong> 58 tests. With a test database configured, two more run against real PostgreSQL in Docker. One covers reservations, limits, concurrency, settlement and deletion. The other runs the full publish flow against a mock X API built from axum: chained thread replies, a replay that posts nothing, an X overcharge billed at the real amount, a rejection mid-thread, and a request that times out.</li>
+<li>
+<strong>DotShare:</strong> 405 Jest tests, plus the end-to-end MCP, library and security scripts.</li>
+<li>
+<strong>Live:</strong> real LinkedIn and X sign-ins through dotsuite.dev, a real X token refresh with rotation, and the switch-over confirmed on production with the refresh endpoint returning <code>410</code>.</li>
+</ul>
+
+<p>What I haven't seen yet is a month of real usage. The admin report comparing charged and measured costs is the first thing I'll check.</p>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try it
+</h2>
+
+<p>DotShare 3.8.0 is on the <a href="https://marketplace.visualstudio.com/items?itemName=freerave.dotshare" target="_blank" rel="noopener noreferrer">Marketplace</a> and <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX</a>, and the CLI is on npm:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>npm install -g dotshare-cli
+dotshare-agent cloud login
+dotshare-agent accounts connect my-x --platform x
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The <a href="https://github.com/kareem2099/DotShare/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">changelog</a>, the <a href="https://github.com/kareem2099/DotShare/blob/master/docs/AGENT_INTEGRATION.md" target="_blank" rel="noopener noreferrer">agent guide</a> and the <a href="https://dotsuite.dev/en/dotshare/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a> have the details.</p>
+
+<p><em>I used AI assistance (Claude) to build, test and write up this release. The numbers and behavior described come from the shipped code and its tests.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-38-x-charges-per-post-so-every-post-now-has-a-receipt-43pc" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 0 · 💬 0
+    · <a href="https://dev.to/freerave/dotshare-38-x-charges-per-post-so-every-post-now-has-a-receipt-43pc#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
