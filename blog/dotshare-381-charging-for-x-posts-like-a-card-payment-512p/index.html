@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' https:; frame-src https:; connect-src 'self';">
+<title>DotShare 3.8.1: Charging for X posts like a card payment — FreeRave</title>
+<meta name="description" content="DotShare 3.8 started charging for X posts. X bills DotSuite for every post made through DotShare's X...">
+<link rel="canonical" href="https://dev.to/freerave/dotshare-381-charging-for-x-posts-like-a-card-payment-512p">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://dev.to/freerave/dotshare-381-charging-for-x-posts-like-a-card-payment-512p">
+<meta property="og:title" content="DotShare 3.8.1: Charging for X posts like a card payment — FreeRave">
+<meta property="og:description" content="DotShare 3.8 started charging for X posts. X bills DotSuite for every post made through DotShare's X...">
+<meta property="og:image" content="https://media2.dev.to/dynamic/image/width=1200,height=627,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fusq7o9t52x0dvv1i0id6.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#00e5ff">
+<link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/blog/blog.css">
+</head>
+<body>
+<nav class="blog-nav">
+  <a href="/" class="blog-brand"><span>Free</span>Rave</a>
+  <a href="/blog/">// blog</a>
+</nav>
+<main class="post">
+  <img class="post-cover" src="https://media2.dev.to/dynamic/image/width=1000,height=420,fit=cover,gravity=auto,format=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fusq7o9t52x0dvv1i0id6.png" alt="">
+  <h1 class="post-title">DotShare 3.8.1: Charging for X posts like a card payment</h1>
+  <div class="post-meta">
+    <time datetime="2026-11-25T12:21:17Z">25 November 2026</time> · 7 min read
+    <div class="post-tags"><span class="post-tag">#rust</span><span class="post-tag">#postgres</span><span class="post-tag">#opensource</span><span class="post-tag">#mcp</span></div>
+  </div>
+  <article class="post-body">
+<p><a href="https://dev.to/freerave/dotshare-38-x-charges-per-post-so-every-post-now-has-a-receipt-43pc">DotShare 3.8</a> started charging for X posts. X bills DotSuite for every post made through DotShare's X app, so each plan got a monthly X budget, and each post was charged the larger of two numbers: X's list price, or what DotSuite's X credit balance actually dropped by.</p>
+
+<p>The first real thread showed that rule was wrong. This post is about what replaced it in <strong>DotShare 3.8.1</strong> and <strong><code>dotshare-cli</code> 3.2.1</strong>, and the database bug that stopped the thread from posting at all.</p>
+
+<h2>
+  <a name="the-thread-that-wouldnt-post" href="#the-thread-that-wouldnt-post">
+  </a>
+  The thread that wouldn't post
+</h2>
+
+<p>The first time I posted a real thread to X through the CLI, it failed. The second attempt failed too.</p>
+
+<p>Production logs explained it: X publishing had never been switched on. DotSuite Core applies its database migrations at startup, and three of them, including the one that creates the X billing tables, had failed with <code>permission denied for schema public</code>. Core and the web app share one PostgreSQL database under separate roles, and neither role owns the schema. That's on purpose, since a compromised app can't create or drop tables. But it also means Core can't apply a migration that creates tables.</p>
+
+<p>Core treats a failed migration as "this feature stays off", logs it and carries on. That part worked. The part that didn't was hidden in the pool:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">// Before: run on the pool. A failure left that connection mid-transaction.</span>
+<span class="n">sqlx</span><span class="o">::</span><span class="nf">raw_sql</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="o">&amp;</span><span class="nb">self</span><span class="p">.</span><span class="n">pool</span><span class="p">)</span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The migration file runs as one transaction. When it failed halfway, the connection went back to the pool still inside an aborted transaction, and the next query on that connection failed with <code>current transaction is aborted</code>. Now a failed migration runs on its own connection, and that connection is closed instead of returned:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="kd">let</span> <span class="kd">mut</span> <span class="n">conn</span> <span class="o">=</span> <span class="nb">self</span><span class="p">.</span><span class="n">pool</span><span class="p">.</span><span class="nf">acquire</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+<span class="k">match</span> <span class="n">sqlx</span><span class="o">::</span><span class="nf">raw_sql</span><span class="p">(</span><span class="n">sql</span><span class="p">)</span><span class="p">.</span><span class="nf">execute</span><span class="p">(</span><span class="o">&amp;</span><span class="kd">mut</span> <span class="o">*</span><span class="n">conn</span><span class="p">)</span><span class="p">.</span><span class="k">await</span> <span class="p">{</span>
+    <span class="kc">Ok</span><span class="p">(</span><span class="n">_</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="kc">Ok</span><span class="p">(</span><span class="p">(</span><span class="p">)</span><span class="p">)</span><span class="p">,</span>
+    <span class="kc">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="p">{</span> <span class="kd">let</span> <span class="n">_</span> <span class="o">=</span> <span class="n">conn</span><span class="p">.</span><span class="nf">detach</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="nf">close</span><span class="p">(</span><span class="p">)</span><span class="p">.</span><span class="k">await</span><span class="p">;</span> <span class="kc">Err</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="nf">into</span><span class="p">(</span><span class="p">)</span><span class="p">)</span> <span class="p">}</span>
+<span class="p">}</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>A test proves it with a pool of exactly one connection: run a migration that fails, then check that the next query on the pool still works. The migrations themselves were applied as the database owner, and the role script in the repository now matches production exactly, so the next new table won't surprise me.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4gn3uit2ulq6wvhv1pxl.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F4gn3uit2ulq6wvhv1pxl.png" alt='Before: a migration run on the pool failed halfway through its transaction, the connection went back to the pool still inside it, and the next query failed with "current transaction is aborted". After: each migration gets its own connection, a failed one is closed instead of returned, and a test with a pool of one connection proves the next query still works.' loading="lazy" width="800" height="450"></a></p>
+
+<p>Then the thread posted.</p>
+
+<h2>
+  <a name="what-x-actually-took" href="#what-x-actually-took">
+  </a>
+  What X actually took
+</h2>
+
+<p>The thread had four parts: a post with an image, two replies, and a reply with a link. DotSuite records the estimate, the measured cost and the charge for every part:</p>
+
+<div class="table-wrapper-paragraph"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Estimate</th>
+<th>X took</th>
+<th>Charged</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Post with image</td>
+<td>$0.020</td>
+<td>$0.020</td>
+<td>$0.020</td>
+</tr>
+<tr>
+<td>Reply</td>
+<td>$0.015</td>
+<td>$0.010</td>
+<td>$0.015</td>
+</tr>
+<tr>
+<td>Reply</td>
+<td>$0.015</td>
+<td>$0.010</td>
+<td>$0.015</td>
+</tr>
+<tr>
+<td>Reply with a link</td>
+<td>$0.200</td>
+<td>$0.010</td>
+<td>$0.200</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>$0.250</strong></td>
+<td><strong>$0.050</strong></td>
+<td><strong>$0.250</strong></td>
+</tr>
+</tbody>
+</table></div>
+
+<p>X's list price for a post containing a link is $0.20. Replies in a thread were billed $0.01 each, link or not. I'd charged five times what the thread cost, and the user in this case was me.</p>
+
+<p>Could X have charged the link a few minutes later? The X Developer Console answered that. It showed $0.10 for the last 30 days across nine requests, including that thread. A late $0.20 charge couldn't fit in that total.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdolto79gv3395pnqvrd8.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2Fdolto79gv3395pnqvrd8.png" alt="The first real thread: a post with an image estimated at $0.020, two replies at $0.015 and a reply with a link at $0.200. X took $0.020, $0.010, $0.010 and $0.010, $0.05 in total, but the old rule charged $0.25, five times what it cost." loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="why-not-just-lower-the-prices" href="#why-not-just-lower-the-prices">
+  </a>
+  Why not just lower the prices
+</h2>
+
+<p>The obvious fix is to price replies at $0.01. But I don't know every case where X charges less, and X can change its prices. If I price something low and X bills more, I pay the difference on every post. In 3.8 I made one rule: never under-charge. Lowering the prices breaks it.</p>
+
+<p>What I wanted was to charge exactly what X takes, without ever risking less. Card payments already solve this. A hotel or a gas pump puts a hold on your card for the most it might cost, then settles for the real amount and releases the rest.</p>
+
+<h2>
+  <a name="hold-pending-settle" href="#hold-pending-settle">
+  </a>
+  Hold, pending, settle
+</h2>
+
+<p>Every X post now goes through three steps.</p>
+
+<p><strong>Hold.</strong> Before anything is sent, every part is priced at the most X could charge: anything that might be a link is priced as a link post, even a reply X will bill for less. One PostgreSQL transaction holds the total against the monthly budget, the user's daily post limit and an app-wide daily spend cap. A request the budget can't cover is refused before it reaches X.</p>
+
+<p><strong>Pending.</strong> Each part is posted under a global lock, so a change in X's balance belongs to exactly one post. DotSuite reads its X credit balance before and after. If the deduction hasn't shown up yet, the part stays pending and the balance is read again, up to three times, two seconds apart.</p>
+
+<p><strong>Settle.</strong> When the deduction shows up, that's the charge, and the rest of the hold goes back to the budget. If X took more than the hold, the real amount is charged anyway.</p>
+
+<p>The interesting case is when the deduction doesn't show up. Maybe the balance couldn't be read, or it only dropped by less than X's cheapest post, which means the charge hasn't arrived. Then the whole hold is charged. Not confirming is never cheaper for the user than confirming, but it's never a loss for DotSuite either.<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight rust"><code><span class="c1">/// A deduction counts as X's charge only when it's at least X's cheapest post.</span>
+<span class="k">fn</span> <span class="nf">confirmed</span><span class="p">(</span><span class="n">seen</span><span class="p">:</span> <span class="kt">Option</span><span class="o">&lt;</span><span class="kt">i64</span><span class="o">&gt;</span><span class="p">,</span> <span class="n">prices</span><span class="p">:</span> <span class="o">&amp;</span><span class="nc">XPrices</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kt">Option</span><span class="o">&lt;</span><span class="kt">i64</span><span class="o">&gt;</span> <span class="p">{</span>
+    <span class="n">seen</span><span class="p">.</span><span class="nf">filter</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span> <span class="o">*</span><span class="n">s</span> <span class="o">&gt;=</span> <span class="n">prices</span><span class="p">.</span><span class="n">min_post_micros</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="kd">let</span> <span class="n">charge</span> <span class="o">=</span> <span class="o">||</span> <span class="k">match</span> <span class="nf">confirmed</span><span class="p">(</span><span class="n">seen</span><span class="p">,</span> <span class="n">prices</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kc">Some</span><span class="p">(</span><span class="n">actual</span><span class="p">)</span> <span class="o">=&gt;</span> <span class="n">actual</span><span class="p">,</span>      <span class="c1">// what X took, even above the hold</span>
+    <span class="kc">None</span> <span class="o">=&gt;</span> <span class="n">plan</span><span class="p">.</span><span class="n">estimated</span><span class="p">,</span>      <span class="c1">// unconfirmed: the whole hold</span>
+<span class="p">}</span><span class="p">;</span>
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>All amounts are integer micro-dollars, and X's cheapest post is an environment variable (<code>X_PRICE_MIN_POST_MICROS</code>, $0.01 by default), like every other price.</p>
+
+<p>Under this rule the thread above holds $0.25 and charges $0.05. And it did: the next four-post thread, on November 23, held $0.25 and was charged $0.05.</p>
+
+<p><a href="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0hjf1dmnzhm13daj2klv.png" class="article-body-image-wrapper"><img src="https://media2.dev.to/dynamic/image/width=800%2Cheight=%2Cfit=scale-down%2Cgravity=auto%2Cformat=auto/https%3A%2F%2Fdev-to-uploads.s3.us-east-2.amazonaws.com%2Fuploads%2Farticles%2F0hjf1dmnzhm13daj2klv.png" alt="Hold: every part is priced at the most X could charge and held against the budget. Pending: posts go out one at a time and DotSuite re-reads its X balance up to three times, two seconds apart, until the deduction shows. Settle: the measured deduction is charged and the rest of the hold is released. If X took more, the real amount is charged; if it can't be confirmed, the whole hold is charged; nothing is added later." loading="lazy" width="800" height="450"></a></p>
+
+<h2>
+  <a name="nothing-is-added-later" href="#nothing-is-added-later">
+  </a>
+  Nothing is added later
+</h2>
+
+<p>A card can be charged after the fact. DotSuite never does that to users. Once a post settles, its charge is final.</p>
+
+<p>A charge that turns up later still needs to be noticed, though. An hourly job compares X's balance with what was charged. Posts run one at a time, so any drop between one post's final reading and the next reading wasn't charged to anyone. Those drops add up, and the job logs an error for me with the amount and a pointer to the X console. If X ever bills late, I pay for it and find out within the hour. I'd rather carry that than surprise a user.</p>
+
+<p>The first version had a bug that would have reported every post as unexplained. I recorded the reading after each post as an ordinary reading, so the next check counted the post's own charge as missing. The fix was a separate "this drop was charged" reading, and a test that walks a balance through measured posts, an unmeasured drop and a top-up, and checks that only the unmeasured drop is reported.</p>
+
+<h2>
+  <a name="what-users-see" href="#what-users-see">
+  </a>
+  What users see
+</h2>
+
+<p>The preview had promised an exact price. With a hold that's no longer true, so it now says:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight plaintext"><code>x-cloud: up to $0.25 of your X budget will be held for 4 post(s), 1 with a link.
+You pay what X actually deducts and the rest is released; at least $14.75 of this
+month's X budget will be left.
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The DotSuite dashboard already showed three columns per charge: the estimate, what X deducted, and what you paid. Now the last two match whenever the deduction was confirmed. The privacy policy explains the hold in all five languages it's written in.</p>
+
+<h2>
+  <a name="how-it-was-tested" href="#how-it-was-tested">
+  </a>
+  How it was tested
+</h2>
+
+<ul>
+<li>
+<strong>Core:</strong> 63 tests. The full publish flow runs against a mock X API and real PostgreSQL in Docker. New cases: a reply with a link holds $0.20 and is charged $0.01; a deduction that only shows up on a re-read is still charged correctly; a post whose deduction never shows up is charged the whole hold. The pool test above runs with a pool of one connection.</li>
+<li>
+<strong>DotShare:</strong> 405 Jest tests, including the new preview wording.</li>
+<li>
+<strong>Production:</strong> the migrations applied, <code>/ready</code> returning 200, and the thread above published, measured and compared against the X console.</li>
+</ul>
+
+<h2>
+  <a name="try-it" href="#try-it">
+  </a>
+  Try it
+</h2>
+
+<p>DotShare 3.8.1 is on the <a href="https://marketplace.visualstudio.com/items?itemName=freerave.dotshare" target="_blank" rel="noopener noreferrer">Marketplace</a> and <a href="https://open-vsx.org/extension/freerave/dotshare" target="_blank" rel="noopener noreferrer">Open VSX</a>, and the CLI is on npm:<br>
+</p>
+
+<div class="highlight js-code-highlight">
+<pre class="highlight shell"><code>npm install -g dotshare-cli
+dotshare-agent cloud login
+dotshare-agent accounts connect my-x --platform x
+</code></pre>
+<div class="highlight__panel js-actions-panel">
+<div class="highlight__panel-action js-fullscreen-code-action">
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-on"><title>Enter fullscreen mode</title>
+    <path d="M16 3h6v6h-2V5h-4V3zM2 3h6v2H4v4H2V3zm18 16v-4h2v6h-6v-2h4zM4 19h4v2H2v-6h2v4z"></path>
+</svg>
+
+    <svg xmlns="http://www.w3.org/2000/svg" width="20px" height="20px" viewbox="0 0 24 24" class="highlight-action crayons-icon highlight-action--fullscreen-off"><title>Exit fullscreen mode</title>
+    <path d="M18 7h4v2h-6V3h2v4zM8 9H2V7h4V3h2v6zm10 8v4h-2v-6h6v2h-4zM8 15v6H6v-4H2v-2h6z"></path>
+</svg>
+
+</div>
+</div>
+</div>
+
+
+
+<p>The billing change runs on DotSuite, so it applies to every version that posts to X through it. The <a href="https://github.com/kareem2099/DotShare/blob/master/CHANGELOG.md" target="_blank" rel="noopener noreferrer">changelog</a> and the <a href="https://dotsuite.dev/en/dotshare/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a> have the details.</p>
+
+<p><em>I used AI assistance (Claude) to build, test and write up this release. The numbers and behavior described come from the shipped code, its tests and the production ledger.</em></p>
+
+
+  </article>
+  <div class="post-origin">
+    Originally published on <a href="https://dev.to/freerave/dotshare-381-charging-for-x-posts-like-a-card-payment-512p" target="_blank" rel="noopener noreferrer">dev.to</a>
+    · ❤ 1 · 💬 2
+    · <a href="https://dev.to/freerave/dotshare-381-charging-for-x-posts-like-a-card-payment-512p#comments" target="_blank" rel="noopener noreferrer">Join the discussion →</a>
+  </div>
+</main>
+<footer class="blog-foot"><a href="/">freerave.dev</a> · <a href="https://dev.to/freerave" target="_blank" rel="noopener noreferrer">dev.to/@freerave</a></footer>
+</body>
+</html>
